@@ -1,0 +1,22 @@
+#pragma once
+#include <string>
+#include <vector>
+
+struct FenceItem
+{
+    std::wstring name;
+    std::wstring fullPath;
+    std::wstring originalPath;  // Where the file came from before being added to fence
+    bool isDirectory = false;
+};
+
+struct FenceModel
+{
+    std::wstring id;
+    std::wstring title;
+    int x = 100;
+    int y = 100;
+    int width = 320;
+    int height = 240;
+    std::wstring backingFolder;
+};

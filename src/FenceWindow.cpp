@@ -1,0 +1,499 @@
+#include "FenceWindow.h"
+#include "FenceManager.h"
+#include <commctrl.h>
+#include <shellapi.h>
+#include <shlobj.h>
+#include <windowsx.h>
+#include <algorithm>
+#include <filesystem>
+
+#pragma comment(lib, "Comctl32.lib")
+#pragma comment(lib, "Shell32.lib")
+
+namespace fs = std::filesystem;
+
+static constexpr const wchar_t* kFenceWindowClass = L"SimpleFences_FenceWindow";
+static constexpr int kTitleBarHeight = 28;
+static constexpr int kBorderSize = 1;
+
+FenceWindow::FenceWindow(FenceManager* manager, const FenceModel& model)
+    : m_manager(manager), m_model(model)
+{
+}
+
+FenceWindow::~FenceWindow()
+{
+    Destroy();
+}
+
+bool FenceWindow::Create(HWND parent)
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        WNDCLASSW wc{};
+        wc.lpfnWndProc = FenceWindow::WndProcStatic;
+        wc.hInstance = GetModuleHandleW(nullptr);
+        wc.lpszClassName = kFenceWindowClass;
+        wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+        wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+        wc.style = CS_VREDRAW | CS_HREDRAW;
+
+        if (!RegisterClassW(&wc))
+            return false;
+
+        registered = true;
+    }
+
+    int width = m_model.width;
+    int height = m_model.height;
+
+    m_hwnd = CreateWindowExW(
+        WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+        kFenceWindowClass,
+        m_model.title.c_str(),
+        WS_POPUP | WS_THICKFRAME | WS_VISIBLE,
+        m_model.x,
+        m_model.y,
+        width,
+        height,
+        parent,
+        nullptr,
+        GetModuleHandleW(nullptr),
+        this);
+
+    if (!m_hwnd)
+        return false;
+
+    DragAcceptFiles(m_hwnd, TRUE);
+
+    return true;
+}
+
+void FenceWindow::Show()
+{
+    if (m_hwnd)
+    {
+        ShowWindow(m_hwnd, SW_SHOW);
+        UpdateWindow(m_hwnd);
+    }
+}
+
+void FenceWindow::Destroy()
+{
+    if (m_hwnd)
+    {
+        DragAcceptFiles(m_hwnd, FALSE);
+        DestroyWindow(m_hwnd);
+        m_hwnd = nullptr;
+    }
+}
+
+void FenceWindow::UpdateModel(const FenceModel& model)
+{
+    m_model = model;
+    if (m_hwnd)
+    {
+        SetWindowTextW(m_hwnd, m_model.title.c_str());
+        InvalidateRect(m_hwnd, nullptr, TRUE);
+    }
+}
+
+void FenceWindow::SetItems(const std::vector<FenceItem>& items)
+{
+    m_items = items;
+    if (m_hwnd)
+    {
+        InvalidateRect(m_hwnd, nullptr, TRUE);
+    }
+}
+
+HWND FenceWindow::GetHwnd() const
+{
+    return m_hwnd;
+}
+
+const std::wstring& FenceWindow::GetFenceId() const
+{
+    return m_model.id;
+}
+
+const FenceModel& FenceWindow::GetModel() const
+{
+    return m_model;
+}
+
+LRESULT CALLBACK FenceWindow::WndProcStatic(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    FenceWindow* pThis = nullptr;
+
+    if (msg == WM_NCCREATE)
+    {
+        auto pCreate = reinterpret_cast<CREATESTRUCTW*>(lParam);
+        pThis = reinterpret_cast<FenceWindow*>(pCreate->lpCreateParams);
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, (LONG_PTR)pThis);
+    }
+    else
+    {
+        pThis = reinterpret_cast<FenceWindow*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    }
+
+    if (pThis)
+        return pThis->WndProc(hwnd, msg, wParam, lParam);
+
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+
+LRESULT FenceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg)
+    {
+    case WM_PAINT:
+        OnPaint();
+        return 0;
+
+    case WM_LBUTTONDOWN:
+        OnLButtonDown(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        return 0;
+
+    case WM_MOUSEMOVE:
+        OnMouseMove(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), wParam);
+        return 0;
+
+    case WM_LBUTTONUP:
+        OnLButtonUp();
+        return 0;
+
+    case WM_LBUTTONDBLCLK:
+        OnLButtonDblClk(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        return 0;
+
+    case WM_MOUSELEAVE:
+        m_selectedItem = -1;
+        InvalidateRect(m_hwnd, nullptr, FALSE);
+        return 0;
+
+    case WM_RBUTTONUP:
+        OnContextMenu(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        return 0;
+
+    case WM_DROPFILES:
+        OnDropFiles(reinterpret_cast<HDROP>(wParam));
+        return 0;
+
+    case WM_MOVE:
+    {
+        int x = (int)(short)LOWORD(lParam);
+        int y = (int)(short)HIWORD(lParam);
+        OnMove(x, y);
+        return 0;
+    }
+
+    case WM_SIZE:
+    {
+        int width = (int)(short)LOWORD(lParam);
+        int height = (int)(short)HIWORD(lParam);
+        OnSize(width, height);
+        return 0;
+    }
+
+    case WM_DESTROY:
+        return 0;
+
+    default:
+        return DefWindowProcW(hwnd, msg, wParam, lParam);
+    }
+}
+
+void FenceWindow::OnPaint()
+{
+    PAINTSTRUCT ps{};
+    HDC hdc = BeginPaint(m_hwnd, &ps);
+
+    RECT rc{};
+    GetClientRect(m_hwnd, &rc);
+
+    // Draw background
+    HBRUSH bgBrush = CreateSolidBrush(RGB(45, 45, 45));
+    FillRect(hdc, &rc, bgBrush);
+    DeleteObject(bgBrush);
+
+    // Draw title bar
+    RECT titleRc = rc;
+    titleRc.bottom = kTitleBarHeight;
+    HBRUSH titleBrush = CreateSolidBrush(RGB(65, 65, 65));
+    FillRect(hdc, &titleRc, titleBrush);
+    DeleteObject(titleBrush);
+
+    // Draw title text
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, RGB(240, 240, 240));
+    RECT textRc = titleRc;
+    textRc.left += 8;
+    textRc.top += 4;
+    DrawTextW(hdc, m_model.title.c_str(), -1, &textRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+    // Draw items
+    int itemY = kTitleBarHeight + 8;
+    SetTextColor(hdc, RGB(200, 200, 200));
+    for (int i = 0; i < static_cast<int>(m_items.size()); ++i)
+    {
+        const auto& item = m_items[i];
+        RECT itemRc = rc;
+        itemRc.left += 8;
+        itemRc.top = itemY;
+        itemRc.bottom = itemY + 20;
+        itemRc.right -= 8;
+
+        // Highlight selected item
+        if (i == m_selectedItem)
+        {
+            HBRUSH hiBrush = CreateSolidBrush(RGB(85, 85, 85));
+            FillRect(hdc, &itemRc, hiBrush);
+            DeleteObject(hiBrush);
+            SetTextColor(hdc, RGB(240, 240, 240));
+        }
+        else
+        {
+            SetTextColor(hdc, RGB(200, 200, 200));
+        }
+
+        std::wstring displayText = item.name;
+        if (item.isDirectory)
+            displayText += L" [folder]";
+
+        DrawTextW(hdc, displayText.c_str(), -1, &itemRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        itemY += 20;
+    }
+
+    EndPaint(m_hwnd, &ps);
+}
+
+void FenceWindow::OnLButtonDown(int x, int y)
+{
+    if (y < kTitleBarHeight)
+    {
+        m_dragging = true;
+        m_dragStart = { x, y };
+        GetWindowRect(m_hwnd, &m_windowStart);
+        SetCapture(m_hwnd);
+    }
+}
+
+void FenceWindow::OnMouseMove(int x, int y, WPARAM flags)
+{
+    if (m_dragging && (flags & MK_LBUTTON))
+    {
+        int dx = x - m_dragStart.x;
+        int dy = y - m_dragStart.y;
+
+        int newX = m_windowStart.left + dx;
+        int newY = m_windowStart.top + dy;
+
+        SetWindowPos(m_hwnd, nullptr, newX, newY, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+    }
+    else
+    {
+        // Track item under cursor for highlight
+        int item = GetItemAtPosition(x, y);
+        if (item != m_selectedItem)
+        {
+            m_selectedItem = item;
+            InvalidateRect(m_hwnd, nullptr, FALSE);
+        }
+    }
+}
+
+void FenceWindow::OnLButtonUp()
+{
+    if (m_dragging)
+    {
+        m_dragging = false;
+        ReleaseCapture();
+
+        // Save new position
+        if (m_manager)
+        {
+            auto fence = m_manager->FindFence(m_model.id);
+            if (fence)
+            {
+                RECT rc{};
+                GetWindowRect(m_hwnd, &rc);
+                fence->x = rc.left;
+                fence->y = rc.top;
+                m_manager->SaveAll();
+            }
+        }
+    }
+}
+
+void FenceWindow::OnContextMenu(int x, int y)
+{
+    int itemIndex = GetItemAtPosition(x, y);
+    HMENU menu = CreatePopupMenu();
+
+    if (itemIndex >= 0)
+    {
+        // Item context menu
+        AppendMenuW(menu, MF_STRING, 2001, L"Open");
+        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(menu, MF_STRING, 2002, L"Delete Item");
+    }
+    else
+    {
+        // Fence context menu
+        AppendMenuW(menu, MF_STRING, 1001, L"New Fence");
+        AppendMenuW(menu, MF_STRING, 1002, L"Rename Fence");
+        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(menu, MF_STRING, 1003, L"Delete Fence");
+    }
+
+    POINT pt = { x, y };
+    ClientToScreen(m_hwnd, &pt);
+
+    int cmd = TrackPopupMenuEx(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, m_hwnd, nullptr);
+    DestroyMenu(menu);
+
+    switch (cmd)
+    {
+    case 1001: // New Fence
+        if (m_manager)
+            m_manager->CreateFenceAt(pt.x, pt.y);
+        break;
+
+    case 1002: // Rename
+        // TODO: Implement rename dialog
+        break;
+
+    case 1003: // Delete Fence
+        if (m_manager)
+            m_manager->DeleteFence(m_model.id);
+        break;
+
+    case 2001: // Open item
+        if (itemIndex >= 0)
+            ExecuteItem(itemIndex);
+        break;
+
+    case 2002: // Delete item
+        if (itemIndex >= 0 && itemIndex < static_cast<int>(m_items.size()))
+        {
+            const auto& item = m_items[itemIndex];
+            // Restore item to original location if available
+            if (!item.originalPath.empty())
+            {
+                std::error_code ec;
+                fs::path src(item.fullPath);
+                fs::path dest(item.originalPath);
+
+                if (fs::exists(src))
+                {
+                    // Ensure destination directory exists
+                    fs::path destDir = dest.parent_path();
+                    if (!fs::exists(destDir))
+                        fs::create_directories(destDir);
+
+                    if (fs::is_directory(src))
+                    {
+                        fs::copy(src, dest, fs::copy_options::recursive, ec);
+                        if (!ec)
+                            fs::remove_all(src, ec);
+                    }
+                    else
+                    {
+                        fs::copy_file(src, dest, fs::copy_options::overwrite_existing, ec);
+                        if (!ec)
+                            fs::remove(src, ec);
+                    }
+                }
+            }
+            else
+            {
+                // No original path - just delete from fence
+                std::error_code ec;
+                if (std::filesystem::is_directory(item.fullPath))
+                    std::filesystem::remove_all(item.fullPath, ec);
+                else
+                    std::filesystem::remove(item.fullPath, ec);
+            }
+            
+            if (m_manager)
+                m_manager->RefreshFence(m_model.id);
+        }
+        break;
+    }
+}
+
+void FenceWindow::OnDropFiles(HDROP hDrop)
+{
+    UINT count = DragQueryFileW(hDrop, 0xFFFFFFFF, nullptr, 0);
+    std::vector<std::wstring> paths;
+
+    for (UINT i = 0; i < count; ++i)
+    {
+        wchar_t path[MAX_PATH]{};
+        DragQueryFileW(hDrop, i, path, MAX_PATH);
+        paths.push_back(path);
+    }
+
+    DragFinish(hDrop);
+
+    if (m_manager)
+        m_manager->HandleDrop(m_model.id, paths);
+}
+
+void FenceWindow::OnMove(int x, int y)
+{
+    // Update model position
+    m_model.x = x;
+    m_model.y = y;
+}
+
+void FenceWindow::OnSize(int width, int height)
+{
+    // Update model size
+    m_model.width = width;
+    m_model.height = height;
+    InvalidateRect(m_hwnd, nullptr, TRUE);
+}
+
+int FenceWindow::GetItemAtPosition(int x, int y) const
+{
+    // Check if click is in title bar
+    if (y < kTitleBarHeight)
+        return -1;
+
+    // Calculate which item was clicked
+    int itemY = kTitleBarHeight + 8;
+    int itemIndex = 0;
+
+    for (const auto& item : m_items)
+    {
+        if (y >= itemY && y < itemY + 20)
+            return itemIndex;
+        itemY += 20;
+        ++itemIndex;
+    }
+
+    return -1;
+}
+
+void FenceWindow::ExecuteItem(int itemIndex)
+{
+    if (itemIndex < 0 || itemIndex >= static_cast<int>(m_items.size()))
+        return;
+
+    const auto& item = m_items[itemIndex];
+    
+    // Use ShellExecute to open the file/folder
+    ShellExecuteW(m_hwnd, L"open", item.fullPath.c_str(), nullptr, nullptr, SW_SHOW);
+}
+
+void FenceWindow::OnLButtonDblClk(int x, int y)
+{
+    int itemIndex = GetItemAtPosition(x, y);
+    if (itemIndex >= 0)
+    {
+        ExecuteItem(itemIndex);
+    }
+}
