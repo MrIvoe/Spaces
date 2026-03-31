@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <RootNamespace>IVOEFences.Tests</RootNamespace>
+    <AssemblyName>IVOEFences.Tests</AssemblyName>
+    <Version>0.0.014</Version>
+    <InformationalVersion>0.0.014</InformationalVersion>
+    <AssemblyVersion>0.0.14.0</AssemblyVersion>
+    <FileVersion>0.0.14.0</FileVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.8.1" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" Version="8.9.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\IVOEFences.Core\IVOEFences.Core.csproj" />
+    <ProjectReference Include="..\IVOEFences.Shell\IVOEFences.Shell.csproj" />
+  </ItemGroup>
+
+</Project>

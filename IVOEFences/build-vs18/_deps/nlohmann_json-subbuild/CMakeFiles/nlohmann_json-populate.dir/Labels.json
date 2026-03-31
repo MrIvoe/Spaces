@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/_deps/nlohmann_json-subbuild/CMakeFiles/nlohmann_json-populate"
+		},
+		{
+			"file" : "C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/_deps/nlohmann_json-subbuild/CMakeFiles/05b0c8de76dad52a28c5b6994912e2e7/nlohmann_json-populate.rule"
+		},
+		{
+			"file" : "C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/_deps/nlohmann_json-subbuild/CMakeFiles/437abdd389b5a95cdbd6e4fb0cfe5e12/nlohmann_json-populate-complete.rule"
+		},
+		{
+			"file" : "C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/_deps/nlohmann_json-subbuild/CMakeFiles/f172c50b7aceeb1632593f4efb6e9dc9/nlohmann_json-populate-build.rule"
+		},
+		{
+			"file" : "C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/_deps/nlohmann_json-subbuild/CMakeFiles/f172c50b7aceeb1632593f4efb6e9dc9/nlohmann_json-populate-configure.rule"
+		},
+		{
+			"file" : "C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/_deps/nlohmann_json-subbuild/CMakeFiles/f172c50b7aceeb1632593f4efb6e9dc9/nlohmann_json-populate-download.rule"
+		},
+		{
+			"file" : "C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/_deps/nlohmann_json-subbuild/CMakeFiles/f172c50b7aceeb1632593f4efb6e9dc9/nlohmann_json-populate-install.rule"
+		},
+		{
+			"file" : "C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/_deps/nlohmann_json-subbuild/CMakeFiles/f172c50b7aceeb1632593f4efb6e9dc9/nlohmann_json-populate-mkdir.rule"
+		},
+		{
+			"file" : "C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/_deps/nlohmann_json-subbuild/CMakeFiles/f172c50b7aceeb1632593f4efb6e9dc9/nlohmann_json-populate-patch.rule"
+		},
+		{
+			"file" : "C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/_deps/nlohmann_json-subbuild/CMakeFiles/f172c50b7aceeb1632593f4efb6e9dc9/nlohmann_json-populate-test.rule"
+		},
+		{
+			"file" : "C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/_deps/nlohmann_json-subbuild/CMakeFiles/f172c50b7aceeb1632593f4efb6e9dc9/nlohmann_json-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"nlohmann_json-populate"
+		],
+		"name" : "nlohmann_json-populate"
+	}
+}

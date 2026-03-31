@@ -1,0 +1,7 @@
+C:\Users\MrIvo\Github\IVOEFences\build\publish\win-x64\IVOEFences.pdb
+C:\Users\MrIvo\Github\IVOEFences\build\publish\win-x64\Resources\IVOEFences.ico
+C:\Users\MrIvo\Github\IVOEFences\build\publish\win-x64\Resources\Icons\Fluent\FluentSystemIcons-Regular.json
+C:\Users\MrIvo\Github\IVOEFences\build\publish\win-x64\Resources\Icons\Fluent\FluentSystemIcons-Regular.ttf
+C:\Users\MrIvo\Github\IVOEFences\build\publish\win-x64\Resources\Icons\Fluent\LICENSE.FluentUI-System-Icons.txt
+C:\Users\MrIvo\Github\IVOEFences\build\publish\win-x64\IVOEFences.Core.pdb
+C:\Users\MrIvo\Github\IVOEFences\build\publish\win-x64\IVOEFences.exe

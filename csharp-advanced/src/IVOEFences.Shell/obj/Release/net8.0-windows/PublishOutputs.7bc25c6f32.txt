@@ -1,0 +1,16 @@
+C:\Users\MrIvo\Github\IVOEFences\build\IVOEFences.exe
+C:\Users\MrIvo\Github\IVOEFences\build\Resources\IVOEFences.ico
+C:\Users\MrIvo\Github\IVOEFences\build\Resources\Icons\Fluent\FluentSystemIcons-Regular.json
+C:\Users\MrIvo\Github\IVOEFences\build\Resources\Icons\Fluent\FluentSystemIcons-Regular.ttf
+C:\Users\MrIvo\Github\IVOEFences\build\Resources\Icons\Fluent\LICENSE.FluentUI-System-Icons.txt
+C:\Users\MrIvo\Github\IVOEFences\build\IVOEFences.dll
+C:\Users\MrIvo\Github\IVOEFences\build\IVOEFences.deps.json
+C:\Users\MrIvo\Github\IVOEFences\build\IVOEFences.runtimeconfig.json
+C:\Users\MrIvo\Github\IVOEFences\build\IVOEFences.pdb
+C:\Users\MrIvo\Github\IVOEFences\build\Microsoft.Win32.SystemEvents.dll
+C:\Users\MrIvo\Github\IVOEFences\build\Serilog.dll
+C:\Users\MrIvo\Github\IVOEFences\build\Serilog.Sinks.File.dll
+C:\Users\MrIvo\Github\IVOEFences\build\System.Drawing.Common.dll
+C:\Users\MrIvo\Github\IVOEFences\build\runtimes\win\lib\net8.0\Microsoft.Win32.SystemEvents.dll
+C:\Users\MrIvo\Github\IVOEFences\build\IVOEFences.Core.dll
+C:\Users\MrIvo\Github\IVOEFences\build\IVOEFences.Core.pdb

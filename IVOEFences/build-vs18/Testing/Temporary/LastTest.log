@@ -1,0 +1,19 @@
+Start testing: Mar 31 15:24 Pacific Daylight Time
+----------------------------------------------------------
+1/1 Testing: IVOEFencesIntegrationTests
+1/1 Test: IVOEFencesIntegrationTests
+Command: "C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/IVOEFencesIntegrationTests.exe"
+Directory: C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18
+"IVOEFencesIntegrationTests" start time: Mar 31 15:24 Pacific Daylight Time
+Output:
+----------------------------------------------------------
+Integration tests passed
+<end of output>
+Test time =   0.33 sec
+----------------------------------------------------------
+Test Passed.
+"IVOEFencesIntegrationTests" end time: Mar 31 15:24 Pacific Daylight Time
+"IVOEFencesIntegrationTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Mar 31 15:24 Pacific Daylight Time

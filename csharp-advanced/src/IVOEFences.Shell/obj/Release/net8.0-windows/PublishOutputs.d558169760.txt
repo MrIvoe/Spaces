@@ -1,0 +1,13 @@
+C:\Users\MrIvo\Github\OpenFences\artifacts\publish\OpenFences.Shell\OpenFences.exe
+C:\Users\MrIvo\Github\OpenFences\artifacts\publish\OpenFences.Shell\Resources\OpenFences.ico
+C:\Users\MrIvo\Github\OpenFences\artifacts\publish\OpenFences.Shell\OpenFences.dll
+C:\Users\MrIvo\Github\OpenFences\artifacts\publish\OpenFences.Shell\OpenFences.deps.json
+C:\Users\MrIvo\Github\OpenFences\artifacts\publish\OpenFences.Shell\OpenFences.runtimeconfig.json
+C:\Users\MrIvo\Github\OpenFences\artifacts\publish\OpenFences.Shell\OpenFences.pdb
+C:\Users\MrIvo\Github\OpenFences\artifacts\publish\OpenFences.Shell\Microsoft.Win32.SystemEvents.dll
+C:\Users\MrIvo\Github\OpenFences\artifacts\publish\OpenFences.Shell\Serilog.dll
+C:\Users\MrIvo\Github\OpenFences\artifacts\publish\OpenFences.Shell\Serilog.Sinks.File.dll
+C:\Users\MrIvo\Github\OpenFences\artifacts\publish\OpenFences.Shell\System.Drawing.Common.dll
+C:\Users\MrIvo\Github\OpenFences\artifacts\publish\OpenFences.Shell\runtimes\win\lib\net8.0\Microsoft.Win32.SystemEvents.dll
+C:\Users\MrIvo\Github\OpenFences\artifacts\publish\OpenFences.Shell\OpenFences.Core.dll
+C:\Users\MrIvo\Github\OpenFences\artifacts\publish\OpenFences.Shell\OpenFences.Core.pdb

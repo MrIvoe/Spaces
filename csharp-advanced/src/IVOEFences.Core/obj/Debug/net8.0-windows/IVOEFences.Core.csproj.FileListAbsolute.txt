@@ -1,0 +1,13 @@
+C:\Users\MrIvo\Github\IVOEFences\src\IVOEFences.Core\bin\Debug\net8.0-windows\IVOEFences.Core.deps.json
+C:\Users\MrIvo\Github\IVOEFences\src\IVOEFences.Core\bin\Debug\net8.0-windows\IVOEFences.Core.dll
+C:\Users\MrIvo\Github\IVOEFences\src\IVOEFences.Core\bin\Debug\net8.0-windows\IVOEFences.Core.pdb
+C:\Users\MrIvo\Github\IVOEFences\src\IVOEFences.Core\obj\Debug\net8.0-windows\IVOEFences.Core.csproj.AssemblyReference.cache
+C:\Users\MrIvo\Github\IVOEFences\src\IVOEFences.Core\obj\Debug\net8.0-windows\IVOEFences.Core.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\MrIvo\Github\IVOEFences\src\IVOEFences.Core\obj\Debug\net8.0-windows\IVOEFences.Core.AssemblyInfoInputs.cache
+C:\Users\MrIvo\Github\IVOEFences\src\IVOEFences.Core\obj\Debug\net8.0-windows\IVOEFences.Core.AssemblyInfo.cs
+C:\Users\MrIvo\Github\IVOEFences\src\IVOEFences.Core\obj\Debug\net8.0-windows\IVOEFences.Core.csproj.CoreCompileInputs.cache
+C:\Users\MrIvo\Github\IVOEFences\src\IVOEFences.Core\obj\Debug\net8.0-windows\IVOEFences.Core.sourcelink.json
+C:\Users\MrIvo\Github\IVOEFences\src\IVOEFences.Core\obj\Debug\net8.0-windows\IVOEFences.Core.dll
+C:\Users\MrIvo\Github\IVOEFences\src\IVOEFences.Core\obj\Debug\net8.0-windows\refint\IVOEFences.Core.dll
+C:\Users\MrIvo\Github\IVOEFences\src\IVOEFences.Core\obj\Debug\net8.0-windows\IVOEFences.Core.pdb
+C:\Users\MrIvo\Github\IVOEFences\src\IVOEFences.Core\obj\Debug\net8.0-windows\ref\IVOEFences.Core.dll

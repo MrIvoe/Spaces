@@ -1,0 +1,12 @@
+C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/CMakeFiles/Experimental.dir
+C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/CMakeFiles/Nightly.dir
+C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/CMakeFiles/Continuous.dir
+C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/CMakeFiles/NightlyMemoryCheck.dir
+C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/CMakeFiles/IVOEFences.dir
+C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/CMakeFiles/UserActionHelper.dir
+C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/CMakeFiles/IVOEFencesIntegrationTests.dir
+C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/CMakeFiles/RUN_TESTS.dir
+C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/CMakeFiles/ALL_BUILD.dir
+C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/CMakeFiles/ZERO_CHECK.dir
+C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/_deps/nlohmann_json-build/CMakeFiles/RUN_TESTS.dir
+C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/_deps/nlohmann_json-build/CMakeFiles/ALL_BUILD.dir
