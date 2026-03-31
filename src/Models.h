@@ -8,6 +8,7 @@ struct FenceItem
     std::wstring fullPath;
     std::wstring originalPath;  // Where the file came from before being added to fence
     bool isDirectory = false;
+    int iconIndex = 0;          // Index into system image list for small icons
 };
 
 struct FenceModel

@@ -38,12 +38,14 @@ private:
 
     int GetItemAtPosition(int x, int y) const;
     void ExecuteItem(int itemIndex);
+    bool InitializeImageList();
 
 private:
     FenceManager* m_manager;
     FenceModel m_model;
     std::vector<FenceItem> m_items;
     HWND m_hwnd = nullptr;
+    HIMAGELIST m_imageList = nullptr;  // System image list for file icons
     bool m_dragging = false;
     POINT m_dragStart{};
     RECT m_windowStart{};

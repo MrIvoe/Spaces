@@ -2,6 +2,8 @@
 #include "Win32Helpers.h"
 #include <filesystem>
 #include <windows.h>
+#include <shellapi.h>
+#include <shlobj.h>
 #include <fstream>
 #include <sstream>
 
@@ -60,6 +62,7 @@ std::vector<FenceItem> FenceStorage::ScanFenceItems(const std::wstring& folder) 
             item.name = entry.path().filename().wstring();
             item.fullPath = entry.path().wstring();
             item.isDirectory = fs::is_directory(entry);
+            item.iconIndex = GetFileIconIndex(item.fullPath);
 
             // Look up original path
             auto it = origins.find(item.name);
@@ -296,5 +299,27 @@ bool FenceStorage::RestoreAllItems(const std::wstring& fenceFolder)
     catch (const std::exception&)
     {
         return false;
+    }
+}
+
+int FenceStorage::GetFileIconIndex(const std::wstring& filePath)
+{
+    try
+    {
+        SHFILEINFOW sfi{};
+        HIMAGELIST hImageList = reinterpret_cast<HIMAGELIST>(
+            SHGetFileInfoW(filePath.c_str(), FILE_ATTRIBUTE_NORMAL, &sfi, sizeof(sfi), 
+                          SHGFI_SYSICONINDEX | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES)
+        );
+
+        // Icon index should be valid when we get the image list handle
+        if (hImageList != nullptr)
+            return sfi.iIcon;
+
+        return 0;  // Default icon index
+    }
+    catch (const std::exception&)
+    {
+        return 0;
     }
 }

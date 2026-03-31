@@ -20,6 +20,9 @@ public:
     bool RestoreItemToOrigin(const std::wstring& fenceFolder, const FenceItem& item);
     bool RestoreAllItems(const std::wstring& fenceFolder);
 
+    // Icon utilities
+    static int GetFileIconIndex(const std::wstring& filePath);
+
 private:
     void SaveItemOrigins(const std::wstring& fenceFolder, const std::map<std::wstring, std::wstring>& origins);
     std::map<std::wstring, std::wstring> LoadItemOrigins(const std::wstring& fenceFolder) const;

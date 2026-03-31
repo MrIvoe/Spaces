@@ -66,6 +66,7 @@ bool FenceWindow::Create(HWND parent)
         return false;
 
     DragAcceptFiles(m_hwnd, TRUE);
+    InitializeImageList();
 
     return true;
 }
@@ -236,13 +237,16 @@ void FenceWindow::OnPaint()
     // Draw items
     int itemY = kTitleBarHeight + 8;
     SetTextColor(hdc, RGB(200, 200, 200));
+    static constexpr int kItemHeight = 24;  // 16px icon + 4px padding top/bottom
+    static constexpr int kIconSize = 16;
+    
     for (int i = 0; i < static_cast<int>(m_items.size()); ++i)
     {
         const auto& item = m_items[i];
         RECT itemRc = rc;
         itemRc.left += 8;
         itemRc.top = itemY;
-        itemRc.bottom = itemY + 20;
+        itemRc.bottom = itemY + kItemHeight;
         itemRc.right -= 8;
 
         // Highlight selected item
@@ -258,12 +262,33 @@ void FenceWindow::OnPaint()
             SetTextColor(hdc, RGB(200, 200, 200));
         }
 
+        // Draw icon if available
+        if (item.iconIndex >= 0)
+        {
+            // Get system image list for drawing
+            SHFILEINFOW sfi{};
+            HIMAGELIST hImageList = reinterpret_cast<HIMAGELIST>(
+                SHGetFileInfoW(L".", FILE_ATTRIBUTE_NORMAL, &sfi, sizeof(sfi),
+                              SHGFI_SYSICONINDEX | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES)
+            );
+            
+            if (hImageList)
+            {
+                int iconX = itemRc.left + 2;
+                int iconY = itemRc.top + (kItemHeight - kIconSize) / 2;
+                ImageList_Draw(hImageList, item.iconIndex, hdc, iconX, iconY, ILD_TRANSPARENT);
+            }
+        }
+
+        // Draw text beside the icon
         std::wstring displayText = item.name;
         if (item.isDirectory)
             displayText += L" [folder]";
 
-        DrawTextW(hdc, displayText.c_str(), -1, &itemRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-        itemY += 20;
+        RECT textRc = itemRc;
+        textRc.left += kIconSize + 6;  // Icon + spacing
+        DrawTextW(hdc, displayText.c_str(), -1, &textRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        itemY += kItemHeight;
     }
 
     EndPaint(m_hwnd, &ps);
@@ -466,12 +491,13 @@ int FenceWindow::GetItemAtPosition(int x, int y) const
     // Calculate which item was clicked
     int itemY = kTitleBarHeight + 8;
     int itemIndex = 0;
+    static constexpr int kItemHeight = 24;
 
     for (const auto& item : m_items)
     {
-        if (y >= itemY && y < itemY + 20)
+        if (y >= itemY && y < itemY + kItemHeight)
             return itemIndex;
-        itemY += 20;
+        itemY += kItemHeight;
         ++itemIndex;
     }
 
@@ -495,5 +521,25 @@ void FenceWindow::OnLButtonDblClk(int x, int y)
     if (itemIndex >= 0)
     {
         ExecuteItem(itemIndex);
+    }
+}
+
+bool FenceWindow::InitializeImageList()
+{
+    // Get system small image list handle
+    // We don't own this handle - it's managed by Windows, so we don't destroy it
+    try
+    {
+        SHFILEINFOW sfi{};
+        m_imageList = reinterpret_cast<HIMAGELIST>(
+            SHGetFileInfoW(L".", FILE_ATTRIBUTE_NORMAL, &sfi, sizeof(sfi), 
+                          SHGFI_SYSICONINDEX | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES)
+        );
+        return m_imageList != nullptr;
+    }
+    catch (const std::exception&)
+    {
+        m_imageList = nullptr;
+        return false;
     }
 }

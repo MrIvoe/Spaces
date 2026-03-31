@@ -1,0 +1,38 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build SimpleFences Debug",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-Command",
+                "$vsPath = & \"${workspaceFolder}/find-vs.ps1\" 2>$null; if ($vsPath) { & \"$vsPath\\VC\\Auxiliary\\Build\\vcvars64.bat\" > $null; msbuild \"${workspaceFolder}/build/SimpleFences.sln\" /p:Configuration=Debug /v:minimal } else { Write-Error 'Visual Studio not found' }"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "problemMatcher": [
+                "$msCompile"
+            ]
+        },
+        {
+            "label": "Run SimpleFences",
+            "type": "shell",
+            "command": "${workspaceFolder}/build/bin/Debug/SimpleFences.exe",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            }
+        }
+    ]
+}
