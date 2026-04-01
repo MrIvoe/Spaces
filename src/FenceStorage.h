@@ -1,4 +1,5 @@
 #pragma once
+#include <filesystem>
 #include <string>
 #include <vector>
 #include <map>
@@ -16,14 +17,17 @@ public:
 
     std::wstring EnsureFenceFolder(const std::wstring& fenceId);
     std::vector<FenceItem> ScanFenceItems(const std::wstring& folder) const;
-    bool MovePathsIntoFence(const std::vector<std::wstring>& sourcePaths, const std::wstring& fenceFolder);
+    FileMoveResult MovePathsIntoFence(const std::vector<std::wstring>& sourcePaths, const std::wstring& fenceFolder);
     bool RestoreItemToOrigin(const std::wstring& fenceFolder, const FenceItem& item);
     bool RestoreAllItems(const std::wstring& fenceFolder);
+    bool DeleteItem(const std::wstring& fenceFolder, const FenceItem& item);
+    bool DeleteFenceFolderIfEmpty(const std::wstring& fenceFolder);
 
     // Icon utilities
     static int GetFileIconIndex(const std::wstring& filePath);
 
 private:
+    std::filesystem::path GenerateNonConflictingPath(const std::filesystem::path& target) const;
     void SaveItemOrigins(const std::wstring& fenceFolder, const std::map<std::wstring, std::wstring>& origins);
     std::map<std::wstring, std::wstring> LoadItemOrigins(const std::wstring& fenceFolder) const;
     std::wstring GetOriginsPath(const std::wstring& fenceFolder) const;

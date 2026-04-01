@@ -23,7 +23,11 @@ public:
     HINSTANCE GetInstance() const { return m_hInstance; }
 
 private:
+    void Shutdown();
+
+private:
     HINSTANCE m_hInstance = nullptr;
+    bool m_shutdownStarted = false;
     std::unique_ptr<FenceStorage> m_storage;
     std::unique_ptr<Persistence> m_persistence;
     std::unique_ptr<FenceManager> m_manager;

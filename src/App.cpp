@@ -5,60 +5,52 @@
 #include "TrayMenu.h"
 #include "Win32Helpers.h"
 #include <commctrl.h>
-#include <fstream>
 
 #pragma comment(lib, "Comctl32.lib")
 
-static void LogDebug(const wchar_t* msg)
-{
-    std::wofstream log(L"C:\\Users\\MrIvo\\AppData\\Local\\SimpleFences\\debug.log", std::ios::app);
-    if (log.is_open())
-    {
-        log << msg << L"\n";
-        log.close();
-    }
-}
-
 App::App() = default;
 
-App::~App() = default;
+App::~App()
+{
+    Shutdown();
+}
 
 bool App::Initialize(HINSTANCE hInstance)
 {
-    LogDebug(L"App::Initialize starting");
+    Win32Helpers::LogInfo(L"App::Initialize starting");
     m_hInstance = hInstance;
 
     // Initialize common controls (legacy but reliable)
     InitCommonControls();
-    LogDebug(L"InitCommonControls done");
+    Win32Helpers::LogInfo(L"InitCommonControls done");
 
-    LogDebug(L"Creating FenceStorage");
+    Win32Helpers::LogInfo(L"Creating FenceStorage");
     // Create storage and persistence
     m_storage = std::make_unique<FenceStorage>();
     m_persistence = std::make_unique<Persistence>(m_storage->GetMetadataPath());
 
-    LogDebug(L"Creating FenceManager");
+    Win32Helpers::LogInfo(L"Creating FenceManager");
     // Create manager
     m_manager = std::make_unique<FenceManager>(std::move(m_storage), std::move(m_persistence));
 
-    LogDebug(L"Creating TrayMenu");
+    Win32Helpers::LogInfo(L"Creating TrayMenu");
     // Create tray icon
     m_tray = std::make_unique<TrayMenu>(this);
     if (!m_tray->Create(hInstance))
     {
-        LogDebug(L"TrayMenu::Create failed");
+        Win32Helpers::LogError(L"TrayMenu::Create failed");
         return false;
     }
 
-    LogDebug(L"Loading persisted fences");
+    Win32Helpers::LogInfo(L"Loading persisted fences");
     // Load persisted fences
     if (!m_manager->LoadAll())
     {
-        LogDebug(L"LoadAll failed");
+        Win32Helpers::LogError(L"LoadAll failed");
         return false;
     }
 
-    LogDebug(L"Initialize completed successfully");
+    Win32Helpers::LogInfo(L"Initialize completed successfully");
     return true;
 }
 
@@ -76,6 +68,7 @@ int App::Run()
 
 void App::Exit()
 {
+    Shutdown();
     PostQuitMessage(0);
 }
 
@@ -92,4 +85,32 @@ void App::CreateFenceNearCursor()
 FenceManager* App::GetFenceManager() const
 {
     return m_manager.get();
+}
+
+void App::Shutdown()
+{
+    if (m_shutdownStarted)
+    {
+        return;
+    }
+
+    m_shutdownStarted = true;
+    Win32Helpers::LogInfo(L"App shutdown started");
+
+    if (m_manager)
+    {
+        m_manager->SaveAll();
+        m_manager->Shutdown();
+    }
+
+    if (m_tray)
+    {
+        m_tray->Destroy();
+        m_tray.reset();
+    }
+
+    m_manager.reset();
+    m_persistence.reset();
+    m_storage.reset();
+    Win32Helpers::LogInfo(L"App shutdown completed");
 }

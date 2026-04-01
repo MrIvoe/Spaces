@@ -1,16 +1,14 @@
 #include "FenceWindow.h"
 #include "FenceManager.h"
+#include "Win32Helpers.h"
 #include <commctrl.h>
 #include <shellapi.h>
 #include <shlobj.h>
 #include <windowsx.h>
 #include <algorithm>
-#include <filesystem>
 
 #pragma comment(lib, "Comctl32.lib")
 #pragma comment(lib, "Shell32.lib")
-
-namespace fs = std::filesystem;
 
 static constexpr const wchar_t* kFenceWindowClass = L"SimpleFences_FenceWindow";
 static constexpr int kTitleBarHeight = 28;
@@ -198,6 +196,17 @@ LRESULT FenceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         return 0;
     }
 
+    case WM_EXITSIZEMOVE:
+    {
+        if (m_manager)
+        {
+            RECT rc{};
+            GetWindowRect(m_hwnd, &rc);
+            m_manager->UpdateFenceGeometry(m_model.id, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top);
+        }
+        return 0;
+    }
+
     case WM_DESTROY:
         return 0;
 
@@ -285,9 +294,9 @@ void FenceWindow::OnPaint()
         if (item.isDirectory)
             displayText += L" [folder]";
 
-        RECT textRc = itemRc;
-        textRc.left += kIconSize + 6;  // Icon + spacing
-        DrawTextW(hdc, displayText.c_str(), -1, &textRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        RECT itemTextRc = itemRc;
+        itemTextRc.left += kIconSize + 6;  // Icon + spacing
+        DrawTextW(hdc, displayText.c_str(), -1, &itemTextRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
         itemY += kItemHeight;
     }
 
@@ -336,18 +345,11 @@ void FenceWindow::OnLButtonUp()
         m_dragging = false;
         ReleaseCapture();
 
-        // Save new position
         if (m_manager)
         {
-            auto fence = m_manager->FindFence(m_model.id);
-            if (fence)
-            {
-                RECT rc{};
-                GetWindowRect(m_hwnd, &rc);
-                fence->x = rc.left;
-                fence->y = rc.top;
-                m_manager->SaveAll();
-            }
+            RECT rc{};
+            GetWindowRect(m_hwnd, &rc);
+            m_manager->UpdateFenceGeometry(m_model.id, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top);
         }
     }
 }
@@ -403,47 +405,8 @@ void FenceWindow::OnContextMenu(int x, int y)
     case 2002: // Delete item
         if (itemIndex >= 0 && itemIndex < static_cast<int>(m_items.size()))
         {
-            const auto& item = m_items[itemIndex];
-            // Restore item to original location if available
-            if (!item.originalPath.empty())
-            {
-                std::error_code ec;
-                fs::path src(item.fullPath);
-                fs::path dest(item.originalPath);
-
-                if (fs::exists(src))
-                {
-                    // Ensure destination directory exists
-                    fs::path destDir = dest.parent_path();
-                    if (!fs::exists(destDir))
-                        fs::create_directories(destDir);
-
-                    if (fs::is_directory(src))
-                    {
-                        fs::copy(src, dest, fs::copy_options::recursive, ec);
-                        if (!ec)
-                            fs::remove_all(src, ec);
-                    }
-                    else
-                    {
-                        fs::copy_file(src, dest, fs::copy_options::overwrite_existing, ec);
-                        if (!ec)
-                            fs::remove(src, ec);
-                    }
-                }
-            }
-            else
-            {
-                // No original path - just delete from fence
-                std::error_code ec;
-                if (std::filesystem::is_directory(item.fullPath))
-                    std::filesystem::remove_all(item.fullPath, ec);
-                else
-                    std::filesystem::remove(item.fullPath, ec);
-            }
-            
             if (m_manager)
-                m_manager->RefreshFence(m_model.id);
+                m_manager->DeleteItem(m_model.id, m_items[itemIndex]);
         }
         break;
     }
@@ -453,11 +416,20 @@ void FenceWindow::OnDropFiles(HDROP hDrop)
 {
     UINT count = DragQueryFileW(hDrop, 0xFFFFFFFF, nullptr, 0);
     std::vector<std::wstring> paths;
+    paths.reserve(count);
 
     for (UINT i = 0; i < count; ++i)
     {
-        wchar_t path[MAX_PATH]{};
-        DragQueryFileW(hDrop, i, path, MAX_PATH);
+        const UINT len = DragQueryFileW(hDrop, i, nullptr, 0);
+        if (len == 0)
+        {
+            continue;
+        }
+
+        std::wstring path;
+        path.resize(len + 1);
+        DragQueryFileW(hDrop, i, path.data(), len + 1);
+        path.resize(len);
         paths.push_back(path);
     }
 
@@ -484,6 +456,8 @@ void FenceWindow::OnSize(int width, int height)
 
 int FenceWindow::GetItemAtPosition(int x, int y) const
 {
+    (void)x;
+
     // Check if click is in title bar
     if (y < kTitleBarHeight)
         return -1;
@@ -493,7 +467,7 @@ int FenceWindow::GetItemAtPosition(int x, int y) const
     int itemIndex = 0;
     static constexpr int kItemHeight = 24;
 
-    for (const auto& item : m_items)
+    for (size_t i = 0; i < m_items.size(); ++i)
     {
         if (y >= itemY && y < itemY + kItemHeight)
             return itemIndex;
@@ -517,6 +491,8 @@ void FenceWindow::ExecuteItem(int itemIndex)
 
 void FenceWindow::OnLButtonDblClk(int x, int y)
 {
+    (void)x;
+
     int itemIndex = GetItemAtPosition(x, y);
     if (itemIndex >= 0)
     {
@@ -539,6 +515,7 @@ bool FenceWindow::InitializeImageList()
     }
     catch (const std::exception&)
     {
+        Win32Helpers::LogError(L"InitializeImageList failed due to unexpected exception.");
         m_imageList = nullptr;
         return false;
     }

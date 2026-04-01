@@ -1,7 +1,9 @@
 #include "TrayMenu.h"
 #include "App.h"
 #include "FenceManager.h"
+#include "Win32Helpers.h"
 #include <shellapi.h>
+#include <string>
 
 #pragma comment(lib, "Shell32.lib")
 
@@ -27,7 +29,14 @@ bool TrayMenu::Create(HINSTANCE hInstance)
     wc.hInstance = hInstance;
 
     if (!RegisterClassW(&wc))
-        return false;
+    {
+        const DWORD error = GetLastError();
+        if (error != ERROR_CLASS_ALREADY_EXISTS)
+        {
+            Win32Helpers::LogError(L"Tray class registration failed with error: " + std::to_wstring(error));
+            return false;
+        }
+    }
 
     m_hwnd = CreateWindowW(
         wc.lpszClassName,
@@ -52,7 +61,10 @@ bool TrayMenu::Create(HINSTANCE hInstance)
     lstrcpyW(m_nid.szTip, L"SimpleFences");
 
     if (!Shell_NotifyIconW(NIM_ADD, &m_nid))
+    {
+        Win32Helpers::LogError(L"Failed to create tray icon.");
         return false;
+    }
 
     return true;
 }

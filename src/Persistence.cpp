@@ -1,9 +1,58 @@
 #include "Persistence.h"
+#include "Win32Helpers.h"
+
+#include <nlohmann/json.hpp>
+
 #include <filesystem>
 #include <fstream>
-#include <sstream>
+#include <system_error>
 
 namespace fs = std::filesystem;
+using nlohmann::json;
+
+namespace
+{
+    std::wstring NarrowToWide(const std::string& text)
+    {
+        return std::wstring(text.begin(), text.end());
+    }
+
+    std::string ToUtf8(const std::wstring& value)
+    {
+        if (value.empty())
+        {
+            return {};
+        }
+
+        const int size = WideCharToMultiByte(CP_UTF8, 0, value.c_str(), -1, nullptr, 0, nullptr, nullptr);
+        if (size <= 0)
+        {
+            return {};
+        }
+
+        std::string result(size - 1, '\0');
+        WideCharToMultiByte(CP_UTF8, 0, value.c_str(), -1, result.data(), size, nullptr, nullptr);
+        return result;
+    }
+
+    std::wstring FromUtf8(const std::string& value)
+    {
+        if (value.empty())
+        {
+            return {};
+        }
+
+        const int size = MultiByteToWideChar(CP_UTF8, 0, value.c_str(), -1, nullptr, 0);
+        if (size <= 0)
+        {
+            return {};
+        }
+
+        std::wstring result(size - 1, L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, value.c_str(), -1, result.data(), size);
+        return result;
+    }
+}
 
 Persistence::Persistence(const std::wstring& metadataPath)
     : m_metadataPath(metadataPath)
@@ -19,8 +68,9 @@ bool Persistence::EnsureDirectory()
         fs::create_directories(dir);
         return true;
     }
-    catch (const std::exception&)
+    catch (const std::exception& ex)
     {
+        Win32Helpers::LogError(L"EnsureDirectory failed for metadata path: " + m_metadataPath + L" reason: " + NarrowToWide(ex.what()));
         return false;
     }
 }
@@ -29,93 +79,58 @@ bool Persistence::LoadFences(std::vector<FenceModel>& fences)
 {
     try
     {
+        fences.clear();
+
         if (!fs::exists(m_metadataPath))
             return true;
 
-        std::wifstream file(m_metadataPath);
+        std::ifstream file(m_metadataPath, std::ios::binary);
         if (!file.is_open())
-            return false;
-
-        // Simple JSON parsing for fence data
-        // Format: each fence on one line as JSON object
-        std::wstring line;
-        while (std::getline(file, line))
         {
-            if (line.empty())
-                continue;
-
-            // Very basic JSON parsing
-            FenceModel fence;
-            fence.width = 320;
-            fence.height = 240;
-
-            // Extract id
-            size_t idPos = line.find(L"\"id\":\"");
-            if (idPos != std::wstring::npos)
-            {
-                size_t start = idPos + 6;
-                size_t end = line.find(L"\"", start);
-                if (end != std::wstring::npos)
-                    fence.id = line.substr(start, end - start);
-            }
-
-            // Extract title
-            size_t titlePos = line.find(L"\"title\":\"");
-            if (titlePos != std::wstring::npos)
-            {
-                size_t start = titlePos + 9;
-                size_t end = line.find(L"\"", start);
-                if (end != std::wstring::npos)
-                    fence.title = line.substr(start, end - start);
-            }
-
-            // Extract x
-            size_t xPos = line.find(L"\"x\":");
-            if (xPos != std::wstring::npos)
-            {
-                fence.x = _wtoi(line.substr(xPos + 4).c_str());
-            }
-
-            // Extract y
-            size_t yPos = line.find(L"\"y\":");
-            if (yPos != std::wstring::npos)
-            {
-                fence.y = _wtoi(line.substr(yPos + 4).c_str());
-            }
-
-            // Extract width
-            size_t widthPos = line.find(L"\"width\":");
-            if (widthPos != std::wstring::npos)
-            {
-                fence.width = _wtoi(line.substr(widthPos + 8).c_str());
-            }
-
-            // Extract height
-            size_t heightPos = line.find(L"\"height\":");
-            if (heightPos != std::wstring::npos)
-            {
-                fence.height = _wtoi(line.substr(heightPos + 9).c_str());
-            }
-
-            // Extract backingFolder
-            size_t folderPos = line.find(L"\"backingFolder\":\"");
-            if (folderPos != std::wstring::npos)
-            {
-                size_t start = folderPos + 17;
-                size_t end = line.find(L"\"", start);
-                if (end != std::wstring::npos)
-                    fence.backingFolder = line.substr(start, end - start);
-            }
-
-            if (!fence.id.empty())
-                fences.push_back(fence);
+            Win32Helpers::LogError(L"Failed to open metadata file for read: " + m_metadataPath);
+            return false;
         }
 
-        file.close();
+        json root = json::parse(file, nullptr, false);
+        if (!root.is_object())
+        {
+            Win32Helpers::LogError(L"Metadata file is malformed json, ignoring data: " + m_metadataPath);
+            return false;
+        }
+
+        if (!root.contains("fences") || !root["fences"].is_array())
+        {
+            return true;
+        }
+
+        for (const auto& item : root["fences"])
+        {
+            if (!item.is_object())
+            {
+                continue;
+            }
+
+            FenceModel fence;
+            fence.id = FromUtf8(item.value("id", std::string{}));
+            if (fence.id.empty())
+            {
+                continue;
+            }
+
+            fence.title = FromUtf8(item.value("title", std::string{"Fence"}));
+            fence.x = item.value("x", 100);
+            fence.y = item.value("y", 100);
+            fence.width = item.value("width", 320);
+            fence.height = item.value("height", 240);
+            fence.backingFolder = FromUtf8(item.value("backingFolder", std::string{}));
+            fences.push_back(std::move(fence));
+        }
+
         return true;
     }
-    catch (const std::exception&)
+    catch (const std::exception& ex)
     {
+        Win32Helpers::LogError(L"LoadFences exception for metadata path: " + m_metadataPath + L" reason: " + NarrowToWide(ex.what()));
         return false;
     }
 }
@@ -124,51 +139,93 @@ bool Persistence::SaveFences(const std::vector<FenceModel>& fences)
 {
     try
     {
-        std::wofstream file(m_metadataPath);
-        if (!file.is_open())
-            return false;
+        json root;
+        root["version"] = "0.0.007";
+        root["fences"] = json::array();
 
         for (const auto& fence : fences)
         {
-            file << L"{\"id\":\"" << fence.id << L"\",";
-            file << L"\"title\":\"" << fence.title << L"\",";
-            file << L"\"x\":" << fence.x << L",";
-            file << L"\"y\":" << fence.y << L",";
-            file << L"\"width\":" << fence.width << L",";
-            file << L"\"height\":" << fence.height << L",";
-            file << L"\"backingFolder\":\"" << fence.backingFolder << L"\"}\n";
+            root["fences"].push_back({
+                {"id", ToUtf8(fence.id)},
+                {"title", ToUtf8(fence.title)},
+                {"x", fence.x},
+                {"y", fence.y},
+                {"width", fence.width},
+                {"height", fence.height},
+                {"backingFolder", ToUtf8(fence.backingFolder)}
+            });
         }
 
-        file.close();
-        return true;
+        return SaveTextAtomic(root.dump(2));
     }
-    catch (const std::exception&)
+    catch (const std::exception& ex)
     {
+        Win32Helpers::LogError(L"SaveFences exception for metadata path: " + m_metadataPath + L" reason: " + NarrowToWide(ex.what()));
         return false;
     }
 }
 
 bool Persistence::SaveFence(const FenceModel& fence)
 {
+    std::vector<FenceModel> fences;
+    if (!LoadFences(fences))
+    {
+        return false;
+    }
+
+    bool updated = false;
+    for (auto& existing : fences)
+    {
+        if (existing.id == fence.id)
+        {
+            existing = fence;
+            updated = true;
+            break;
+        }
+    }
+
+    if (!updated)
+    {
+        fences.push_back(fence);
+    }
+
+    return SaveFences(fences);
+}
+
+bool Persistence::SaveTextAtomic(const std::string& text)
+{
     try
     {
-        std::wofstream file(m_metadataPath, std::ios::app);
-        if (!file.is_open())
+        const fs::path target(m_metadataPath);
+        const fs::path tmp = target.wstring() + L".tmp";
+
+        std::ofstream stream(tmp, std::ios::binary | std::ios::trunc);
+        if (!stream.is_open())
+        {
+            Win32Helpers::LogError(L"Failed opening temp metadata file: " + tmp.wstring());
             return false;
+        }
 
-        file << L"{\"id\":\"" << fence.id << L"\",";
-        file << L"\"title\":\"" << fence.title << L"\",";
-        file << L"\"x\":" << fence.x << L",";
-        file << L"\"y\":" << fence.y << L",";
-        file << L"\"width\":" << fence.width << L",";
-        file << L"\"height\":" << fence.height << L",";
-        file << L"\"backingFolder\":\"" << fence.backingFolder << L"\"}\n";
+        stream << text;
+        stream.flush();
+        stream.close();
 
-        file.close();
+        std::error_code ec;
+        fs::remove(target, ec);
+        ec.clear();
+        fs::rename(tmp, target, ec);
+        if (ec)
+        {
+            Win32Helpers::LogError(L"Failed atomic rename for metadata file: " + target.wstring());
+            fs::remove(tmp, ec);
+            return false;
+        }
+
         return true;
     }
-    catch (const std::exception&)
+    catch (const std::exception& ex)
     {
+        Win32Helpers::LogError(L"SaveTextAtomic exception for metadata path: " + m_metadataPath + L" reason: " + NarrowToWide(ex.what()));
         return false;
     }
 }

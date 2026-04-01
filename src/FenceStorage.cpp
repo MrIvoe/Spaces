@@ -1,21 +1,102 @@
 #include "FenceStorage.h"
 #include "Win32Helpers.h"
+
+#include <nlohmann/json.hpp>
+
 #include <filesystem>
 #include <windows.h>
 #include <shellapi.h>
 #include <shlobj.h>
 #include <fstream>
-#include <sstream>
+#include <system_error>
 
 namespace fs = std::filesystem;
+using nlohmann::json;
+
+namespace
+{
+    std::string ToUtf8(const std::wstring& value)
+    {
+        if (value.empty())
+        {
+            return {};
+        }
+
+        const int size = WideCharToMultiByte(CP_UTF8, 0, value.c_str(), -1, nullptr, 0, nullptr, nullptr);
+        if (size <= 0)
+        {
+            return {};
+        }
+
+        std::string result(size - 1, '\0');
+        WideCharToMultiByte(CP_UTF8, 0, value.c_str(), -1, result.data(), size, nullptr, nullptr);
+        return result;
+    }
+
+    std::wstring FromUtf8(const std::string& value)
+    {
+        if (value.empty())
+        {
+            return {};
+        }
+
+        const int size = MultiByteToWideChar(CP_UTF8, 0, value.c_str(), -1, nullptr, 0);
+        if (size <= 0)
+        {
+            return {};
+        }
+
+        std::wstring result(size - 1, L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, value.c_str(), -1, result.data(), size);
+        return result;
+    }
+
+    std::wstring NarrowToWide(const std::string& text)
+    {
+        return std::wstring(text.begin(), text.end());
+    }
+
+    bool SaveJsonAtomic(const fs::path& targetPath, const json& value)
+    {
+        const fs::path tmpPath = targetPath.wstring() + L".tmp";
+        std::ofstream stream(tmpPath, std::ios::binary | std::ios::trunc);
+        if (!stream.is_open())
+        {
+            Win32Helpers::LogError(L"Failed to open temp json file for write: " + tmpPath.wstring());
+            return false;
+        }
+
+        stream << value.dump(2);
+        stream.flush();
+        stream.close();
+
+        std::error_code ec;
+        fs::remove(targetPath, ec);
+        ec.clear();
+        fs::rename(tmpPath, targetPath, ec);
+        if (ec)
+        {
+            Win32Helpers::LogError(L"Failed atomic rename for json file: " + targetPath.wstring());
+            fs::remove(tmpPath, ec);
+            return false;
+        }
+
+        return true;
+    }
+}
 
 FenceStorage::FenceStorage()
 {
-    m_appRoot = Win32Helpers::GetLocalAppDataPath() + L"\\SimpleFences";
-    m_fencesRoot = m_appRoot + L"\\Fences";
-    m_metadataPath = m_appRoot + L"\\config.json";
+    m_appRoot = Win32Helpers::GetAppDataRoot().wstring();
+    m_fencesRoot = Win32Helpers::GetFencesRoot().wstring();
+    m_metadataPath = Win32Helpers::GetConfigPath().wstring();
 
-    fs::create_directories(m_fencesRoot);
+    std::error_code ec;
+    fs::create_directories(m_fencesRoot, ec);
+    if (ec)
+    {
+        Win32Helpers::LogError(L"Failed to create fences root: " + m_fencesRoot);
+    }
 }
 
 std::wstring FenceStorage::GetAppRoot() const
@@ -35,8 +116,13 @@ std::wstring FenceStorage::GetMetadataPath() const
 
 std::wstring FenceStorage::EnsureFenceFolder(const std::wstring& fenceId)
 {
-    auto fencePath = fs::path(m_fencesRoot) / fenceId;
-    fs::create_directories(fencePath);
+    const auto fencePath = fs::path(m_fencesRoot) / fenceId;
+    std::error_code ec;
+    fs::create_directories(fencePath, ec);
+    if (ec)
+    {
+        Win32Helpers::LogError(L"Failed to create fence folder: " + fencePath.wstring());
+    }
     return fencePath.wstring();
 }
 
@@ -72,18 +158,21 @@ std::vector<FenceItem> FenceStorage::ScanFenceItems(const std::wstring& folder) 
             items.push_back(item);
         }
     }
-    catch (const std::exception&)
+    catch (const std::exception& ex)
     {
+        Win32Helpers::LogError(L"ScanFenceItems exception in folder: " + folder + L" reason: " + NarrowToWide(ex.what()));
     }
 
     return items;
 }
 
-bool FenceStorage::MovePathsIntoFence(const std::vector<std::wstring>& sourcePaths, const std::wstring& fenceFolder)
+FileMoveResult FenceStorage::MovePathsIntoFence(const std::vector<std::wstring>& sourcePaths, const std::wstring& fenceFolder)
 {
+    FileMoveResult result;
+
     try
     {
-        fs::path destFolder(fenceFolder);
+        const fs::path destFolder(fenceFolder);
         if (!fs::exists(destFolder))
             fs::create_directories(destFolder);
 
@@ -93,7 +182,10 @@ bool FenceStorage::MovePathsIntoFence(const std::vector<std::wstring>& sourcePat
         {
             fs::path src(sourcePath);
             if (!fs::exists(src))
+            {
+                result.failed.push_back({src, L"Source path does not exist"});
                 continue;
+            }
 
             auto filename = src.filename();
             auto dest = destFolder / filename;
@@ -116,30 +208,52 @@ bool FenceStorage::MovePathsIntoFence(const std::vector<std::wstring>& sourcePat
             std::error_code ec;
             fs::rename(src, dest, ec);
             if (!ec)
+            {
+                result.moved.push_back(dest);
                 continue;
+            }
 
             // Fall back to copy+delete
             if (fs::is_directory(src))
             {
                 fs::copy(src, dest, fs::copy_options::recursive, ec);
                 if (!ec)
+                {
                     fs::remove_all(src, ec);
+                    if (!ec)
+                    {
+                        result.moved.push_back(dest);
+                        continue;
+                    }
+                }
             }
             else
             {
                 fs::copy_file(src, dest, fs::copy_options::overwrite_existing, ec);
                 if (!ec)
+                {
                     fs::remove(src, ec);
+                    if (!ec)
+                    {
+                        result.moved.push_back(dest);
+                        continue;
+                    }
+                }
             }
+
+            result.failed.push_back({src, L"Move failed after rename and copy fallback"});
+            Win32Helpers::LogError(L"Move failed for path: " + src.wstring());
         }
 
         // Save origins for later restoration
         SaveItemOrigins(fenceFolder, origins);
-        return true;
+        return result;
     }
-    catch (const std::exception&)
+    catch (const std::exception& ex)
     {
-        return false;
+        Win32Helpers::LogError(L"MovePathsIntoFence exception for folder: " + fenceFolder + L" reason: " + NarrowToWide(ex.what()));
+        result.failed.push_back({fs::path(fenceFolder), L"Unhandled exception during move"});
+        return result;
     }
 }
 
@@ -152,21 +266,17 @@ void FenceStorage::SaveItemOrigins(const std::wstring& fenceFolder, const std::m
 {
     try
     {
-        auto originsFile = GetOriginsPath(fenceFolder);
-        std::wofstream file(originsFile);
-        if (!file.is_open())
-            return;
-
+        json root = json::object();
         for (const auto& [filename, originalPath] : origins)
         {
-            // Simple JSON: each line is a filename:originalpath mapping
-            file << L"\"" << filename << L"\":\"" << originalPath << L"\"\n";
+            root[ToUtf8(filename)] = ToUtf8(originalPath);
         }
 
-        file.close();
+        SaveJsonAtomic(GetOriginsPath(fenceFolder), root);
     }
-    catch (const std::exception&)
+    catch (const std::exception& ex)
     {
+        Win32Helpers::LogError(L"SaveItemOrigins exception for fence folder: " + fenceFolder + L" reason: " + NarrowToWide(ex.what()));
     }
 }
 
@@ -180,42 +290,36 @@ std::map<std::wstring, std::wstring> FenceStorage::LoadItemOrigins(const std::ws
         if (!fs::exists(originsFile))
             return origins;
 
-        std::wifstream file(originsFile);
+        std::ifstream file(originsFile, std::ios::binary);
         if (!file.is_open())
-            return origins;
-
-        std::wstring line;
-        while (std::getline(file, line))
         {
-            if (line.empty())
-                continue;
-
-            // Parse: "filename":"originalpath"
-            size_t colonPos = line.find(L"\":");
-            if (colonPos == std::wstring::npos)
-                continue;
-
-            size_t start1 = line.find(L"\"");
-            size_t end1 = line.find(L"\"", start1 + 1);
-            if (end1 == std::wstring::npos)
-                continue;
-
-            std::wstring filename = line.substr(start1 + 1, end1 - start1 - 1);
-
-            size_t start2 = line.find(L"\"", end1 + 2);
-            size_t end2 = line.rfind(L"\"");
-            if (start2 == std::wstring::npos || end2 == std::wstring::npos || end2 <= start2)
-                continue;
-
-            std::wstring originalPath = line.substr(start2 + 1, end2 - start2 - 1);
-            origins[filename] = originalPath;
+            return origins;
         }
 
-        file.close();
+        json root = json::parse(file, nullptr, false);
+        if (!root.is_object())
+        {
+            Win32Helpers::LogError(L"Origins file is malformed json: " + originsFile);
+            return origins;
+        }
+
+        for (auto it = root.begin(); it != root.end(); ++it)
+        {
+            if (!it.value().is_string())
+            {
+                continue;
+            }
+
+            const std::string filename = it.key();
+            const std::string originalPath = it.value().get<std::string>();
+            origins[FromUtf8(filename)] = FromUtf8(originalPath);
+        }
+
         return origins;
     }
-    catch (const std::exception&)
+    catch (const std::exception& ex)
     {
+        Win32Helpers::LogError(L"LoadItemOrigins exception for fence folder: " + fenceFolder + L" reason: " + NarrowToWide(ex.what()));
         return origins;
     }
 }
@@ -238,15 +342,17 @@ bool FenceStorage::RestoreItemToOrigin(const std::wstring& fenceFolder, const Fe
         if (!fs::exists(destDir))
             fs::create_directories(destDir);
 
+        dest = GenerateNonConflictingPath(dest);
+        Win32Helpers::LogInfo(L"Restoring item to: " + dest.wstring());
+
         std::error_code ec;
 
         // Try rename first
         fs::rename(src, dest, ec);
         if (!ec)
         {
-            // Update origins - remove this entry
             auto origins = LoadItemOrigins(fenceFolder);
-            origins.erase(item.name);
+            origins.erase(fs::path(item.fullPath).filename().wstring());
             SaveItemOrigins(fenceFolder, origins);
             return true;
         }
@@ -259,28 +365,30 @@ bool FenceStorage::RestoreItemToOrigin(const std::wstring& fenceFolder, const Fe
             {
                 fs::remove_all(src, ec);
                 auto origins = LoadItemOrigins(fenceFolder);
-                origins.erase(item.name);
+                origins.erase(fs::path(item.fullPath).filename().wstring());
                 SaveItemOrigins(fenceFolder, origins);
                 return true;
             }
         }
         else
         {
-            fs::copy_file(src, dest, fs::copy_options::overwrite_existing, ec);
+            fs::copy_file(src, dest, fs::copy_options::none, ec);
             if (!ec)
             {
                 fs::remove(src, ec);
                 auto origins = LoadItemOrigins(fenceFolder);
-                origins.erase(item.name);
+                origins.erase(fs::path(item.fullPath).filename().wstring());
                 SaveItemOrigins(fenceFolder, origins);
                 return true;
             }
         }
 
+        Win32Helpers::LogError(L"Restore failed for source: " + src.wstring());
         return false;
     }
-    catch (const std::exception&)
+    catch (const std::exception& ex)
     {
+        Win32Helpers::LogError(L"RestoreItemToOrigin exception for item: " + item.fullPath + L" reason: " + NarrowToWide(ex.what()));
         return false;
     }
 }
@@ -290,16 +398,85 @@ bool FenceStorage::RestoreAllItems(const std::wstring& fenceFolder)
     try
     {
         auto items = ScanFenceItems(fenceFolder);
+        bool success = true;
         for (const auto& item : items)
         {
-            RestoreItemToOrigin(fenceFolder, item);
+            success = RestoreItemToOrigin(fenceFolder, item) && success;
         }
-        return true;
+        return success;
     }
-    catch (const std::exception&)
+    catch (const std::exception& ex)
     {
+        Win32Helpers::LogError(L"RestoreAllItems exception for fence folder: " + fenceFolder + L" reason: " + NarrowToWide(ex.what()));
         return false;
     }
+}
+
+bool FenceStorage::DeleteItem(const std::wstring& fenceFolder, const FenceItem& item)
+{
+    if (!item.originalPath.empty())
+    {
+        return RestoreItemToOrigin(fenceFolder, item);
+    }
+
+    std::error_code ec;
+    if (fs::is_directory(item.fullPath, ec))
+    {
+        fs::remove_all(item.fullPath, ec);
+    }
+    else
+    {
+        fs::remove(item.fullPath, ec);
+    }
+
+    auto origins = LoadItemOrigins(fenceFolder);
+    origins.erase(fs::path(item.fullPath).filename().wstring());
+    SaveItemOrigins(fenceFolder, origins);
+
+    if (ec)
+    {
+        Win32Helpers::LogError(L"DeleteItem failed for path: " + item.fullPath);
+        return false;
+    }
+
+    return true;
+}
+
+bool FenceStorage::DeleteFenceFolderIfEmpty(const std::wstring& fenceFolder)
+{
+    std::error_code ec;
+    const fs::path folderPath(fenceFolder);
+    const fs::path originsPath = GetOriginsPath(fenceFolder);
+
+    fs::remove(originsPath, ec);
+    ec.clear();
+
+    if (!fs::exists(folderPath, ec))
+    {
+        return true;
+    }
+
+    const bool isEmpty = fs::is_empty(folderPath, ec);
+    if (ec)
+    {
+        Win32Helpers::LogError(L"Failed checking if fence folder is empty: " + folderPath.wstring());
+        return false;
+    }
+
+    if (!isEmpty)
+    {
+        Win32Helpers::LogInfo(L"Fence folder not empty, leaving in place: " + folderPath.wstring());
+        return false;
+    }
+
+    fs::remove(folderPath, ec);
+    if (ec)
+    {
+        Win32Helpers::LogError(L"Failed removing fence folder: " + folderPath.wstring());
+        return false;
+    }
+
+    return true;
 }
 
 int FenceStorage::GetFileIconIndex(const std::wstring& filePath)
@@ -318,8 +495,33 @@ int FenceStorage::GetFileIconIndex(const std::wstring& filePath)
 
         return 0;  // Default icon index
     }
-    catch (const std::exception&)
+    catch (const std::exception& ex)
     {
+        Win32Helpers::LogError(L"GetFileIconIndex exception for path: " + filePath + L" reason: " + NarrowToWide(ex.what()));
         return 0;
     }
+}
+
+std::filesystem::path FenceStorage::GenerateNonConflictingPath(const std::filesystem::path& target) const
+{
+    if (!fs::exists(target))
+    {
+        return target;
+    }
+
+    const std::filesystem::path parent = target.parent_path();
+    const std::wstring stem = target.stem().wstring();
+    const std::wstring ext = target.extension().wstring();
+
+    for (int counter = 1; counter < 10000; ++counter)
+    {
+        const std::wstring candidateName = stem + L" (restored " + std::to_wstring(counter) + L")" + ext;
+        const std::filesystem::path candidate = parent / candidateName;
+        if (!fs::exists(candidate))
+        {
+            return candidate;
+        }
+    }
+
+    return parent / (stem + L" (restored)" + ext);
 }

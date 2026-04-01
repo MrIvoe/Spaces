@@ -1,4 +1,5 @@
 #pragma once
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -20,4 +21,12 @@ struct FenceModel
     int width = 320;
     int height = 240;
     std::wstring backingFolder;
+};
+
+struct FileMoveResult
+{
+    std::vector<std::filesystem::path> moved;
+    std::vector<std::pair<std::filesystem::path, std::wstring>> failed;
+
+    bool HasFailures() const { return !failed.empty(); }
 };

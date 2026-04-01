@@ -1,9 +1,41 @@
 #include "Win32Helpers.h"
 #include <shlobj.h>
-#include <codecvt>
+
+#include <filesystem>
+#include <fstream>
+#include <mutex>
 
 namespace Win32Helpers
 {
+    namespace
+    {
+        std::mutex g_logMutex;
+
+        void WriteLogLine(const wchar_t* level, const std::wstring& message)
+        {
+            std::error_code ec;
+            std::filesystem::create_directories(GetAppDataRoot(), ec);
+
+            const auto logPath = GetDebugLogPath();
+            std::wofstream log(logPath, std::ios::app);
+            if (!log.is_open())
+            {
+                return;
+            }
+
+            SYSTEMTIME st{};
+            GetLocalTime(&st);
+            log << L"[" << st.wYear << L"-"
+                << st.wMonth << L"-"
+                << st.wDay << L" "
+                << st.wHour << L":"
+                << st.wMinute << L":"
+                << st.wSecond << L"] "
+                << level << L": "
+                << message << L"\n";
+        }
+    }
+
     std::wstring GetAppDataPath()
     {
         wchar_t path[MAX_PATH]{};
@@ -22,6 +54,38 @@ namespace Win32Helpers
             return path;
         }
         return L"";
+    }
+
+    std::filesystem::path GetAppDataRoot()
+    {
+        return std::filesystem::path(GetLocalAppDataPath()) / L"SimpleFences";
+    }
+
+    std::filesystem::path GetFencesRoot()
+    {
+        return GetAppDataRoot() / L"Fences";
+    }
+
+    std::filesystem::path GetConfigPath()
+    {
+        return GetAppDataRoot() / L"config.json";
+    }
+
+    std::filesystem::path GetDebugLogPath()
+    {
+        return GetAppDataRoot() / L"debug.log";
+    }
+
+    void LogInfo(const std::wstring& message)
+    {
+        std::lock_guard<std::mutex> guard(g_logMutex);
+        WriteLogLine(L"INFO", message);
+    }
+
+    void LogError(const std::wstring& message)
+    {
+        std::lock_guard<std::mutex> guard(g_logMutex);
+        WriteLogLine(L"ERROR", message);
     }
 
     POINT GetCursorPos()

@@ -15,6 +15,7 @@ public:
 
 private:
     bool EnsureDirectory();
+    bool SaveTextAtomic(const std::string& text);
 
     std::wstring m_metadataPath;
 };

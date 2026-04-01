@@ -2,6 +2,8 @@
 #include "FenceWindow.h"
 #include "FenceStorage.h"
 #include "Persistence.h"
+#include "Win32Helpers.h"
+#include <algorithm>
 #include <objbase.h>
 #include <ole2.h>
 #include <sstream>
@@ -89,6 +91,7 @@ void FenceManager::DeleteFence(const std::wstring& fenceId)
     if (fence)
     {
         m_storage->RestoreAllItems(fence->backingFolder);
+        m_storage->DeleteFenceFolderIfEmpty(fence->backingFolder);
     }
 
     // Remove window
@@ -155,11 +158,65 @@ bool FenceManager::HandleDrop(const std::wstring& fenceId, const std::vector<std
     if (!fence)
         return false;
 
-    if (!m_storage->MovePathsIntoFence(paths, fence->backingFolder))
+    FileMoveResult result = m_storage->MovePathsIntoFence(paths, fence->backingFolder);
+    for (const auto& failure : result.failed)
+    {
+        Win32Helpers::LogError(L"Drop failed for path: " + failure.first.wstring() + L" reason: " + failure.second);
+    }
+
+    if (result.moved.empty())
+    {
         return false;
+    }
 
     RefreshFence(fenceId);
-    return true;
+    return !result.HasFailures();
+}
+
+bool FenceManager::DeleteItem(const std::wstring& fenceId, const FenceItem& item)
+{
+    FenceModel* fence = FindFence(fenceId);
+    if (!fence)
+    {
+        return false;
+    }
+
+    const bool ok = m_storage->DeleteItem(fence->backingFolder, item);
+    if (ok)
+    {
+        RefreshFence(fenceId);
+    }
+    return ok;
+}
+
+void FenceManager::UpdateFenceGeometry(const std::wstring& fenceId, int x, int y, int width, int height)
+{
+    FenceModel* fence = FindFence(fenceId);
+    if (!fence)
+    {
+        return;
+    }
+
+    fence->x = x;
+    fence->y = y;
+    fence->width = width;
+    fence->height = height;
+    SaveAll();
+}
+
+void FenceManager::Shutdown()
+{
+    SaveAll();
+
+    for (auto& entry : m_windows)
+    {
+        if (entry.second)
+        {
+            entry.second->Destroy();
+        }
+    }
+
+    m_windows.clear();
 }
 
 FenceModel* FenceManager::FindFence(const std::wstring& fenceId)

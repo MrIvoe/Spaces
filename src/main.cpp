@@ -1,15 +1,9 @@
 #include "App.h"
-#include <fstream>
+#include "Win32Helpers.h"
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, PWSTR, int)
 {
-    // Simple debug log
-    std::wofstream log(L"C:\\Users\\MrIvo\\AppData\\Local\\SimpleFences\\debug.log", std::ios::trunc);
-    if (log.is_open())
-    {
-        log << L"SimpleFences starting\n";
-        log.close();
-    }
+    Win32Helpers::LogInfo(L"SimpleFences starting");
 
     App app;
     if (!app.Initialize(hInstance))

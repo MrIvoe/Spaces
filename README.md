@@ -1,5 +1,7 @@
 # SimpleFences - Lightweight Win32 Desktop Organizer
 
+Version: 0.0.007
+
 A simple, reliable desktop organizer for Windows that lets you create borderless "fence" windows to group and organize your desktop files.
 
 ## Features (Phase 1)
@@ -11,6 +13,20 @@ A simple, reliable desktop organizer for Windows that lets you create borderless
 - Reload fences on startup
 - Right-click tray icon to create new fence
 - Right-click inside fence for context menu (new fence, rename, delete)
+
+## What Changed in 0.0.007
+
+- Replaced fragile hand-built metadata parsing with robust JSON persistence using `nlohmann/json`
+- Added atomic save pattern for config and origin metadata (`.tmp` write then replace)
+- Removed hardcoded machine-specific log paths and routed logging through LocalAppData helpers
+- Centralized item restore/delete behavior in storage layer so UI no longer does file operations inline
+- Added non-destructive restore conflict handling (`name (restored N).ext`) to prevent overwrite
+- Improved drop handling with structured move results and explicit failure logging
+- Persisted move/resize geometry through reliable end-of-interaction events
+- Fixed long-path drop handling by dynamically sizing drag/drop buffers
+- Added cleanup for fence metadata files/folders after delete when folder is empty
+- Hardened tray class registration (`ERROR_CLASS_ALREADY_EXISTS` is treated as valid)
+- Improved shutdown ordering to save state and remove tray icon reliably
 
 ## Architecture
 
@@ -53,14 +69,14 @@ cmake --build . --config Debug
 cmake -G "Visual Studio 16 2019" -A x64 build
 ```
 
-2. Open `build\SimpleFences.sln` in Visual Studio
-3. Build → Build Solution
+1. Open `build\SimpleFences.sln` in Visual Studio
+1. Build → Build Solution
 
 ## Running
 
 After building, the executable is at:
 
-```
+```text
 build\bin\Debug\SimpleFences.exe
 (or Release depending on configuration)
 ```
@@ -75,6 +91,9 @@ Double-click to run, or from command line:
 
 - Fence metadata: `%LOCALAPPDATA%\SimpleFences\config.json`
 - Fence folders: `%LOCALAPPDATA%\SimpleFences\Fences\<FenceId>\`
+- Debug log: `%LOCALAPPDATA%\SimpleFences\debug.log`
+
+Restore behavior is non-destructive: if the original destination already exists, SimpleFences restores with a conflict-safe name instead of overwriting the existing file.
 
 ## Usage
 

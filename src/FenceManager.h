@@ -26,6 +26,9 @@ public:
     void RefreshAll();
 
     bool HandleDrop(const std::wstring& fenceId, const std::vector<std::wstring>& paths);
+    bool DeleteItem(const std::wstring& fenceId, const FenceItem& item);
+    void UpdateFenceGeometry(const std::wstring& fenceId, int x, int y, int width, int height);
+    void Shutdown();
     FenceModel* FindFence(const std::wstring& fenceId);
     FenceWindow* FindFenceWindow(const std::wstring& fenceId);
 
