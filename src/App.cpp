@@ -4,6 +4,8 @@
 #include "FenceManager.h"
 #include "TrayMenu.h"
 #include "Win32Helpers.h"
+#include "core/AppKernel.h"
+#include "ui/SettingsWindow.h"
 #include <commctrl.h>
 
 #pragma comment(lib, "Comctl32.lib")
@@ -34,6 +36,17 @@ bool App::Initialize(HINSTANCE hInstance)
     m_manager = std::make_unique<FenceManager>(std::move(m_storage), std::move(m_persistence));
 
     Win32Helpers::LogInfo(L"Creating TrayMenu");
+    m_kernel = std::make_unique<AppKernel>();
+    if (!m_kernel->Initialize(this))
+    {
+        Win32Helpers::LogError(L"AppKernel::Initialize reported plugin load failures. Continuing with degraded plugin set.");
+    }
+
+    if (m_manager)
+    {
+        m_manager->SetFenceExtensionRegistry(m_kernel->GetFenceExtensionRegistry());
+    }
+
     // Create tray icon
     m_tray = std::make_unique<TrayMenu>(this);
     if (!m_tray->Create(hInstance))
@@ -87,6 +100,56 @@ FenceManager* App::GetFenceManager() const
     return m_manager.get();
 }
 
+bool App::ExecuteCommand(const std::wstring& commandId) const
+{
+    if (!m_kernel)
+    {
+        return false;
+    }
+
+    return m_kernel->ExecuteCommand(commandId);
+}
+
+std::vector<TrayMenuEntry> App::GetTrayMenuEntries() const
+{
+    if (!m_kernel)
+    {
+        return {};
+    }
+
+    return m_kernel->GetTrayMenuEntries();
+}
+
+std::vector<PluginStatusView> App::GetPluginStatuses() const
+{
+    if (!m_kernel)
+    {
+        return {};
+    }
+
+    return m_kernel->GetPluginStatuses();
+}
+
+std::vector<SettingsPageView> App::GetSettingsPages() const
+{
+    if (!m_kernel)
+    {
+        return {};
+    }
+
+    return m_kernel->GetSettingsPages();
+}
+
+void App::OpenSettingsWindow()
+{
+    if (!m_settingsWindow)
+    {
+        m_settingsWindow = std::make_unique<SettingsWindow>();
+    }
+
+    m_settingsWindow->ShowScaffold(GetSettingsPages(), GetPluginStatuses());
+}
+
 void App::Shutdown()
 {
     if (m_shutdownStarted)
@@ -108,6 +171,14 @@ void App::Shutdown()
         m_tray->Destroy();
         m_tray.reset();
     }
+
+    if (m_kernel)
+    {
+        m_kernel->Shutdown();
+        m_kernel.reset();
+    }
+
+    m_settingsWindow.reset();
 
     m_manager.reset();
     m_persistence.reset();

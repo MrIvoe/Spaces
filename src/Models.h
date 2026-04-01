@@ -21,6 +21,10 @@ struct FenceModel
     int width = 320;
     int height = 240;
     std::wstring backingFolder;
+    std::wstring contentType = L"file_collection";
+    std::wstring contentPluginId = L"core.file_collection";
+    std::wstring appearanceProfileId;
+    std::wstring widgetLayoutId;
 };
 
 struct FileMoveResult

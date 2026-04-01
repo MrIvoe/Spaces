@@ -18,7 +18,7 @@ public:
     std::wstring EnsureFenceFolder(const std::wstring& fenceId);
     std::vector<FenceItem> ScanFenceItems(const std::wstring& folder) const;
     FileMoveResult MovePathsIntoFence(const std::vector<std::wstring>& sourcePaths, const std::wstring& fenceFolder);
-    bool RestoreItemToOrigin(const std::wstring& fenceFolder, const FenceItem& item);
+    bool RestoreItemToOrigin(const std::wstring& fenceFolder, const FenceItem& item, std::wstring* failureReason = nullptr);
     RestoreResult RestoreAllItems(const std::wstring& fenceFolder);
     bool DeleteItem(const std::wstring& fenceFolder, const FenceItem& item);
     bool DeleteFenceFolderIfEmpty(const std::wstring& fenceFolder);

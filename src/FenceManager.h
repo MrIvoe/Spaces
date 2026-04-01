@@ -8,6 +8,7 @@
 class FenceWindow;
 class FenceStorage;
 class Persistence;
+class FenceExtensionRegistry;
 
 class FenceManager
 {
@@ -31,13 +32,16 @@ public:
     void Shutdown();
     FenceModel* FindFence(const std::wstring& fenceId);
     FenceWindow* FindFenceWindow(const std::wstring& fenceId);
+    void SetFenceExtensionRegistry(const FenceExtensionRegistry* registry);
 
 private:
     std::wstring GenerateFenceId() const;
+    void NormalizeFenceContentProvider(FenceModel& fence) const;
 
 private:
     std::unique_ptr<FenceStorage> m_storage;
     std::unique_ptr<Persistence> m_persistence;
     std::vector<FenceModel> m_fences;
     std::unordered_map<std::wstring, std::unique_ptr<FenceWindow>> m_windows;
+    const FenceExtensionRegistry* m_fenceExtensionRegistry = nullptr;
 };

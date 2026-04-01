@@ -352,18 +352,30 @@ std::map<std::wstring, std::wstring> FenceStorage::LoadItemOrigins(const std::ws
     }
 }
 
-bool FenceStorage::RestoreItemToOrigin(const std::wstring& fenceFolder, const FenceItem& item)
+bool FenceStorage::RestoreItemToOrigin(const std::wstring& fenceFolder, const FenceItem& item, std::wstring* failureReason)
 {
     try
     {
         if (item.originalPath.empty())
+        {
+            if (failureReason)
+            {
+                *failureReason = L"Item has no original path metadata";
+            }
             return false;
+        }
 
         fs::path src(item.fullPath);
         fs::path dest(item.originalPath);
 
         if (!fs::exists(src))
+        {
+            if (failureReason)
+            {
+                *failureReason = L"Source path does not exist during restore";
+            }
             return false;
+        }
 
         // Ensure destination directory exists
         fs::path destDir = dest.parent_path();
@@ -395,12 +407,26 @@ bool FenceStorage::RestoreItemToOrigin(const std::wstring& fenceFolder, const Fe
             if (!ec)
             {
                 fs::remove_all(src, ec);
-                auto origins = LoadItemOrigins(fenceFolder);
-                origins.erase(fs::path(item.fullPath).filename().wstring());
-                SaveItemOrigins(fenceFolder, origins);
-                Win32Helpers::LogInfo(L"Restore success via copy+remove_all: src='" + src.wstring() + L"' dest='" + dest.wstring() + L"'");
-                return true;
+                if (!ec)
+                {
+                    auto origins = LoadItemOrigins(fenceFolder);
+                    origins.erase(fs::path(item.fullPath).filename().wstring());
+                    SaveItemOrigins(fenceFolder, origins);
+                    Win32Helpers::LogInfo(L"Restore success via copy+remove_all: src='" + src.wstring() + L"' dest='" + dest.wstring() + L"'");
+                    return true;
+                }
+
+                if (failureReason)
+                {
+                    *failureReason = L"Copied directory to destination but failed to remove source";
+                }
             }
+
+            if (failureReason && failureReason->empty())
+            {
+                *failureReason = L"Directory restore failed after rename and copy fallback";
+            }
+
             Win32Helpers::LogError(
                 L"Restore directory copy/remove failed: src='" + src.wstring() +
                 L"' dest='" + dest.wstring() + L"' rename=" + FormatErrorCode(renameEc) +
@@ -412,11 +438,24 @@ bool FenceStorage::RestoreItemToOrigin(const std::wstring& fenceFolder, const Fe
             if (!ec)
             {
                 fs::remove(src, ec);
-                auto origins = LoadItemOrigins(fenceFolder);
-                origins.erase(fs::path(item.fullPath).filename().wstring());
-                SaveItemOrigins(fenceFolder, origins);
-                Win32Helpers::LogInfo(L"Restore success via copy+remove: src='" + src.wstring() + L"' dest='" + dest.wstring() + L"'");
-                return true;
+                if (!ec)
+                {
+                    auto origins = LoadItemOrigins(fenceFolder);
+                    origins.erase(fs::path(item.fullPath).filename().wstring());
+                    SaveItemOrigins(fenceFolder, origins);
+                    Win32Helpers::LogInfo(L"Restore success via copy+remove: src='" + src.wstring() + L"' dest='" + dest.wstring() + L"'");
+                    return true;
+                }
+
+                if (failureReason)
+                {
+                    *failureReason = L"Copied file to destination but failed to remove source";
+                }
+            }
+
+            if (failureReason && failureReason->empty())
+            {
+                *failureReason = L"File restore failed after rename and copy fallback";
             }
 
             Win32Helpers::LogError(
@@ -425,11 +464,20 @@ bool FenceStorage::RestoreItemToOrigin(const std::wstring& fenceFolder, const Fe
                 L" copy/remove=" + FormatErrorCode(ec));
         }
 
+        if (failureReason && failureReason->empty())
+        {
+            *failureReason = L"Restore failed";
+        }
+
         Win32Helpers::LogError(L"Restore failed: src='" + src.wstring() + L"' dest='" + dest.wstring() + L"'");
         return false;
     }
     catch (const std::exception& ex)
     {
+        if (failureReason)
+        {
+            *failureReason = L"Unhandled restore exception";
+        }
         Win32Helpers::LogError(L"RestoreItemToOrigin exception for item: " + item.fullPath + L" reason: " + NarrowToWide(ex.what()));
         return false;
     }
@@ -444,14 +492,19 @@ RestoreResult FenceStorage::RestoreAllItems(const std::wstring& fenceFolder)
         auto items = ScanFenceItems(fenceFolder);
         for (const auto& item : items)
         {
-            if (RestoreItemToOrigin(fenceFolder, item))
+            std::wstring reason;
+            if (RestoreItemToOrigin(fenceFolder, item, &reason))
             {
                 ++result.restoredCount;
             }
             else
             {
                 ++result.failedCount;
-                result.failedItems.push_back({fs::path(item.fullPath), L"Restore failed"});
+                if (reason.empty())
+                {
+                    reason = L"Restore failed";
+                }
+                result.failedItems.push_back({fs::path(item.fullPath), reason});
             }
         }
         return result;
@@ -537,10 +590,17 @@ int FenceStorage::GetFileIconIndex(const std::wstring& filePath)
     try
     {
         SHFILEINFOW sfi{};
+        UINT flags = SHGFI_SYSICONINDEX | SHGFI_SMALLICON;
+        DWORD attrs = 0;
+
+        if (!fs::exists(filePath))
+        {
+            flags |= SHGFI_USEFILEATTRIBUTES;
+            attrs = FILE_ATTRIBUTE_NORMAL;
+        }
+
         HIMAGELIST hImageList = reinterpret_cast<HIMAGELIST>(
-            SHGetFileInfoW(filePath.c_str(), FILE_ATTRIBUTE_NORMAL, &sfi, sizeof(sfi), 
-                          SHGFI_SYSICONINDEX | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES)
-        );
+            SHGetFileInfoW(filePath.c_str(), attrs, &sfi, sizeof(sfi), flags));
 
         // Icon index should be valid when we get the image list handle
         if (hImageList != nullptr)

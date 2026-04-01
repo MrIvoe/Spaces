@@ -94,6 +94,11 @@ namespace Win32Helpers
         return false;
     }
 
+    void ShowUserWarning(HWND owner, const std::wstring& title, const std::wstring& message)
+    {
+        MessageBoxW(owner, message.c_str(), title.c_str(), MB_OK | MB_ICONWARNING);
+    }
+
     void LogInfo(const std::wstring& message)
     {
         std::lock_guard<std::mutex> guard(g_logMutex);

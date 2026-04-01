@@ -3,7 +3,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#build-and-run)
 [![Language](https://img.shields.io/badge/language-C%2B%2B17-00599C.svg)](#tech-stack)
 [![Build System](https://img.shields.io/badge/build-CMake-064F8C.svg)](#build-and-run)
-[![Version](https://img.shields.io/badge/version-0.0.008-2EA043.svg)](#release-history)
+[![Version](https://img.shields.io/badge/version-0.0.009-2EA043.svg)](#release-history)
 
 A lightweight Win32 desktop organizer for Windows that lets you create simple desktop fences and move files into them safely.
 
@@ -39,19 +39,19 @@ First run notes:
 
 ## Current Version
 
-Current version: `0.0.008`
+Current version: `0.0.009`
 
 ## Current Status
 
-Current phase: early alpha focused on making the core fence workflow safe and reliable before expanding features.
+Current phase: `0.0.009` platform-foundation milestone, introducing a plugin host around a protected core fence kernel.
 
 Primary focus right now:
 
-- safer file move and restore behavior
-- reliable persistence and startup restore
-- stronger delete recovery behavior
-- more accurate icon handling and better Win32 polish
-- clearer logs and diagnostics for real-world desktop testing
+- keep core fence create/move/resize/drag-drop/persist/restore behavior stable
+- introduce kernel-level command and extension host scaffolding
+- route tray behavior through command and menu contribution registries
+- prepare content-type aware persistence fields with backward compatibility
+- expand diagnostics and settings scaffolding for plugin management
 
 ## What the App Does
 
@@ -129,6 +129,7 @@ Current safety rules:
 ## Current Features
 
 - tray-based fence creation
+- command-dispatched tray actions via contribution registry
 - draggable and resizable fence windows
 - startup reload from saved config
 - file and folder drag/drop
@@ -136,6 +137,8 @@ Current safety rules:
 - per-item delete or restore handling
 - mouse and keyboard context menu support
 - logging for move, restore, delete, and persistence failures
+- built-in plugin host scaffold with capability manifests
+- plugin settings and fence-extension registries (foundation stage)
 
 ## Known Limitations
 
@@ -147,11 +150,29 @@ Current safety rules:
 - no cloud sync
 - no advanced sorting, tabs, or portal fences
 - no shell extension integration
+- plugin architecture is foundation-only (placeholders for advanced providers)
+- settings host UI for plugin pages is not fully implemented yet
 
 ## Repository Layout
 
 ```text
 src/
+    core/
+        AppKernel.h/.cpp
+        CommandDispatcher.h/.cpp
+        EventBus.h/.cpp
+        Diagnostics.h/.cpp
+        ServiceRegistry.h/.cpp
+    extensions/
+        PluginContracts.h
+        PluginHost.h/.cpp
+        PluginRegistry.h/.cpp
+        PluginSettingsRegistry.h/.cpp
+        MenuContributionRegistry.h/.cpp
+        FenceExtensionRegistry.h/.cpp
+    plugins/
+        builtins/
+            BuiltinPlugins.h/.cpp
     App.cpp / App.h
     FenceManager.cpp / FenceManager.h
     FenceStorage.cpp / FenceStorage.h
@@ -167,106 +188,63 @@ README.md
 
 ## Architecture Overview
 
-IVOESimpleFences is intentionally small and direct. The project is built around a few focused components:
+The 0.0.009 transition introduces a plugin platform around a protected fence kernel.
 
-- `App`: startup, shutdown, message loop, and top-level wiring
-- `TrayMenu`: tray icon and user commands like creating a fence or exiting
-- `FenceManager`: owns the canonical fence models and coordinates windows, storage, and persistence
-- `FenceWindow`: one Win32 window per fence, responsible for painting and user interaction
-- `FenceStorage`: move, restore, delete, and backing-folder/origin metadata behavior
-- `Persistence`: load/save of fence config
-- `Win32Helpers`: app-data paths, logging, and atomic file replacement helpers
+Core rule:
+
+- core fence behavior is not "just another plugin" yet
+- plugin host grows around the core
+- optional features move to plugins incrementally
+
+Kernel/platform services now include:
+
+- `AppKernel`: startup scaffolding for command routing and plugin host lifecycle
+- `CommandDispatcher`: command registration and dispatch (`fence.create`, `app.exit`)
+- `EventBus`: lightweight event pub/sub scaffold for controlled extension reactions
+- `PluginHost` + registries: built-in plugin loading, capability registration, settings/menu extension points
+
+Core fence domain remains responsible for:
+
+- fence create/move/resize workflow
+- drag/drop and file move safety
+- persistence and startup reload
+- restore/delete safety behavior
 
 ```mermaid
 flowchart TD
-        A[main.cpp] --> B[App]
-        B --> C[TrayMenu]
-        B --> D[FenceManager]
+    A[main.cpp] --> B[AppKernel]
+    B --> C[ServiceRegistry]
+    B --> D[CommandDispatcher]
+    B --> E[EventBus]
+    B --> F[PluginHost]
 
-        D --> E[Persistence]
-        D --> F[FenceStorage]
-        D --> G[FenceWindow]
+    C --> G[FenceManager]
+    C --> H[FenceStorage]
+    C --> I[Persistence]
+    C --> J[Win32Helpers]
 
-        G --> D
-        F --> H[(Fence backing folders)]
-        F --> I[_origins.json]
-        E --> J[(config.json)]
-        C --> D
-        D --> K[Win32Helpers]
-        F --> K
-        E --> K
-        B --> K
+    F --> K[CoreCommandsPlugin]
+    F --> L[TrayPlugin]
+    F --> M[SettingsPlugin]
+    F --> N[AppearancePlugin]
+    F --> O[ExplorerFencePlugin]
+    F --> P[WidgetsPlugin]
+    F --> Q[DesktopContextPlugin]
+
+    G --> R[FenceWindow]
+    L --> D
 ```
 
 ### Component Responsibilities
 
-#### App
-
-Responsible for:
-
-- initializing common controls
-- creating storage, persistence, manager, and tray objects
-- loading saved fences
-- running the Win32 message loop
-- performing ordered shutdown
-
-#### TrayMenu
-
-Responsible for:
-
-- tray icon creation
-- tray menu display
-- routing high-level commands such as create new fence and exit application
-
-#### FenceManager
-
-Responsible for:
-
-- owning the canonical list of fences
-- creating and deleting fences
-- refreshing fence contents
-- updating fence geometry
-- deciding whether fence deletion is safe after restore attempts
-- coordinating between UI, storage, and persistence
-
-#### FenceWindow
-
-Responsible for:
-
-- rendering a fence window
-- handling drag/drop
-- painting icons and item labels
-- item interaction
-- context menus
-- notifying the manager when geometry or actions change
-
-#### FenceStorage
-
-Responsible for:
-
-- creating fence folders
-- scanning fence contents
-- moving dropped items into fences
-- recording original item locations
-- restoring items safely
-- cleaning up fence folders when appropriate
-
-#### Persistence
-
-Responsible for:
-
-- loading fence metadata from `config.json`
-- saving fence metadata back to disk
-- using structured JSON and atomic replacement behavior
-
-#### Win32Helpers
-
-Responsible for:
-
-- resolving app-data paths
-- logging
-- low-level Win32 helper functions
-- atomic metadata file replacement
+- `App`: creates stable fence services and tray shell, delegates platform-extension concerns to `AppKernel`
+- `AppKernel`: owns dispatcher, event bus, plugin host, and extension registries
+- `TrayMenu`: builds tray UI from menu contributions and dispatches selected commands
+- `FenceManager`: canonical fence state and lifecycle coordination
+- `FenceWindow`: per-fence Win32 host window and fence interaction rendering
+- `FenceStorage`: physical file move/restore/delete safety and backing-folder management
+- `Persistence`: structured JSON metadata with backward-compatible evolution
+- `Win32Helpers`: logging, paths, and atomic metadata replacement helper operations
 
 ## Tech Stack
 
@@ -344,6 +322,15 @@ This can happen intentionally if restore was only partially successful. The fenc
 
 ## Release History
 
+### 0.0.009
+
+- introduced `AppKernel` platform layer around stable fence core behavior
+- added command dispatcher and routed tray actions via `fence.create` and `app.exit`
+- added plugin host, plugin contracts, and built-in plugin manifests
+- added menu contribution, settings registry, and fence-extension registry scaffolding
+- evolved persistence/model to include content-provider metadata with backward compatibility
+- documented phased migration from monolith to plugin-capable platform
+
 ### 0.0.008
 
 - wrote origin metadata only after successful move completion
@@ -370,7 +357,27 @@ This can happen intentionally if restore was only partially successful. The fenc
 
 ## Roadmap
 
-Near term:
+Phase A: Platform foundation
+
+- complete kernel service registration boundaries and diagnostics surfaces
+- keep core file-collection fence flow stable and first-class
+- mature plugin status reporting and plugin failure handling UX
+- add settings host shell with plugin page navigation
+
+Phase B: Built-in plugin migration
+
+- move tray behavior ownership fully into tray plugin while preserving command-driven routing
+- deliver appearance plugin basics and theme hooks for fence rendering
+- add plugin management settings page for enable/disable and health visibility
+
+Phase C: Advanced plugin capabilities
+
+- extract file collection behavior into default provider contract
+- prototype `folder_portal` provider through Explorer fence plugin
+- prototype `widget_panel` provider through widgets plugin
+- define desktop context integration path before any shell-extension rollout
+
+Near-term quality work across phases:
 
 - improve icon accuracy and rendering polish
 - finish rename UI

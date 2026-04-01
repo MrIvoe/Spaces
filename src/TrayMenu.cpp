@@ -8,8 +8,7 @@
 #pragma comment(lib, "Shell32.lib")
 
 static constexpr UINT WMAPP_TRAYICON = (WM_APP + 1);
-static constexpr UINT ID_TRAY_NEW_FENCE = 1001;
-static constexpr UINT ID_TRAY_EXIT = 1002;
+static constexpr UINT ID_TRAY_COMMAND_BASE = 1001;
 
 TrayMenu::TrayMenu(App* app) : m_app(app)
 {
@@ -82,21 +81,41 @@ void TrayMenu::Destroy()
 void TrayMenu::ShowContextMenu(POINT pt)
 {
     HMENU menu = CreatePopupMenu();
-    AppendMenuW(menu, MF_STRING, ID_TRAY_NEW_FENCE, L"New Fence");
-    AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, ID_TRAY_EXIT, L"Exit");
+
+    m_commandByMenuId.clear();
+    UINT menuId = ID_TRAY_COMMAND_BASE;
+
+    if (m_app)
+    {
+        const auto entries = m_app->GetTrayMenuEntries();
+        for (const auto& entry : entries)
+        {
+            if (entry.separatorBefore)
+            {
+                AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+            }
+
+            AppendMenuW(menu, MF_STRING, menuId, entry.title.c_str());
+            m_commandByMenuId[menuId] = entry.commandId;
+            ++menuId;
+        }
+    }
 
     SetForegroundWindow(m_hwnd);
     int cmd = TrackPopupMenuEx(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, m_hwnd, nullptr);
     DestroyMenu(menu);
 
-    if (cmd == ID_TRAY_NEW_FENCE && m_app)
+    if (cmd != 0 && m_app)
     {
-        m_app->CreateFenceNearCursor();
-    }
-    else if (cmd == ID_TRAY_EXIT && m_app)
-    {
-        m_app->Exit();
+        const auto it = m_commandByMenuId.find(static_cast<UINT>(cmd));
+        if (it != m_commandByMenuId.end())
+        {
+            const bool handled = m_app->ExecuteCommand(it->second);
+            if (!handled)
+            {
+                Win32Helpers::LogError(L"Tray command was not handled: " + it->second);
+            }
+        }
     }
 }
 

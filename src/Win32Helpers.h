@@ -12,6 +12,7 @@ namespace Win32Helpers
     std::filesystem::path GetConfigPath();
     std::filesystem::path GetDebugLogPath();
     bool ReplaceFileAtomically(const std::filesystem::path& tempPath, const std::filesystem::path& targetPath);
+    void ShowUserWarning(HWND owner, const std::wstring& title, const std::wstring& message);
 
     void LogInfo(const std::wstring& message);
     void LogError(const std::wstring& message);

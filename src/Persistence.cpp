@@ -123,6 +123,20 @@ bool Persistence::LoadFences(std::vector<FenceModel>& fences)
             fence.width = item.value("width", 320);
             fence.height = item.value("height", 240);
             fence.backingFolder = FromUtf8(item.value("backingFolder", std::string{}));
+            fence.contentType = FromUtf8(item.value("contentType", std::string{"file_collection"}));
+            fence.contentPluginId = FromUtf8(item.value("contentPluginId", std::string{"core.file_collection"}));
+            fence.appearanceProfileId = FromUtf8(item.value("appearanceProfileId", std::string{}));
+            fence.widgetLayoutId = FromUtf8(item.value("widgetLayoutId", std::string{}));
+
+            if (fence.contentType.empty())
+            {
+                fence.contentType = L"file_collection";
+            }
+
+            if (fence.contentPluginId.empty())
+            {
+                fence.contentPluginId = L"core.file_collection";
+            }
             fences.push_back(std::move(fence));
         }
 
@@ -140,7 +154,7 @@ bool Persistence::SaveFences(const std::vector<FenceModel>& fences)
     try
     {
         json root;
-        root["version"] = "0.0.008";
+        root["version"] = "0.0.009";
         root["fences"] = json::array();
 
         for (const auto& fence : fences)
@@ -152,7 +166,11 @@ bool Persistence::SaveFences(const std::vector<FenceModel>& fences)
                 {"y", fence.y},
                 {"width", fence.width},
                 {"height", fence.height},
-                {"backingFolder", ToUtf8(fence.backingFolder)}
+                {"backingFolder", ToUtf8(fence.backingFolder)},
+                {"contentType", ToUtf8(fence.contentType)},
+                {"contentPluginId", ToUtf8(fence.contentPluginId)},
+                {"appearanceProfileId", ToUtf8(fence.appearanceProfileId)},
+                {"widgetLayoutId", ToUtf8(fence.widgetLayoutId)}
             });
         }
 

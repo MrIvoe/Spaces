@@ -3,6 +3,7 @@
 #include "FenceStorage.h"
 #include "Persistence.h"
 #include "Win32Helpers.h"
+#include "extensions/FenceExtensionRegistry.h"
 #include <algorithm>
 #include <objbase.h>
 #include <ole2.h>
@@ -23,6 +24,8 @@ bool FenceManager::LoadAll()
     // Create windows for each loaded fence
     for (auto& fence : m_fences)
     {
+        NormalizeFenceContentProvider(fence);
+
         // Ensure backing folder exists
         if (fence.backingFolder.empty())
         {
@@ -68,6 +71,10 @@ std::wstring FenceManager::CreateFenceAt(int x, int y, const std::wstring& title
     fence.width = 320;
     fence.height = 240;
     fence.backingFolder = m_storage->EnsureFenceFolder(fence.id);
+    fence.contentType = L"file_collection";
+    fence.contentPluginId = L"core.file_collection";
+
+    NormalizeFenceContentProvider(fence);
 
     m_fences.push_back(fence);
 
@@ -251,4 +258,44 @@ FenceWindow* FenceManager::FindFenceWindow(const std::wstring& fenceId)
     if (it != m_windows.end())
         return it->second.get();
     return nullptr;
+}
+
+void FenceManager::SetFenceExtensionRegistry(const FenceExtensionRegistry* registry)
+{
+    m_fenceExtensionRegistry = registry;
+    for (auto& fence : m_fences)
+    {
+        NormalizeFenceContentProvider(fence);
+    }
+}
+
+void FenceManager::NormalizeFenceContentProvider(FenceModel& fence) const
+{
+    if (!m_fenceExtensionRegistry)
+    {
+        if (fence.contentType.empty())
+        {
+            fence.contentType = L"file_collection";
+        }
+
+        if (fence.contentPluginId.empty())
+        {
+            fence.contentPluginId = L"core.file_collection";
+        }
+        return;
+    }
+
+    const bool supported = m_fenceExtensionRegistry->HasProvider(fence.contentType, fence.contentPluginId);
+    if (supported)
+    {
+        return;
+    }
+
+    const auto fallback = m_fenceExtensionRegistry->ResolveOrDefault(fence.contentType, fence.contentPluginId);
+    Win32Helpers::LogError(
+        L"Unsupported fence provider detected. Falling back to core provider. fenceId='" + fence.id +
+        L"' contentType='" + fence.contentType + L"' pluginId='" + fence.contentPluginId + L"'");
+
+    fence.contentType = fallback.contentType;
+    fence.contentPluginId = fallback.providerId;
 }

@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\MrIvo\Github\IVOESimpleFences\build\_deps\nlohmann_json-subbuild\CMakeFiles\084850dae305df8121ac70cdf86ba930\nlohmann_json-populate-mkdir.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\MrIvo\Github\IVOESimpleFences\build\_deps\nlohmann_json-subbuild\CMakeFiles\084850dae305df8121ac70cdf86ba930\nlohmann_json-populate-download.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\MrIvo\Github\IVOESimpleFences\build\_deps\nlohmann_json-subbuild\CMakeFiles\084850dae305df8121ac70cdf86ba930\nlohmann_json-populate-update.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\MrIvo\Github\IVOESimpleFences\build\_deps\nlohmann_json-subbuild\CMakeFiles\084850dae305df8121ac70cdf86ba930\nlohmann_json-populate-patch.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\MrIvo\Github\IVOESimpleFences\build\_deps\nlohmann_json-subbuild\CMakeFiles\084850dae305df8121ac70cdf86ba930\nlohmann_json-populate-configure.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\MrIvo\Github\IVOESimpleFences\build\_deps\nlohmann_json-subbuild\CMakeFiles\084850dae305df8121ac70cdf86ba930\nlohmann_json-populate-build.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\MrIvo\Github\IVOESimpleFences\build\_deps\nlohmann_json-subbuild\CMakeFiles\084850dae305df8121ac70cdf86ba930\nlohmann_json-populate-install.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\MrIvo\Github\IVOESimpleFences\build\_deps\nlohmann_json-subbuild\CMakeFiles\084850dae305df8121ac70cdf86ba930\nlohmann_json-populate-test.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\MrIvo\Github\IVOESimpleFences\build\_deps\nlohmann_json-subbuild\CMakeFiles\630beccbcf3c03940b466e06159568e6\nlohmann_json-populate-complete.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\MrIvo\Github\IVOESimpleFences\build\_deps\nlohmann_json-subbuild\CMakeFiles\7a657d84ba164fc9b404f212db95352f\nlohmann_json-populate.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\MrIvo\Github\IVOESimpleFences\build\_deps\nlohmann_json-subbuild\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\MrIvo\Github\IVOESimpleFences\build\_deps\nlohmann_json-subbuild\CMakeFiles\nlohmann_json-populate" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{04B5A3BE-AD3B-3C11-B617-01A07346042E}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

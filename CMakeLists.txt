@@ -18,6 +18,30 @@ add_executable(SimpleFences WIN32
     src/main.cpp
     src/App.h
     src/App.cpp
+    src/core/AppKernel.h
+    src/core/AppKernel.cpp
+    src/core/CommandDispatcher.h
+    src/core/CommandDispatcher.cpp
+    src/core/EventBus.h
+    src/core/EventBus.cpp
+    src/core/Diagnostics.h
+    src/core/Diagnostics.cpp
+    src/core/KernelViews.h
+    src/core/ServiceRegistry.h
+    src/core/ServiceRegistry.cpp
+    src/extensions/PluginContracts.h
+    src/extensions/PluginHost.h
+    src/extensions/PluginHost.cpp
+    src/extensions/PluginRegistry.h
+    src/extensions/PluginRegistry.cpp
+    src/extensions/PluginSettingsRegistry.h
+    src/extensions/PluginSettingsRegistry.cpp
+    src/extensions/MenuContributionRegistry.h
+    src/extensions/MenuContributionRegistry.cpp
+    src/extensions/FenceExtensionRegistry.h
+    src/extensions/FenceExtensionRegistry.cpp
+    src/plugins/builtins/BuiltinPlugins.h
+    src/plugins/builtins/BuiltinPlugins.cpp
     src/FenceStorage.h
     src/FenceStorage.cpp
     src/Persistence.h
@@ -30,7 +54,13 @@ add_executable(SimpleFences WIN32
     src/TrayMenu.cpp
     src/Win32Helpers.h
     src/Win32Helpers.cpp
+    src/ui/SettingsWindow.h
+    src/ui/SettingsWindow.cpp
     src/Models.h
+)
+
+target_include_directories(SimpleFences PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 # Link Windows libraries
