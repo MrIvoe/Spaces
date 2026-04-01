@@ -140,7 +140,7 @@ bool Persistence::SaveFences(const std::vector<FenceModel>& fences)
     try
     {
         json root;
-        root["version"] = "0.0.007";
+        root["version"] = "0.0.008";
         root["fences"] = json::array();
 
         for (const auto& fence : fences)
@@ -210,13 +210,10 @@ bool Persistence::SaveTextAtomic(const std::string& text)
         stream.flush();
         stream.close();
 
-        std::error_code ec;
-        fs::remove(target, ec);
-        ec.clear();
-        fs::rename(tmp, target, ec);
-        if (ec)
+        if (!Win32Helpers::ReplaceFileAtomically(tmp, target))
         {
-            Win32Helpers::LogError(L"Failed atomic rename for metadata file: " + target.wstring());
+            Win32Helpers::LogError(L"SaveTextAtomic replace failed target='" + target.wstring() + L"' temp='" + tmp.wstring() + L"'");
+            std::error_code ec;
             fs::remove(tmp, ec);
             return false;
         }

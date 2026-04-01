@@ -90,7 +90,23 @@ void FenceManager::DeleteFence(const std::wstring& fenceId)
     auto fence = FindFence(fenceId);
     if (fence)
     {
-        m_storage->RestoreAllItems(fence->backingFolder);
+        const RestoreResult restore = m_storage->RestoreAllItems(fence->backingFolder);
+        if (!restore.AllSucceeded())
+        {
+            Win32Helpers::LogError(
+                L"Delete fence aborted due to partial restore failures: fenceId='" + fenceId +
+                L"' restored=" + std::to_wstring(restore.restoredCount) +
+                L" failed=" + std::to_wstring(restore.failedCount));
+
+            for (const auto& failed : restore.failedItems)
+            {
+                Win32Helpers::LogError(L"Restore failure detail: path='" + failed.first.wstring() + L"' reason='" + failed.second + L"'");
+            }
+
+            RefreshFence(fenceId);
+            return;
+        }
+
         m_storage->DeleteFenceFolderIfEmpty(fence->backingFolder);
     }
 

@@ -1,6 +1,6 @@
 # SimpleFences - Lightweight Win32 Desktop Organizer
 
-Version: 0.0.007
+Version: 0.0.008
 
 A simple, reliable desktop organizer for Windows that lets you create borderless "fence" windows to group and organize your desktop files.
 
@@ -27,6 +27,15 @@ A simple, reliable desktop organizer for Windows that lets you create borderless
 - Added cleanup for fence metadata files/folders after delete when folder is empty
 - Hardened tray class registration (`ERROR_CLASS_ALREADY_EXISTS` is treated as valid)
 - Improved shutdown ordering to save state and remove tray icon reliably
+
+## What Changed in 0.0.008
+
+- Origin metadata now updates only after file moves actually succeed, preventing stale `_origins.json` entries
+- Atomic save flow now uses Windows-safe replacement (`MoveFileExW` with replace/write-through) without deleting target first
+- Fence delete now aborts on partial restore failure so recoverable items are not lost with fence record removal
+- Added `WM_CONTEXTMENU` handling for both mouse and keyboard-triggered context menus
+- Removed repeated shell image-list lookups from paint loop and now reuses cached system image list
+- Expanded file-operation logging with clearer source/destination context
 
 ## Architecture
 
@@ -109,7 +118,7 @@ Restore behavior is non-destructive: if the original destination already exists,
 
 - Each fence is a real `WS_POPUP` window with `WS_THICKFRAME`
 - Files dropped into a fence are moved into `%LOCALAPPDATA%\SimpleFences\Fences\<id>\`
-- Metadata is stored as simple JSON (one object per line)
+- Metadata is stored as structured JSON with atomic replace-on-save
 - No shell integration or metadata-only membership
 - No file hiding or desktop modification
 

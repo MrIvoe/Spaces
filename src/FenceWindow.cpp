@@ -172,9 +172,36 @@ LRESULT FenceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         InvalidateRect(m_hwnd, nullptr, FALSE);
         return 0;
 
-    case WM_RBUTTONUP:
-        OnContextMenu(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+    case WM_CONTEXTMENU:
+    {
+        POINT screenPt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        if (screenPt.x == -1 && screenPt.y == -1)
+        {
+            RECT clientRc{};
+            GetClientRect(m_hwnd, &clientRc);
+
+            POINT anchor{};
+            if (m_selectedItem >= 0)
+            {
+                static constexpr int kItemHeight = 24;
+                anchor.x = 20;
+                anchor.y = kTitleBarHeight + 8 + (m_selectedItem * kItemHeight) + (kItemHeight / 2);
+            }
+            else
+            {
+                anchor.x = (clientRc.right - clientRc.left) / 2;
+                anchor.y = kTitleBarHeight / 2;
+            }
+
+            ClientToScreen(m_hwnd, &anchor);
+            screenPt = anchor;
+        }
+
+        POINT clientPt = screenPt;
+        ScreenToClient(m_hwnd, &clientPt);
+        OnContextMenu(clientPt.x, clientPt.y);
         return 0;
+    }
 
     case WM_DROPFILES:
         OnDropFiles(reinterpret_cast<HDROP>(wParam));
@@ -272,21 +299,11 @@ void FenceWindow::OnPaint()
         }
 
         // Draw icon if available
-        if (item.iconIndex >= 0)
+        if (item.iconIndex >= 0 && m_imageList != nullptr)
         {
-            // Get system image list for drawing
-            SHFILEINFOW sfi{};
-            HIMAGELIST hImageList = reinterpret_cast<HIMAGELIST>(
-                SHGetFileInfoW(L".", FILE_ATTRIBUTE_NORMAL, &sfi, sizeof(sfi),
-                              SHGFI_SYSICONINDEX | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES)
-            );
-            
-            if (hImageList)
-            {
-                int iconX = itemRc.left + 2;
-                int iconY = itemRc.top + (kItemHeight - kIconSize) / 2;
-                ImageList_Draw(hImageList, item.iconIndex, hdc, iconX, iconY, ILD_TRANSPARENT);
-            }
+            int iconX = itemRc.left + 2;
+            int iconY = itemRc.top + (kItemHeight - kIconSize) / 2;
+            ImageList_Draw(m_imageList, item.iconIndex, hdc, iconX, iconY, ILD_TRANSPARENT);
         }
 
         // Draw text beside the icon

@@ -30,3 +30,12 @@ struct FileMoveResult
 
     bool HasFailures() const { return !failed.empty(); }
 };
+
+struct RestoreResult
+{
+    int restoredCount = 0;
+    int failedCount = 0;
+    std::vector<std::pair<std::filesystem::path, std::wstring>> failedItems;
+
+    bool AllSucceeded() const { return failedCount == 0; }
+};

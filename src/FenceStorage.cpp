@@ -56,6 +56,11 @@ namespace
         return std::wstring(text.begin(), text.end());
     }
 
+    std::wstring FormatErrorCode(const std::error_code& ec)
+    {
+        return L"ec=" + std::to_wstring(ec.value()) + L" msg='" + NarrowToWide(ec.message()) + L"'";
+    }
+
     bool SaveJsonAtomic(const fs::path& targetPath, const json& value)
     {
         const fs::path tmpPath = targetPath.wstring() + L".tmp";
@@ -70,13 +75,10 @@ namespace
         stream.flush();
         stream.close();
 
-        std::error_code ec;
-        fs::remove(targetPath, ec);
-        ec.clear();
-        fs::rename(tmpPath, targetPath, ec);
-        if (ec)
+        if (!Win32Helpers::ReplaceFileAtomically(tmpPath, targetPath))
         {
-            Win32Helpers::LogError(L"Failed atomic rename for json file: " + targetPath.wstring());
+            Win32Helpers::LogError(L"Atomic json replace failed target='" + targetPath.wstring() + L"' temp='" + tmpPath.wstring() + L"'");
+            std::error_code ec;
             fs::remove(tmpPath, ec);
             return false;
         }
@@ -184,6 +186,7 @@ FileMoveResult FenceStorage::MovePathsIntoFence(const std::vector<std::wstring>&
             if (!fs::exists(src))
             {
                 result.failed.push_back({src, L"Source path does not exist"});
+                Win32Helpers::LogError(L"Move skipped (missing source): src='" + src.wstring() + L"' destFolder='" + destFolder.wstring() + L"'");
                 continue;
             }
 
@@ -201,17 +204,18 @@ FileMoveResult FenceStorage::MovePathsIntoFence(const std::vector<std::wstring>&
                 ++counter;
             }
 
-            // Store original path in origins map
-            origins[dest.filename().wstring()] = src.wstring();
-
             // Try rename first (same volume)
             std::error_code ec;
             fs::rename(src, dest, ec);
             if (!ec)
             {
+                origins[dest.filename().wstring()] = src.wstring();
                 result.moved.push_back(dest);
+                Win32Helpers::LogInfo(L"Move success via rename: src='" + src.wstring() + L"' dest='" + dest.wstring() + L"'");
                 continue;
             }
+
+            const std::error_code renameEc = ec;
 
             // Fall back to copy+delete
             if (fs::is_directory(src))
@@ -222,27 +226,51 @@ FileMoveResult FenceStorage::MovePathsIntoFence(const std::vector<std::wstring>&
                     fs::remove_all(src, ec);
                     if (!ec)
                     {
+                        origins[dest.filename().wstring()] = src.wstring();
                         result.moved.push_back(dest);
+                        Win32Helpers::LogInfo(L"Move success via copy+remove_all: src='" + src.wstring() + L"' dest='" + dest.wstring() + L"'");
                         continue;
                     }
+                    Win32Helpers::LogError(
+                        L"Move remove source dir failed after copy: src='" + src.wstring() +
+                        L"' dest='" + dest.wstring() + L"' " + FormatErrorCode(ec));
+                }
+                else
+                {
+                    Win32Helpers::LogError(
+                        L"Move copy dir failed: src='" + src.wstring() +
+                        L"' dest='" + dest.wstring() + L"' rename=" + FormatErrorCode(renameEc) +
+                        L" copy=" + FormatErrorCode(ec));
                 }
             }
             else
             {
-                fs::copy_file(src, dest, fs::copy_options::overwrite_existing, ec);
+                fs::copy_file(src, dest, fs::copy_options::none, ec);
                 if (!ec)
                 {
                     fs::remove(src, ec);
                     if (!ec)
                     {
+                        origins[dest.filename().wstring()] = src.wstring();
                         result.moved.push_back(dest);
+                        Win32Helpers::LogInfo(L"Move success via copy+remove: src='" + src.wstring() + L"' dest='" + dest.wstring() + L"'");
                         continue;
                     }
+                    Win32Helpers::LogError(
+                        L"Move remove source file failed after copy: src='" + src.wstring() +
+                        L"' dest='" + dest.wstring() + L"' " + FormatErrorCode(ec));
+                }
+                else
+                {
+                    Win32Helpers::LogError(
+                        L"Move copy file failed: src='" + src.wstring() +
+                        L"' dest='" + dest.wstring() + L"' rename=" + FormatErrorCode(renameEc) +
+                        L" copy=" + FormatErrorCode(ec));
                 }
             }
 
             result.failed.push_back({src, L"Move failed after rename and copy fallback"});
-            Win32Helpers::LogError(L"Move failed for path: " + src.wstring());
+            Win32Helpers::LogError(L"Move failed: src='" + src.wstring() + L"' dest='" + dest.wstring() + L"'");
         }
 
         // Save origins for later restoration
@@ -354,8 +382,11 @@ bool FenceStorage::RestoreItemToOrigin(const std::wstring& fenceFolder, const Fe
             auto origins = LoadItemOrigins(fenceFolder);
             origins.erase(fs::path(item.fullPath).filename().wstring());
             SaveItemOrigins(fenceFolder, origins);
+            Win32Helpers::LogInfo(L"Restore success via rename: src='" + src.wstring() + L"' dest='" + dest.wstring() + L"'");
             return true;
         }
+
+        const std::error_code renameEc = ec;
 
         // Fall back to copy+delete
         if (fs::is_directory(src))
@@ -367,8 +398,13 @@ bool FenceStorage::RestoreItemToOrigin(const std::wstring& fenceFolder, const Fe
                 auto origins = LoadItemOrigins(fenceFolder);
                 origins.erase(fs::path(item.fullPath).filename().wstring());
                 SaveItemOrigins(fenceFolder, origins);
+                Win32Helpers::LogInfo(L"Restore success via copy+remove_all: src='" + src.wstring() + L"' dest='" + dest.wstring() + L"'");
                 return true;
             }
+            Win32Helpers::LogError(
+                L"Restore directory copy/remove failed: src='" + src.wstring() +
+                L"' dest='" + dest.wstring() + L"' rename=" + FormatErrorCode(renameEc) +
+                L" copy/remove=" + FormatErrorCode(ec));
         }
         else
         {
@@ -379,11 +415,17 @@ bool FenceStorage::RestoreItemToOrigin(const std::wstring& fenceFolder, const Fe
                 auto origins = LoadItemOrigins(fenceFolder);
                 origins.erase(fs::path(item.fullPath).filename().wstring());
                 SaveItemOrigins(fenceFolder, origins);
+                Win32Helpers::LogInfo(L"Restore success via copy+remove: src='" + src.wstring() + L"' dest='" + dest.wstring() + L"'");
                 return true;
             }
+
+            Win32Helpers::LogError(
+                L"Restore file copy/remove failed: src='" + src.wstring() +
+                L"' dest='" + dest.wstring() + L"' rename=" + FormatErrorCode(renameEc) +
+                L" copy/remove=" + FormatErrorCode(ec));
         }
 
-        Win32Helpers::LogError(L"Restore failed for source: " + src.wstring());
+        Win32Helpers::LogError(L"Restore failed: src='" + src.wstring() + L"' dest='" + dest.wstring() + L"'");
         return false;
     }
     catch (const std::exception& ex)
@@ -393,22 +435,33 @@ bool FenceStorage::RestoreItemToOrigin(const std::wstring& fenceFolder, const Fe
     }
 }
 
-bool FenceStorage::RestoreAllItems(const std::wstring& fenceFolder)
+RestoreResult FenceStorage::RestoreAllItems(const std::wstring& fenceFolder)
 {
+    RestoreResult result;
+
     try
     {
         auto items = ScanFenceItems(fenceFolder);
-        bool success = true;
         for (const auto& item : items)
         {
-            success = RestoreItemToOrigin(fenceFolder, item) && success;
+            if (RestoreItemToOrigin(fenceFolder, item))
+            {
+                ++result.restoredCount;
+            }
+            else
+            {
+                ++result.failedCount;
+                result.failedItems.push_back({fs::path(item.fullPath), L"Restore failed"});
+            }
         }
-        return success;
+        return result;
     }
     catch (const std::exception& ex)
     {
         Win32Helpers::LogError(L"RestoreAllItems exception for fence folder: " + fenceFolder + L" reason: " + NarrowToWide(ex.what()));
-        return false;
+        ++result.failedCount;
+        result.failedItems.push_back({fs::path(fenceFolder), L"Unhandled restore-all exception"});
+        return result;
     }
 }
 
@@ -435,7 +488,7 @@ bool FenceStorage::DeleteItem(const std::wstring& fenceFolder, const FenceItem& 
 
     if (ec)
     {
-        Win32Helpers::LogError(L"DeleteItem failed for path: " + item.fullPath);
+        Win32Helpers::LogError(L"Delete item failed path='" + item.fullPath + L"' " + FormatErrorCode(ec));
         return false;
     }
 

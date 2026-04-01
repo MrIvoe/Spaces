@@ -76,6 +76,24 @@ namespace Win32Helpers
         return GetAppDataRoot() / L"debug.log";
     }
 
+    bool ReplaceFileAtomically(const std::filesystem::path& tempPath, const std::filesystem::path& targetPath)
+    {
+        if (MoveFileExW(
+                tempPath.c_str(),
+                targetPath.c_str(),
+                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+        {
+            return true;
+        }
+
+        const DWORD error = GetLastError();
+        LogError(
+            L"Atomic replace failed from '" + tempPath.wstring() +
+            L"' to '" + targetPath.wstring() +
+            L"' error=" + std::to_wstring(error));
+        return false;
+    }
+
     void LogInfo(const std::wstring& message)
     {
         std::lock_guard<std::mutex> guard(g_logMutex);
