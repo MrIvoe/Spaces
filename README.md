@@ -1,14 +1,41 @@
 # IVOESimpleFences
 
-Public version: 0.0.008
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#build-and-run)
+[![Language](https://img.shields.io/badge/language-C%2B%2B17-00599C.svg)](#technology)
+[![Build System](https://img.shields.io/badge/build-CMake-064F8C.svg)](#build-and-run)
+[![Version](https://img.shields.io/badge/version-0.0.008-2EA043.svg)](#release-history)
 
-IVOESimpleFences is a Win32 desktop organizer that groups files into floating fence windows while prioritizing reliability and recoverability.
+Reliable Win32 desktop fences with strong focus on file-safety, recoverability, and predictable persistence behavior.
 
-## Repository Structure
+## Table of Contents
+
+- [Overview](#overview)
+- [Repository Layout](#repository-layout)
+- [Architecture](#architecture)
+- [Implementation Highlights](#implementation-highlights)
+- [Technology](#technology)
+- [Build and Run](#build-and-run)
+- [Data, Metadata, and Logs](#data-metadata-and-logs)
+- [Release History](#release-history)
+- [Project Phases](#project-phases)
+- [Roadmap](#roadmap)
+
+## Overview
+
+IVOESimpleFences provides draggable/resizable desktop fence windows that physically organize files into backing folders while preserving origin metadata for safe restore.
+
+Primary goals:
+
+- Keep user data safe first.
+- Keep file operations diagnosable through logging.
+- Keep behavior stable for real desktop testing.
+
+## Repository Layout
 
 ```text
 .
 |-- .github/
+|   `-- copilot-instructions.md
 |-- .vscode/
 |-- build/
 |-- csharp-advanced/
@@ -24,20 +51,65 @@ IVOESimpleFences is a Win32 desktop organizer that groups files into floating fe
 |   |-- Win32Helpers.cpp / Win32Helpers.h
 |   `-- main.cpp
 |-- CMakeLists.txt
-|-- PHASE_1.md
-|-- PHASE_2.md
+|-- test_icons.bat
 `-- README.md
 ```
 
-## Main Modules
+## Architecture
 
-- `App`: startup, message loop, shutdown ordering.
-- `FenceManager`: authoritative in-memory model for fences and windows.
-- `FenceStorage`: file move/restore/delete operations and `_origins.json` metadata.
-- `Persistence`: config load/save using JSON.
-- `FenceWindow`: fence UI, drag/drop, item rendering, context menus.
-- `TrayMenu`: tray icon and app commands.
-- `Win32Helpers`: app paths, logging, atomic replace helper.
+- App layer: startup, initialization, message loop, and ordered shutdown.
+- Manager layer: canonical fence model state and fence-window orchestration.
+- Storage layer: move, restore, delete, and per-fence origin metadata handling.
+- Persistence layer: JSON config load/save with atomic replacement.
+- Window layer: painting, drag/drop, item interaction, and context menus.
+- Utility layer: app-data paths, logging, and atomic file replacement helper.
+
+## Implementation Highlights
+
+### Safe file replacement (Windows-native)
+
+```cpp
+bool ReplaceFileAtomically(const std::filesystem::path& tempPath,
+                           const std::filesystem::path& targetPath) {
+    return MoveFileExW(tempPath.c_str(), targetPath.c_str(),
+        MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
+}
+```
+
+### Structured drop results
+
+```cpp
+struct FileMoveResult {
+    std::vector<std::filesystem::path> moved;
+    std::vector<std::pair<std::filesystem::path, std::wstring>> failed;
+};
+```
+
+### Recovery-safe fence deletion
+
+```cpp
+const RestoreResult restore = m_storage->RestoreAllItems(fence->backingFolder);
+if (!restore.AllSucceeded()) {
+    RefreshFence(fenceId);
+    return; // keep fence for recovery
+}
+```
+
+### Non-destructive restore naming
+
+When restore target already exists, a conflict-safe name is generated:
+
+```text
+example.txt -> example (restored 1).txt
+```
+
+## Technology
+
+- Language: C++17
+- UI/API: Win32 API
+- Build: CMake
+- JSON: nlohmann/json
+- Toolchain: Visual Studio C++ (MSVC)
 
 ## Build and Run
 
@@ -47,80 +119,75 @@ Requirements:
 - CMake 3.16+
 - Visual Studio C++ toolchain
 
-Commands:
+Configure and build:
 
 ```powershell
 cmake -S . -B build -G "Visual Studio 18 2026" -A x64
 cmake --build build --config Debug
+cmake --build build --config Release
 ```
 
-Run:
+Run (Debug):
 
 ```powershell
 .\build\bin\Debug\SimpleFences.exe
 ```
 
-## Data and Logging Paths
+## Data, Metadata, and Logs
 
 - Config: `%LOCALAPPDATA%\SimpleFences\config.json`
 - Fence folders: `%LOCALAPPDATA%\SimpleFences\Fences\<FenceId>\`
 - Origin metadata: `%LOCALAPPDATA%\SimpleFences\Fences\<FenceId>\_origins.json`
-- Log: `%LOCALAPPDATA%\SimpleFences\debug.log`
+- Debug log: `%LOCALAPPDATA%\SimpleFences\debug.log`
 
-## Version History
+Behavior guarantees:
+
+- Restore does not overwrite existing destination files.
+- Failed moves do not create stale origin metadata.
+- Partial restore failures during fence delete keep the fence intact for recovery.
+
+## Release History
 
 ### 0.0.008
 
-- Origin metadata now updates only after successful move operations.
-- Atomic writes now use Windows-safe replacement (`MoveFileExW` replace + write-through).
-- Fence deletion is now recovery-safe: partial restore failure keeps the fence record/window.
-- Added keyboard-friendly `WM_CONTEXTMENU` behavior.
-- Reused cached system image list in paint path.
-- Expanded operation logging details for move/restore/delete/save failures.
+- Wrote origin entries only after successful file move completion.
+- Replaced delete-then-rename save path with Win32-safe atomic replacement.
+- Prevented fence deletion when restore is partial/failing.
+- Added keyboard-compatible `WM_CONTEXTMENU` handling.
+- Reused cached image list in paint loop (removed repeated shell calls).
+- Improved logging context for file-operation failures.
 
 ### 0.0.007
 
-- Migrated config persistence to robust `nlohmann/json` parsing/serialization.
-- Added initial atomic temp-save flow for config/origin metadata.
+- Migrated persistence to `nlohmann/json`.
+- Added temp-save flow and improved error handling.
 - Removed hardcoded per-user log path.
-- Centralized file restore/delete logic into storage layer.
-- Added non-destructive restore conflict naming (`(restored N)`).
-- Added structured drop results and improved error handling.
-- Improved move/resize persistence and long-path drop support.
-- Improved tray reliability and shutdown cleanup.
+- Centralized restore/delete behavior into storage layer.
+- Added structured move results and safer restore naming.
+- Improved geometry persistence and long-path drag/drop support.
+- Improved tray startup reliability and shutdown cleanup.
 
-## Implementation Examples
+### 0.0.006 and Earlier
 
-Atomic replace helper:
-
-```cpp
-bool Win32Helpers::ReplaceFileAtomically(const std::filesystem::path& tempPath,
-                                         const std::filesystem::path& targetPath) {
-    return MoveFileExW(tempPath.c_str(), targetPath.c_str(),
-        MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
-}
-```
-
-Move result model:
-
-```cpp
-struct FileMoveResult {
-    std::vector<std::filesystem::path> moved;
-    std::vector<std::pair<std::filesystem::path, std::wstring>> failed;
-};
-```
-
-Recovery-safe delete behavior:
-
-```cpp
-const RestoreResult restore = m_storage->RestoreAllItems(fence->backingFolder);
-if (!restore.AllSucceeded()) {
-    RefreshFence(fenceId);
-    return;
-}
-```
+Early iterations established the base Win32 fence workflow, persistence model, and desktop interaction scaffolding.
 
 ## Project Phases
 
-- Full Phase 1 details: see `PHASE_1.md`
-- Full Phase 2 details: see `PHASE_2.md`
+### Phase 1 - Core Product Foundation
+
+- Fence creation, movement, resizing, and tray-driven workflow.
+- Backing-folder storage model and item scanning.
+- Basic persistence and startup restore.
+
+### Phase 2 - Reliability and Safety Hardening
+
+- JSON robustness and atomic save reliability.
+- Recoverable delete/restore workflows.
+- Long-path and context-menu behavior improvements.
+- Better diagnostics and operational logging.
+
+## Roadmap
+
+- Improve visual polish and richer item presentation.
+- Expand keyboard and accessibility flows.
+- Continue hardening for edge-case filesystem behavior.
