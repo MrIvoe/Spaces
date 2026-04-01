@@ -5,6 +5,7 @@ C:\Users\MrIvo\Github\IVOESimpleFences\src\core\CommandDispatcher.cpp;C:\Users\M
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\EventBus.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\EventBus.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\Diagnostics.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\Diagnostics.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ServiceRegistry.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\ServiceRegistry.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\core\SettingsStore.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\SettingsStore.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginHost.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\PluginHost.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginRegistry.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\PluginRegistry.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginSettingsRegistry.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\PluginSettingsRegistry.obj
@@ -17,3 +18,4 @@ C:\Users\MrIvo\Github\IVOESimpleFences\src\FenceManager.cpp;C:\Users\MrIvo\Githu
 C:\Users\MrIvo\Github\IVOESimpleFences\src\FenceWindow.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\FenceWindow.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\TrayMenu.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\TrayMenu.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\Win32Helpers.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\Win32Helpers.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\ui\SettingsWindow.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\SettingsWindow.obj

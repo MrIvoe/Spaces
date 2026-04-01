@@ -374,7 +374,10 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\KernelViews.h" />
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ServiceRegistry.h" />
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ServiceRegistry.cpp" />
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\SettingsStore.h" />
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\SettingsStore.cpp" />
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginContracts.h" />
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\SettingsSchema.h" />
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginHost.h" />
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginHost.cpp" />
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginRegistry.h" />

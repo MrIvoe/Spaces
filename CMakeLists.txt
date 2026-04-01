@@ -29,7 +29,10 @@ add_executable(SimpleFences WIN32
     src/core/KernelViews.h
     src/core/ServiceRegistry.h
     src/core/ServiceRegistry.cpp
+    src/core/SettingsStore.h
+    src/core/SettingsStore.cpp
     src/extensions/PluginContracts.h
+    src/extensions/SettingsSchema.h
     src/extensions/PluginHost.h
     src/extensions/PluginHost.cpp
     src/extensions/PluginRegistry.h

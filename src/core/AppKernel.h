@@ -13,6 +13,7 @@ class Diagnostics;
 class ServiceRegistry;
 class PluginHost;
 class PluginSettingsRegistry;
+class SettingsStore;
 class FenceExtensionRegistry;
 
 struct TrayMenuEntry
@@ -32,21 +33,23 @@ public:
     void Shutdown();
 
     bool ExecuteCommand(const std::wstring& commandId) const;
-    std::vector<TrayMenuEntry> GetTrayMenuEntries() const;
-    std::vector<PluginStatusView> GetPluginStatuses() const;
-    std::vector<SettingsPageView> GetSettingsPages() const;
-    const FenceExtensionRegistry* GetFenceExtensionRegistry() const;
+    std::vector<TrayMenuEntry>     GetTrayMenuEntries() const;
+    std::vector<PluginStatusView>  GetPluginStatuses() const;
+    std::vector<SettingsPageView>  GetSettingsPages() const;
+    const FenceExtensionRegistry*  GetFenceExtensionRegistry() const;
+    PluginSettingsRegistry*        GetSettingsRegistry() const;
 
 private:
     class KernelAppCommands;
 
-    std::unique_ptr<CommandDispatcher> m_commandDispatcher;
-    std::unique_ptr<EventBus> m_eventBus;
-    std::unique_ptr<Diagnostics> m_diagnostics;
-    std::unique_ptr<ServiceRegistry> m_serviceRegistry;
+    std::unique_ptr<CommandDispatcher>     m_commandDispatcher;
+    std::unique_ptr<EventBus>              m_eventBus;
+    std::unique_ptr<Diagnostics>           m_diagnostics;
+    std::unique_ptr<ServiceRegistry>       m_serviceRegistry;
     std::unique_ptr<MenuContributionRegistry> m_menuRegistry;
-    std::unique_ptr<PluginSettingsRegistry> m_settingsRegistry;
-    std::unique_ptr<FenceExtensionRegistry> m_fenceExtensionRegistry;
-    std::unique_ptr<PluginHost> m_pluginHost;
-    std::unique_ptr<KernelAppCommands> m_appCommands;
+    std::unique_ptr<PluginSettingsRegistry>  m_settingsRegistry;
+    std::unique_ptr<SettingsStore>           m_settingsStore;
+    std::unique_ptr<FenceExtensionRegistry>  m_fenceExtensionRegistry;
+    std::unique_ptr<PluginHost>              m_pluginHost;
+    std::unique_ptr<KernelAppCommands>       m_appCommands;
 };

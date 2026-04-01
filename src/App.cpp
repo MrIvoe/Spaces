@@ -147,7 +147,10 @@ void App::OpenSettingsWindow()
         m_settingsWindow = std::make_unique<SettingsWindow>();
     }
 
-    m_settingsWindow->ShowScaffold(GetSettingsPages(), GetPluginStatuses());
+    m_settingsWindow->ShowScaffold(
+        GetSettingsPages(),
+        GetPluginStatuses(),
+        m_kernel ? m_kernel->GetSettingsRegistry() : nullptr);
 }
 
 void App::Shutdown()

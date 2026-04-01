@@ -1,0 +1,10 @@
+{
+  "id": "community.clock_widget",
+  "displayName": "Clock Widget",
+  "version": "1.0.0",
+  "description": "A live digital or analogue clock displayed inside a fence widget panel.",
+  "author": "Community",
+  "minHostVersion": "0.0.010",
+  "capabilities": ["widgets", "settings_pages"],
+  "repository": "https://github.com/IVOESimpleFences/plugin-hub"
+}

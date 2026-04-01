@@ -1,0 +1,10 @@
+{
+  "id": "community.dark_glass_theme",
+  "displayName": "Dark Glass Theme",
+  "version": "1.0.0",
+  "description": "Translucent dark theme for fence windows with a frosted-glass look.",
+  "author": "Community",
+  "minHostVersion": "0.0.010",
+  "capabilities": ["appearance", "settings_pages"],
+  "repository": "https://github.com/IVOESimpleFences/plugin-hub"
+}

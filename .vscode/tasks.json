@@ -4,14 +4,18 @@
         {
             "label": "Build SimpleFences Debug",
             "type": "shell",
-            "command": "powershell",
+            "command": "C:\\Program Files (x86)\\Microsoft Visual Studio\\18\\BuildTools\\MSBuild\\Current\\Bin\\MSBuild.exe",
             "args": [
-                "-Command",
-                "$vsPath = & \"${workspaceFolder}/find-vs.ps1\" 2>$null; if ($vsPath) { & \"$vsPath\\VC\\Auxiliary\\Build\\vcvars64.bat\" > $null; msbuild \"${workspaceFolder}/build/SimpleFences.sln\" /p:Configuration=Debug /v:minimal } else { Write-Error 'Visual Studio not found' }"
+                "${workspaceFolder}\\build\\SimpleFences.sln",
+                "/p:Configuration=Debug",
+                "/v:minimal"
             ],
             "group": {
                 "kind": "build",
                 "isDefault": true
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
             },
             "presentation": {
                 "reveal": "always",
@@ -24,10 +28,9 @@
         {
             "label": "Run SimpleFences",
             "type": "shell",
-            "command": "${workspaceFolder}/build/bin/Debug/SimpleFences.exe",
-            "group": {
-                "kind": "test",
-                "isDefault": true
+            "command": "${workspaceFolder}\\build\\bin\\Debug\\SimpleFences.exe",
+            "options": {
+                "cwd": "${workspaceFolder}"
             },
             "presentation": {
                 "reveal": "always",

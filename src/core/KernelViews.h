@@ -1,5 +1,7 @@
 #pragma once
 
+#include "extensions/SettingsSchema.h"
+
 #include <string>
 #include <vector>
 
@@ -20,4 +22,5 @@ struct SettingsPageView
     std::wstring pageId;
     std::wstring title;
     int order = 0;
+    std::vector<SettingsFieldDescriptor> fields; // interactive controls declared by the plugin
 };

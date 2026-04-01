@@ -1,0 +1,10 @@
+{
+  "id": "community.network_drive_fence",
+  "displayName": "Network Drive Fence",
+  "version": "1.0.0",
+  "description": "A fence content provider that maps a UNC path or mapped network drive as a browseable folder fence.",
+  "author": "Community",
+  "minHostVersion": "0.0.010",
+  "capabilities": ["fence_content_provider", "settings_pages"],
+  "repository": "https://github.com/IVOESimpleFences/plugin-hub"
+}

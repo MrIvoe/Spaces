@@ -21,10 +21,12 @@ bool FenceManager::LoadAll()
     if (!m_persistence->LoadFences(m_fences))
         return false;
 
+    bool normalizedAny = false;
+
     // Create windows for each loaded fence
     for (auto& fence : m_fences)
     {
-        NormalizeFenceContentProvider(fence);
+        normalizedAny = NormalizeFenceContentProvider(fence) || normalizedAny;
 
         // Ensure backing folder exists
         if (fence.backingFolder.empty())
@@ -42,6 +44,12 @@ bool FenceManager::LoadAll()
             window->Show();
             m_windows[fence.id] = std::move(window);
         }
+    }
+
+    if (normalizedAny)
+    {
+        Win32Helpers::LogInfo(L"Persisting normalized fence provider metadata after load.");
+        m_persistence->SaveFences(m_fences);
     }
 
     return true;
@@ -263,32 +271,44 @@ FenceWindow* FenceManager::FindFenceWindow(const std::wstring& fenceId)
 void FenceManager::SetFenceExtensionRegistry(const FenceExtensionRegistry* registry)
 {
     m_fenceExtensionRegistry = registry;
+
+    bool normalizedAny = false;
     for (auto& fence : m_fences)
     {
-        NormalizeFenceContentProvider(fence);
+        normalizedAny = NormalizeFenceContentProvider(fence) || normalizedAny;
+    }
+
+    if (normalizedAny)
+    {
+        Win32Helpers::LogInfo(L"Persisting normalized fence provider metadata after registry binding.");
+        m_persistence->SaveFences(m_fences);
     }
 }
 
-void FenceManager::NormalizeFenceContentProvider(FenceModel& fence) const
+bool FenceManager::NormalizeFenceContentProvider(FenceModel& fence) const
 {
+    bool changed = false;
+
     if (!m_fenceExtensionRegistry)
     {
         if (fence.contentType.empty())
         {
             fence.contentType = L"file_collection";
+            changed = true;
         }
 
         if (fence.contentPluginId.empty())
         {
             fence.contentPluginId = L"core.file_collection";
+            changed = true;
         }
-        return;
+        return changed;
     }
 
     const bool supported = m_fenceExtensionRegistry->HasProvider(fence.contentType, fence.contentPluginId);
     if (supported)
     {
-        return;
+        return false;
     }
 
     const auto fallback = m_fenceExtensionRegistry->ResolveOrDefault(fence.contentType, fence.contentPluginId);
@@ -298,4 +318,5 @@ void FenceManager::NormalizeFenceContentProvider(FenceModel& fence) const
 
     fence.contentType = fallback.contentType;
     fence.contentPluginId = fallback.providerId;
+    return true;
 }

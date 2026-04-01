@@ -3,7 +3,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#build-and-run)
 [![Language](https://img.shields.io/badge/language-C%2B%2B17-00599C.svg)](#tech-stack)
 [![Build System](https://img.shields.io/badge/build-CMake-064F8C.svg)](#build-and-run)
-[![Version](https://img.shields.io/badge/version-0.0.009-2EA043.svg)](#release-history)
+[![Version](https://img.shields.io/badge/version-0.0.010-2EA043.svg)](#release-history)
 
 A lightweight Win32 desktop organizer for Windows that lets you create simple desktop fences and move files into them safely.
 
@@ -39,11 +39,11 @@ First run notes:
 
 ## Current Version
 
-Current version: `0.0.009`
+Current version: `0.0.010`
 
 ## Current Status
 
-Current phase: `0.0.009` platform-foundation milestone, introducing a plugin host around a protected core fence kernel.
+Current phase: `0.0.010` host-hardening milestone, introducing settings shell scaffolding, plugin diagnostics surface, and core content-provider normalization.
 
 Primary focus right now:
 
@@ -51,7 +51,9 @@ Primary focus right now:
 - introduce kernel-level command and extension host scaffolding
 - route tray behavior through command and menu contribution registries
 - prepare content-type aware persistence fields with backward compatibility
-- expand diagnostics and settings scaffolding for plugin management
+- expose plugin diagnostics and status through kernel-facing APIs
+- scaffold settings host shell pages (General, Plugins, Diagnostics)
+- normalize content-provider fallback to core `file_collection` when plugin providers are unavailable
 
 ## What the App Does
 
@@ -138,7 +140,8 @@ Current safety rules:
 - mouse and keyboard context menu support
 - logging for move, restore, delete, and persistence failures
 - built-in plugin host scaffold with capability manifests
-- plugin settings and fence-extension registries (foundation stage)
+- plugin settings and fence-extension registries with status/page API exposure
+- settings shell command path (`plugin.openSettings`) with scaffold UI
 
 ## Known Limitations
 
@@ -151,7 +154,7 @@ Current safety rules:
 - no advanced sorting, tabs, or portal fences
 - no shell extension integration
 - plugin architecture is foundation-only (placeholders for advanced providers)
-- settings host UI for plugin pages is not fully implemented yet
+- settings host uses scaffold window (full rich UI still pending)
 
 ## Repository Layout
 
@@ -322,6 +325,15 @@ This can happen intentionally if restore was only partially successful. The fenc
 
 ## Release History
 
+### 0.0.010
+
+- added settings host scaffold path with General, Plugins, and Diagnostics pages
+- exposed plugin status and settings-page registration through kernel APIs
+- added plugin diagnostics logging for loaded/failed/capability reporting
+- introduced content-provider registry lookup/default resolution with core `file_collection` fallback
+- normalized persisted fence provider defaults to `core.file_collection`
+- kept existing core fence workflow as stable kernel behavior
+
 ### 0.0.009
 
 - introduced `AppKernel` platform layer around stable fence core behavior
@@ -362,7 +374,7 @@ Phase A: Platform foundation
 - complete kernel service registration boundaries and diagnostics surfaces
 - keep core file-collection fence flow stable and first-class
 - mature plugin status reporting and plugin failure handling UX
-- add settings host shell with plugin page navigation
+- evolve settings scaffold from shell to rich multi-page window
 
 Phase B: Built-in plugin migration
 

@@ -36,7 +36,7 @@ public:
 
 private:
     std::wstring GenerateFenceId() const;
-    void NormalizeFenceContentProvider(FenceModel& fence) const;
+    bool NormalizeFenceContentProvider(FenceModel& fence) const;
 
 private:
     std::unique_ptr<FenceStorage> m_storage;

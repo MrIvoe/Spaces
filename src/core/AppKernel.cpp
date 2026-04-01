@@ -5,11 +5,13 @@
 #include "core/Diagnostics.h"
 #include "core/EventBus.h"
 #include "core/ServiceRegistry.h"
+#include "core/SettingsStore.h"
 #include "extensions/FenceExtensionRegistry.h"
 #include "extensions/PluginContracts.h"
 #include "extensions/PluginHost.h"
 #include "extensions/PluginRegistry.h"
 #include "extensions/PluginSettingsRegistry.h"
+#include "Win32Helpers.h"
 
 class AppKernel::KernelAppCommands final : public IApplicationCommands
 {
@@ -65,6 +67,12 @@ bool AppKernel::Initialize(App* app)
     m_pluginHost = std::make_unique<PluginHost>();
     m_appCommands = std::make_unique<KernelAppCommands>(app);
 
+    // Create and load persistent settings store
+    m_settingsStore = std::make_unique<SettingsStore>();
+    const auto settingsPath = Win32Helpers::GetFencesRoot() / L"settings.json";
+    m_settingsStore->Load(settingsPath);
+    m_settingsRegistry->SetStore(m_settingsStore.get());
+
     m_commandDispatcher->RegisterCommand(L"fence.create", [commands = m_appCommands.get()]() {
         commands->CreateFenceNearCursor();
     });
@@ -102,6 +110,7 @@ void AppKernel::Shutdown()
 
     m_pluginHost.reset();
     m_fenceExtensionRegistry.reset();
+    m_settingsStore.reset();
     m_settingsRegistry.reset();
     m_menuRegistry.reset();
     m_serviceRegistry.reset();
@@ -190,7 +199,13 @@ std::vector<SettingsPageView> AppKernel::GetSettingsPages() const
     views.reserve(pages.size());
     for (const auto& page : pages)
     {
-        views.push_back(SettingsPageView{page.pluginId, page.pageId, page.title, page.order});
+        SettingsPageView view;
+        view.pluginId = page.pluginId;
+        view.pageId   = page.pageId;
+        view.title    = page.title;
+        view.order    = page.order;
+        view.fields   = page.fields; // copy schema declared by the plugin
+        views.push_back(std::move(view));
     }
 
     return views;
@@ -199,4 +214,9 @@ std::vector<SettingsPageView> AppKernel::GetSettingsPages() const
 const FenceExtensionRegistry* AppKernel::GetFenceExtensionRegistry() const
 {
     return m_fenceExtensionRegistry.get();
+}
+
+PluginSettingsRegistry* AppKernel::GetSettingsRegistry() const
+{
+    return m_settingsRegistry.get();
 }
