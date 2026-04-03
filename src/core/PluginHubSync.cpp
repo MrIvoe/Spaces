@@ -17,13 +17,18 @@ namespace
         si.cb = sizeof(si);
         PROCESS_INFORMATION pi{};
 
-        std::vector<wchar_t> cmd(commandLine.begin(), commandLine.end());
+        // Build a modifiable command line for CreateProcessW
+        // The command line passed here should be just the arguments (without "git")
+        // Create the full command: lpApplicationName + lpCommandLine
+        std::wstring fullCommand = L"git.exe " + commandLine;
+        std::vector<wchar_t> cmd(fullCommand.begin(), fullCommand.end());
         cmd.push_back(L'\0');
 
         std::wstring cwdText = cwd.wstring();
 
+        // Specify lpApplicationName to avoid ambiguous command line parsing on Windows
         const BOOL started = CreateProcessW(
-            nullptr,
+            L"git.exe",
             cmd.data(),
             nullptr,
             nullptr,
@@ -151,7 +156,7 @@ namespace PluginHubSync
                 for (const auto& b : candidateBranches)
                 {
                     const std::wstring cloneCmd =
-                        L"git clone --depth 1 --branch \"" + b + L"\" \"" + url + L"\" " + QuotePath(hubCache);
+                        L"clone --depth 1 --branch \"" + b + L"\" \"" + url + L"\" " + QuotePath(hubCache);
                     if (RunProcess(cloneCmd, appRoot, exitCode) && exitCode == 0)
                     {
                         selectedBranch = b;
@@ -180,7 +185,7 @@ namespace PluginHubSync
             bool fetched = false;
             for (const auto& b : candidateBranches)
             {
-                const std::wstring fetchCmd = L"git -C " + QuotePath(hubCache) + L" fetch origin \"" + b + L"\" --depth 1";
+                const std::wstring fetchCmd = L"-C " + QuotePath(hubCache) + L" fetch origin \"" + b + L"\" --depth 1";
                 if (RunProcess(fetchCmd, appRoot, exitCode) && exitCode == 0)
                 {
                     selectedBranch = b;
@@ -195,7 +200,7 @@ namespace PluginHubSync
                 return result;
             }
 
-            const std::wstring resetCmd = L"git -C " + QuotePath(hubCache) + L" reset --hard \"origin/" + selectedBranch + L"\"";
+            const std::wstring resetCmd = L"-C " + QuotePath(hubCache) + L" reset --hard \"origin/" + selectedBranch + L"\"";
             if (!RunProcess(resetCmd, appRoot, exitCode) || exitCode != 0)
             {
                 result.message = L"Failed to reset local plugin hub cache to remote branch.";
