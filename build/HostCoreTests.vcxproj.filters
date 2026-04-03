@@ -13,6 +13,9 @@
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\SettingsStore.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePlatform.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\Persistence.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -46,6 +49,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\SettingsStore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePlatform.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\Persistence.h">

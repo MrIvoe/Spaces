@@ -212,6 +212,13 @@ LRESULT FenceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
     switch (msg)
     {
+    case WM_SETTINGCHANGE:
+    case WM_THEMECHANGED:
+        ApplyIdleVisualState();
+        InvalidateRect(m_hwnd, nullptr, TRUE);
+        UpdateWindow(m_hwnd);
+        return 0;
+
     case WM_PAINT:
         OnPaint();
         return 0;

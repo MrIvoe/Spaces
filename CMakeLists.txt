@@ -79,6 +79,7 @@ target_link_libraries(SimpleFences
     ole32
     comctl32
     shlwapi
+    dwmapi
     kernel32
 )
 
@@ -107,6 +108,8 @@ add_executable(HostCoreTests
     src/core/Diagnostics.cpp
     src/core/SettingsStore.h
     src/core/SettingsStore.cpp
+    src/core/ThemePlatform.h
+    src/core/ThemePlatform.cpp
     src/Persistence.h
     src/Persistence.cpp
     src/Models.h
@@ -145,6 +148,7 @@ target_link_libraries(HostCoreTests
     ole32
     comctl32
     shlwapi
+    dwmapi
     kernel32
 )
 

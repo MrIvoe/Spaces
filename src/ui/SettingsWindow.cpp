@@ -6,6 +6,7 @@
 #include "Win32Helpers.h"
 
 #include <algorithm>
+#include <sstream>
 #include <unordered_map>
 #include <commctrl.h>
 #include <windows.h>
@@ -13,6 +14,13 @@
 
 namespace
 {
+    constexpr int kHeaderTitleHeight = 30;
+    constexpr int kHeaderSubtitleHeight = 22;
+    constexpr int kHeaderGap = 4;
+    constexpr int kStatusHeight = 28;
+    constexpr int kRightPaneTransitionStartOffset = 18;
+    constexpr int kRightPaneTransitionStep = 6;
+
     COLORREF BlendColor(COLORREF from, COLORREF to, int alpha)
     {
         alpha = (alpha < 0) ? 0 : ((alpha > 255) ? 255 : alpha);
@@ -464,6 +472,24 @@ void SettingsWindow::RefreshTheme()
                      reinterpret_cast<WPARAM>(m_navFont ? m_navFont : GetStockObject(DEFAULT_GUI_FONT)),
                      TRUE);
     }
+    if (m_headerTitle)
+    {
+        SendMessageW(m_headerTitle, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(m_sectionFont ? m_sectionFont : GetStockObject(DEFAULT_GUI_FONT)),
+                     TRUE);
+    }
+    if (m_headerSubtitle)
+    {
+        SendMessageW(m_headerSubtitle, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
+                     TRUE);
+    }
+    if (m_statusBar)
+    {
+        SendMessageW(m_statusBar, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
+                     TRUE);
+    }
 
     if (m_hwnd)
     {
@@ -703,6 +729,8 @@ void SettingsWindow::ShowSelectedPluginTab()
         return;
     }
 
+    UpdateShellHeaderAndStatus(tabIndex);
+
     // Check whether any page in this tab declares interactive fields.
     const auto& tab = m_pluginTabs[tabIndex];
     bool hasFields = false;
@@ -733,7 +761,7 @@ void SettingsWindow::ShowSelectedPluginTab()
         const int width = clientRect.right - clientRect.left;
         const int navWidth = m_navCollapsed ? 64 : 280;
         const int margin   = 10;
-        const int topArea = 42;
+        const int topArea = kHeaderTitleHeight + kHeaderSubtitleHeight + kHeaderGap + 16;
         const int rightX   = navWidth + (margin * 2);
         const int rightY   = margin + topArea;
         const int rightW   = width - navWidth - (margin * 3);
@@ -755,19 +783,21 @@ void SettingsWindow::ShowSelectedPluginTab()
     const int height = clientRect.bottom - clientRect.top;
     const int navWidth = m_navCollapsed ? 64 : 280;
     const int margin = 10;
-    const int topArea = 42;
+    const int topArea = kHeaderTitleHeight + kHeaderSubtitleHeight + kHeaderGap + 16;
 
     RECT rightPaneRect{};
     rightPaneRect.left = navWidth + (margin * 2);
     rightPaneRect.top = margin + topArea;
     rightPaneRect.right = width - margin;
-    rightPaneRect.bottom = height - margin;
+    rightPaneRect.bottom = height - margin - kStatusHeight;
 
     if (rightPaneRect.right > rightPaneRect.left && rightPaneRect.bottom > rightPaneRect.top)
     {
         InvalidateRect(m_hwnd, &rightPaneRect, TRUE);
         RedrawWindow(m_hwnd, &rightPaneRect, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
     }
+
+    BeginRightPaneTransition();
 }
 
 std::vector<SettingsWindow::UiPage> SettingsWindow::BuildPages(
@@ -845,7 +875,7 @@ std::wstring SettingsWindow::BuildGeneralContent(const std::vector<PluginStatusV
 {
     std::wstring text;
     text += L"General\r\n\r\n";
-    text += L"Phase 0.0.010 settings shell is active.\r\n";
+    text += L"Phase 0.0.013 settings shell is active.\r\n";
     text += L"Core fences remain first-class and stable while plugins extend behavior.\r\n\r\n";
     text += L"Loaded plugin count: ";
 
@@ -1042,6 +1072,12 @@ std::wstring SettingsWindow::BuildPluginOverviewContent(const PluginStatusView& 
 
 void SettingsWindow::ClearFieldControls()
 {
+    if (m_hwnd)
+    {
+        KillTimer(m_hwnd, kRightPaneTransitionTimerId);
+    }
+    m_rightPaneTransitionOffset = 0;
+
     for (HWND hwnd : m_fieldControls)
     {
         if (hwnd)
@@ -1051,6 +1087,9 @@ void SettingsWindow::ClearFieldControls()
     }
     m_fieldControls.clear();
     m_controlFieldMap.clear();
+    m_sectionCardRects.clear();
+    m_rightPaneTargetRects.clear();
+    m_rightPaneTextStatics.clear();
     // Reset ID counter so IDs don't climb unboundedly across tab switches.
     m_nextControlId = 2000;
 }
@@ -1070,6 +1109,130 @@ void SettingsWindow::RegisterTooltipForControl(HWND control, const std::wstring&
     ti.lpszText = const_cast<LPWSTR>(tipText.c_str());
     GetClientRect(control, &ti.rect);
     SendMessageW(m_tooltip, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM>(&ti));
+}
+
+void SettingsWindow::UpdateShellHeaderAndStatus(size_t tabIndex)
+{
+    if (tabIndex >= m_pluginTabs.size())
+    {
+        return;
+    }
+
+    const auto& tab = m_pluginTabs[tabIndex];
+    const std::wstring headerText = (tab.pluginId == L"__overview__")
+        ? L"Settings Overview"
+        : (tab.title.empty() ? L"Settings" : tab.title);
+
+    std::wstring subtitle;
+    if (tab.pluginId == L"__overview__")
+    {
+        subtitle = L"System status, plugin health, and global settings summary.";
+    }
+    else
+    {
+        subtitle = L"Configure plugin behavior and appearance settings.";
+        if (!tab.pageIndexes.empty())
+        {
+            subtitle += L" Pages: " + std::to_wstring(tab.pageIndexes.size()) + L".";
+        }
+    }
+
+    if (m_headerTitle)
+    {
+        SetWindowTextW(m_headerTitle, headerText.c_str());
+    }
+    if (m_headerSubtitle)
+    {
+        SetWindowTextW(m_headerSubtitle, subtitle.c_str());
+    }
+
+    if (m_statusBar)
+    {
+        int loadedCount = 0;
+        int failedCount = 0;
+        for (const auto& plugin : m_plugins)
+        {
+            if (plugin.enabled && plugin.loaded)
+            {
+                ++loadedCount;
+            }
+            else if (plugin.enabled && !plugin.loaded)
+            {
+                ++failedCount;
+            }
+        }
+
+        std::wstringstream status;
+        status << L"Loaded plugins: " << loadedCount << L" / " << m_plugins.size()
+               << L"   |   Failed: " << failedCount
+               << L"   |   Active tab: " << tab.title
+               << L"   |   Ctrl+Tab switch  F1 help";
+        SetWindowTextW(m_statusBar, status.str().c_str());
+    }
+}
+
+void SettingsWindow::BeginRightPaneTransition()
+{
+    if (!m_hwnd)
+    {
+        return;
+    }
+
+    KillTimer(m_hwnd, kRightPaneTransitionTimerId);
+    m_rightPaneTransitionOffset = kRightPaneTransitionStartOffset;
+    ApplyRightPaneTransitionLayout();
+    SetTimer(m_hwnd, kRightPaneTransitionTimerId, 15, nullptr);
+}
+
+void SettingsWindow::ApplyRightPaneTransitionLayout()
+{
+    for (const auto& entry : m_rightPaneTargetRects)
+    {
+        HWND hwnd = entry.first;
+        const RECT& rc = entry.second;
+        if (!hwnd || !IsWindow(hwnd))
+        {
+            continue;
+        }
+
+        SetWindowPos(hwnd,
+                     nullptr,
+                     rc.left + m_rightPaneTransitionOffset,
+                     rc.top,
+                     rc.right - rc.left,
+                     rc.bottom - rc.top,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+    }
+}
+
+std::wstring SettingsWindow::BuildTabHelpText(size_t tabIndex) const
+{
+    if (tabIndex >= m_pluginTabs.size())
+    {
+        return L"Settings help is not available for this view.";
+    }
+
+    const auto& tab = m_pluginTabs[tabIndex];
+    std::wstring text;
+    text += tab.title + L"\r\n\r\n";
+    text += L"Keyboard hints\r\n";
+    text += L"- Ctrl+Tab: move to the next settings area\r\n";
+    text += L"- Ctrl+Shift+Tab: move to the previous settings area\r\n";
+    text += L"- Tab / Shift+Tab: move through controls\r\n\r\n";
+    text += L"Section cards group related options to improve scanning and reduce clutter.\r\n";
+
+    if (tab.pluginId == L"__overview__")
+    {
+        text += L"\r\nOverview combines global status, plugin health, and diagnostics summaries.";
+    }
+    else if (!tab.pageIndexes.empty())
+    {
+        text += L"\r\nThis area contains ";
+        text += std::to_wstring(tab.pageIndexes.size());
+        text += L" settings section(s).";
+    }
+
+    return text;
 }
 
 void SettingsWindow::DrawNavItem(const DRAWITEMSTRUCT* drawInfo)
@@ -1217,6 +1380,15 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
             continue;
         }
 
+        const int sectionStartY = y;
+        const int sectionHeight = rowH + 4 + (static_cast<int>(page.fields.size()) * (rowH + rowGap)) + sectionGap;
+        RECT cardRect{};
+        cardRect.left = rightX - 14;
+        cardRect.top = sectionStartY - 10;
+        cardRect.right = rightX + rightW;
+        cardRect.bottom = sectionStartY + sectionHeight - 6;
+        m_sectionCardRects.push_back(cardRect);
+
         // --- Section header (page title) ----------------------------------------
         HWND hHeader = CreateWindowExW(
             0, L"STATIC", page.title.c_str(),
@@ -1227,6 +1399,8 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
         {
             SendMessageW(hHeader, WM_SETFONT, reinterpret_cast<WPARAM>(hHeaderFont), TRUE);
             m_fieldControls.push_back(hHeader);
+            m_rightPaneTargetRects.emplace(hHeader, RECT{rightX, y, rightX + rightW, y + rowH});
+            m_rightPaneTextStatics.insert(hHeader);
         }
         y += rowH + 4;
 
@@ -1258,6 +1432,8 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
                 SendMessageW(hLabel, WM_SETFONT, reinterpret_cast<WPARAM>(hFont), TRUE);
                 m_fieldControls.push_back(hLabel);
                 RegisterTooltipForControl(hLabel, field.description);
+                m_rightPaneTargetRects.emplace(hLabel, RECT{rightX, y, rightX + labelWidth, y + rowH});
+                m_rightPaneTextStatics.insert(hLabel);
             }
 
             // Sub-description (optional, shown on the next line)
@@ -1343,6 +1519,7 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
                 SendMessageW(hCtrl, WM_SETFONT, reinterpret_cast<WPARAM>(hFont), TRUE);
                 m_fieldControls.push_back(hCtrl);
                 RegisterTooltipForControl(hCtrl, field.description);
+                m_rightPaneTargetRects.emplace(hCtrl, RECT{ctrlX, y, ctrlX + ctrlWidth, y + rowH});
 
                 FieldControlInfo info;
                 info.key     = field.key;
@@ -1507,6 +1684,48 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     {
     case WM_CREATE:
     {
+        m_headerTitle = CreateWindowExW(
+            0,
+            L"STATIC",
+            L"Settings",
+            WS_CHILD | WS_VISIBLE | SS_LEFT,
+            0,
+            0,
+            100,
+            20,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kHeaderTitleId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
+        m_headerSubtitle = CreateWindowExW(
+            0,
+            L"STATIC",
+            L"",
+            WS_CHILD | WS_VISIBLE | SS_LEFT,
+            0,
+            0,
+            100,
+            20,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kHeaderSubtitleId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
+        m_headerHelpButton = CreateWindowExW(
+            0,
+            L"BUTTON",
+            L"? Help",
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            0,
+            0,
+            90,
+            28,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kHeaderHelpId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
         m_navToggleButton = CreateWindowExW(
             0,
             L"BUTTON",
@@ -1549,6 +1768,20 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             GetModuleHandleW(nullptr),
             nullptr);
 
+        m_statusBar = CreateWindowExW(
+            0,
+            L"STATIC",
+            L"",
+            WS_CHILD | WS_VISIBLE | SS_LEFT,
+            0,
+            0,
+            100,
+            20,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kStatusId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
         m_tooltip = CreateWindowExW(
             WS_EX_TOPMOST,
             TOOLTIPS_CLASSW,
@@ -1574,6 +1807,10 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         SendMessageW(m_pageView, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         SendMessageW(m_navList, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_headerTitle, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_headerSubtitle, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_statusBar, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_headerHelpButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         SetWindowSubclass(m_navList, &SettingsWindow::NavListSubclassProc, 1, reinterpret_cast<DWORD_PTR>(this));
 
         RefreshTheme();
@@ -1586,7 +1823,43 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         const int height = HIWORD(lParam);
         const int navWidth = m_navCollapsed ? 64 : 280;
         const int margin = 10;
-        const int topArea = 42;
+        const int topArea = kHeaderTitleHeight + kHeaderSubtitleHeight + kHeaderGap + 16;
+
+        if (m_headerTitle)
+        {
+            MoveWindow(m_headerTitle,
+                       navWidth + (margin * 2),
+                       margin,
+                       width - navWidth - (margin * 3),
+                       kHeaderTitleHeight,
+                       TRUE);
+            SendMessageW(m_headerTitle, WM_SETFONT,
+                reinterpret_cast<WPARAM>(m_sectionFont ? m_sectionFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        }
+
+        if (m_headerSubtitle)
+        {
+            MoveWindow(m_headerSubtitle,
+                       navWidth + (margin * 2),
+                       margin + kHeaderTitleHeight + kHeaderGap,
+                       width - navWidth - (margin * 3),
+                       kHeaderSubtitleHeight,
+                       TRUE);
+            SendMessageW(m_headerSubtitle, WM_SETFONT,
+                reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        }
+
+        if (m_headerHelpButton)
+        {
+            MoveWindow(m_headerHelpButton,
+                       width - margin - 90,
+                       margin + 2,
+                       90,
+                       28,
+                       TRUE);
+            SendMessageW(m_headerHelpButton, WM_SETFONT,
+                reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        }
 
         if (m_navToggleButton)
         {
@@ -1597,11 +1870,28 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
         if (m_navList)
         {
-            MoveWindow(m_navList, margin, margin + topArea, navWidth, height - (margin * 2) - topArea, TRUE);
+            MoveWindow(m_navList, margin, margin + topArea, navWidth, height - (margin * 3) - topArea - kStatusHeight, TRUE);
         }
         if (m_pageView)
         {
-            MoveWindow(m_pageView, navWidth + (margin * 2), margin + topArea, width - navWidth - (margin * 3), height - (margin * 2) - topArea, TRUE);
+            MoveWindow(m_pageView,
+                       navWidth + (margin * 2),
+                       margin + topArea,
+                       width - navWidth - (margin * 3),
+                       height - (margin * 3) - topArea - kStatusHeight,
+                       TRUE);
+        }
+
+        if (m_statusBar)
+        {
+            MoveWindow(m_statusBar,
+                       navWidth + (margin * 2),
+                       height - margin - kStatusHeight,
+                       width - navWidth - (margin * 3),
+                       kStatusHeight,
+                       TRUE);
+            SendMessageW(m_statusBar, WM_SETFONT,
+                reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         }
         // Re-layout dynamic field controls for the selected tab.
         ShowSelectedPluginTab();
@@ -1638,6 +1928,14 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             return 0;
         }
 
+        if (id == kHeaderHelpId && code == BN_CLICKED)
+        {
+            const LRESULT selection = m_navList ? SendMessageW(m_navList, LB_GETCURSEL, 0, 0) : -1;
+            const size_t tabIndex = (selection >= 0) ? static_cast<size_t>(selection) : 0;
+            MessageBoxW(hwnd, BuildTabHelpText(tabIndex).c_str(), L"Settings Help", MB_OK | MB_ICONINFORMATION);
+            return 0;
+        }
+
         // Handle interactive field controls
         if (m_controlFieldMap.count(id))
         {
@@ -1649,7 +1947,35 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     case WM_SETTINGCHANGE:
     case WM_THEMECHANGED:
         RefreshTheme();
+        ShowSelectedPluginTab();
+        SendNotifyMessageW(HWND_BROADCAST, ThemePlatform::GetThemeChangedMessageId(), 0, 0);
         return 0;
+    case WM_TIMER:
+        if (wParam == kRightPaneTransitionTimerId)
+        {
+            m_rightPaneTransitionOffset -= kRightPaneTransitionStep;
+            if (m_rightPaneTransitionOffset <= 0)
+            {
+                m_rightPaneTransitionOffset = 0;
+                KillTimer(hwnd, kRightPaneTransitionTimerId);
+            }
+
+            ApplyRightPaneTransitionLayout();
+
+            RECT rc{};
+            GetClientRect(hwnd, &rc);
+            const int navWidth = m_navCollapsed ? 64 : 280;
+            const int margin = 10;
+            const int topArea = kHeaderTitleHeight + kHeaderSubtitleHeight + kHeaderGap + 16;
+            RECT rightPaneRect{};
+            rightPaneRect.left = navWidth + (margin * 2);
+            rightPaneRect.top = margin + topArea;
+            rightPaneRect.right = rc.right - margin;
+            rightPaneRect.bottom = rc.bottom - margin - kStatusHeight;
+            InvalidateRect(hwnd, &rightPaneRect, TRUE);
+            return 0;
+        }
+        break;
     case kMsgApplyNavCollapsed:
     {
         const bool requestedCollapsed = (wParam != 0);
@@ -1695,6 +2021,34 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         HWND ctrl = reinterpret_cast<HWND>(lParam);
         const bool isNav = (ctrl == m_navList);
 
+        if (ctrl == m_headerSubtitle)
+        {
+            SetTextColor(hdc, m_subtleTextColor);
+            SetBkColor(hdc, m_windowColor);
+            return reinterpret_cast<LRESULT>(m_windowBrush ? m_windowBrush : GetStockObject(WHITE_BRUSH));
+        }
+
+        if (ctrl == m_headerTitle || ctrl == m_statusBar)
+        {
+            SetTextColor(hdc, m_textColor);
+            SetBkColor(hdc, m_windowColor);
+            return reinterpret_cast<LRESULT>(m_windowBrush ? m_windowBrush : GetStockObject(WHITE_BRUSH));
+        }
+
+        if (ctrl == m_headerHelpButton)
+        {
+            SetTextColor(hdc, m_textColor);
+            SetBkColor(hdc, m_windowColor);
+            return reinterpret_cast<LRESULT>(m_windowBrush ? m_windowBrush : GetStockObject(WHITE_BRUSH));
+        }
+
+        if (m_rightPaneTextStatics.find(ctrl) != m_rightPaneTextStatics.end())
+        {
+            SetTextColor(hdc, m_textColor);
+            SetBkMode(hdc, TRANSPARENT);
+            return reinterpret_cast<LRESULT>(GetStockObject(NULL_BRUSH));
+        }
+
         SetTextColor(hdc, m_textColor);
         SetBkColor(hdc, isNav ? m_navColor : m_surfaceColor);
 
@@ -1711,9 +2065,27 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             break;
         }
 
+        HDC hdc = reinterpret_cast<HDC>(wParam);
         RECT rect{};
         GetClientRect(hwnd, &rect);
-        FillRect(reinterpret_cast<HDC>(wParam), &rect, m_windowBrush);
+        FillRect(hdc, &rect, m_windowBrush);
+
+        const COLORREF cardFill = BlendColor(m_surfaceColor, m_windowColor, 84);
+        const COLORREF cardBorder = BlendColor(m_accentColor, m_windowColor, 48);
+        HBRUSH cardBrush = CreateSolidBrush(cardFill);
+        HPEN cardPen = CreatePen(PS_SOLID, 1, cardBorder);
+        HPEN oldPen = reinterpret_cast<HPEN>(SelectObject(hdc, cardPen));
+        HBRUSH oldBrush = reinterpret_cast<HBRUSH>(SelectObject(hdc, cardBrush));
+
+        for (const RECT& cardRect : m_sectionCardRects)
+        {
+            Rectangle(hdc, cardRect.left, cardRect.top, cardRect.right, cardRect.bottom);
+        }
+
+        SelectObject(hdc, oldBrush);
+        SelectObject(hdc, oldPen);
+        DeleteObject(cardBrush);
+        DeleteObject(cardPen);
         return 1;
     }
     case WM_CLOSE:
@@ -1729,14 +2101,21 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
         m_hwnd = nullptr;
         m_navToggleButton = nullptr;
+        m_headerTitle = nullptr;
+        m_headerSubtitle = nullptr;
+        m_headerHelpButton = nullptr;
         m_navList = nullptr;
         m_pageView = nullptr;
+        m_statusBar = nullptr;
         m_plugins.clear();
         m_pluginTabs.clear();
         // Field control HWNDs are destroyed automatically as children of this window.
         // Just clear the tracking data.
         m_fieldControls.clear();
         m_controlFieldMap.clear();
+        m_sectionCardRects.clear();
+        m_rightPaneTargetRects.clear();
+        m_rightPaneTextStatics.clear();
         return 0;
     default:
         break;

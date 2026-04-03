@@ -565,6 +565,15 @@ public:
                     80
                 },
                 SettingsFieldDescriptor{
+                    L"appearance.theme.custom.subtle_text",
+                    L"Custom subtle text color (#RRGGBB)",
+                    L"Secondary and supporting text color for custom theme.",
+                    SettingsFieldType::String,
+                    L"#A8B4C7",
+                    {},
+                    85
+                },
+                SettingsFieldDescriptor{
                     L"appearance.theme.custom.accent",
                     L"Custom accent color (#RRGGBB)",
                     L"Selection/highlight accent color.",
@@ -590,6 +599,24 @@ public:
                     L"#223247",
                     {},
                     110
+                },
+                SettingsFieldDescriptor{
+                    L"appearance.theme.custom.fence_title_text",
+                    L"Custom fence title text (#RRGGBB)",
+                    L"Fence title bar text colour when using custom theme.",
+                    SettingsFieldType::String,
+                    L"#E6EDF6",
+                    {},
+                    115
+                },
+                SettingsFieldDescriptor{
+                    L"appearance.theme.custom.fence_item_text",
+                    L"Custom fence item text (#RRGGBB)",
+                    L"Fence item label colour when using custom theme.",
+                    SettingsFieldType::String,
+                    L"#D5E0EE",
+                    {},
+                    118
                 },
                 SettingsFieldDescriptor{
                     L"appearance.theme.custom.fence_item_hover",

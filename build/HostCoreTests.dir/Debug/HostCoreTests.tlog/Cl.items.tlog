@@ -2,6 +2,7 @@ C:\Users\MrIvo\Github\IVOESimpleFences\tests\HostCoreTests.cpp;C:\Users\MrIvo\Gi
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\CommandDispatcher.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\CommandDispatcher.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\Diagnostics.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\Diagnostics.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\SettingsStore.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\SettingsStore.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePlatform.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\ThemePlatform.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\Persistence.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\Persistence.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\MenuContributionRegistry.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\MenuContributionRegistry.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginRegistry.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\PluginRegistry.obj

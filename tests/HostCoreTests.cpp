@@ -1,5 +1,7 @@
 #include "core/CommandDispatcher.h"
 #include "core/Diagnostics.h"
+#include "core/SettingsStore.h"
+#include "core/ThemePlatform.h"
 #include "Persistence.h"
 #include "plugins/builtins/BuiltinPlugins.h"
 #include "extensions/PluginContracts.h"
@@ -295,6 +297,44 @@ namespace
         if (!foundBackup)
         {
             return Fail("corrupt metadata quarantine backup file not found");
+        }
+
+        return 0;
+    }
+
+    int TestThemePlatformCustomPaletteCoverage()
+    {
+        SettingsStore store;
+        store.Set(L"appearance.theme.mode", L"dark");
+        store.Set(L"appearance.theme.style", L"custom");
+        store.Set(L"appearance.theme.custom.window", L"#102030");
+        store.Set(L"appearance.theme.custom.surface", L"#203040");
+        store.Set(L"appearance.theme.custom.nav", L"#304050");
+        store.Set(L"appearance.theme.custom.text", L"#405060");
+        store.Set(L"appearance.theme.custom.subtle_text", L"#506070");
+        store.Set(L"appearance.theme.custom.accent", L"#607080");
+        store.Set(L"appearance.theme.custom.border", L"#708090");
+        store.Set(L"appearance.theme.custom.fence_title_bar", L"#8090A0");
+        store.Set(L"appearance.theme.custom.fence_title_text", L"#90A0B0");
+        store.Set(L"appearance.theme.custom.fence_item_text", L"#A0B0C0");
+        store.Set(L"appearance.theme.custom.fence_item_hover", L"#B0C0D0");
+
+        ThemePlatform platform(&store);
+        const ThemePalette palette = platform.BuildPalette();
+
+        if (palette.windowColor != RGB(0x10, 0x20, 0x30) ||
+            palette.surfaceColor != RGB(0x20, 0x30, 0x40) ||
+            palette.navColor != RGB(0x30, 0x40, 0x50) ||
+            palette.textColor != RGB(0x40, 0x50, 0x60) ||
+            palette.subtleTextColor != RGB(0x50, 0x60, 0x70) ||
+            palette.accentColor != RGB(0x60, 0x70, 0x80) ||
+            palette.borderColor != RGB(0x70, 0x80, 0x90) ||
+            palette.fenceTitleBarColor != RGB(0x80, 0x90, 0xA0) ||
+            palette.fenceTitleTextColor != RGB(0x90, 0xA0, 0xB0) ||
+            palette.fenceItemTextColor != RGB(0xA0, 0xB0, 0xC0) ||
+            palette.fenceItemHoverColor != RGB(0xB0, 0xC0, 0xD0))
+        {
+            return Fail("custom theme palette should honor all exposed color tokens");
         }
 
         return 0;
@@ -660,6 +700,11 @@ int main()
     }
 
     if (const int result = TestPersistenceCorruptRecovery(); result != 0)
+    {
+        return result;
+    }
+
+    if (const int result = TestThemePlatformCustomPaletteCoverage(); result != 0)
     {
         return result;
     }

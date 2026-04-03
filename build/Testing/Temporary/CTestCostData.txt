@@ -1,2 +1,2 @@
-HostCoreTests 3 0.303551
+HostCoreTests 5 0.367014
 ---

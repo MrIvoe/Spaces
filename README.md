@@ -3,7 +3,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#build-and-run)
 [![Language](https://img.shields.io/badge/language-C%2B%2B17-00599C.svg)](#tech-stack)
 [![Build System](https://img.shields.io/badge/build-CMake-064F8C.svg)](#build-and-run)
-[![Version](https://img.shields.io/badge/version-0.0.012-2EA043.svg)](#release-history)
+[![Version](https://img.shields.io/badge/version-0.0.013-2EA043.svg)](#release-history)
 
 A lightweight Win32 desktop organizer for Windows that lets you create simple desktop fences and move files into them safely.
 
@@ -39,11 +39,11 @@ First run notes:
 
 ## Current Version
 
-Current version: `0.0.012`
+Current version: `0.0.013`
 
 ## Current Status
 
-Current phase: `0.0.012` main-app reliability and polish milestone, focused on startup safety, fence rename UX, drag/drop robustness, and persistence recovery.
+Current phase: `0.0.013` UI shell modernization milestone, focused on cleaner settings hierarchy, reduced tab-transition repaint cost, and cohesive Windows desktop presentation.
 
 Primary focus right now:
 
@@ -53,6 +53,8 @@ Primary focus right now:
 - improve drag/drop handling for duplicate and self-drop edge cases
 - recover safely from malformed persisted config files
 - improve icon fidelity and practical rename/edit flow
+- modernize settings shell layout with explicit header/subheader/status regions
+- reduce tab-transition redraw scope to the right pane for smoother switching
 
 ## What the App Does
 
@@ -330,6 +332,13 @@ Check:
 This can happen intentionally if restore was only partially successful. The fence is kept so remaining items can still be recovered safely.
 
 ## Release History
+
+### 0.0.013
+
+- modernized settings shell structure with dedicated title, subtitle, and status regions
+- improved visual hierarchy and spacing of navigation versus content regions
+- reduced tab-switch repaint work to right content pane to improve responsiveness
+- kept existing settings behavior and persistence semantics intact
 
 ### 0.0.012
 

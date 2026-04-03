@@ -9,6 +9,7 @@
 #include <optional>
 #include <string>
 
+#include <dwmapi.h>
 #include <windows.h>
 
 namespace
@@ -101,6 +102,49 @@ namespace
         }
 
         return RGB(bytes[0], bytes[1], bytes[2]);
+    }
+
+    COLORREF BlendColor(COLORREF from, COLORREF to, int alpha)
+    {
+        alpha = (alpha < 0) ? 0 : ((alpha > 255) ? 255 : alpha);
+        const int inv = 255 - alpha;
+        const BYTE red = static_cast<BYTE>(((GetRValue(from) * inv) + (GetRValue(to) * alpha)) / 255);
+        const BYTE green = static_cast<BYTE>(((GetGValue(from) * inv) + (GetGValue(to) * alpha)) / 255);
+        const BYTE blue = static_cast<BYTE>(((GetBValue(from) * inv) + (GetBValue(to) * alpha)) / 255);
+        return RGB(red, green, blue);
+    }
+
+    std::optional<COLORREF> DetectSystemAccentColor()
+    {
+        DWORD colorization = 0;
+        BOOL opaqueBlend = FALSE;
+        if (SUCCEEDED(DwmGetColorizationColor(&colorization, &opaqueBlend)))
+        {
+            const BYTE red = static_cast<BYTE>((colorization >> 16) & 0xFF);
+            const BYTE green = static_cast<BYTE>((colorization >> 8) & 0xFF);
+            const BYTE blue = static_cast<BYTE>(colorization & 0xFF);
+            return RGB(red, green, blue);
+        }
+
+        DWORD accent = 0;
+        DWORD accentSize = sizeof(accent);
+        const LSTATUS status = RegGetValueW(
+            HKEY_CURRENT_USER,
+            L"Software\\Microsoft\\Windows\\DWM",
+            L"ColorizationColor",
+            RRF_RT_REG_DWORD,
+            nullptr,
+            &accent,
+            &accentSize);
+        if (status != ERROR_SUCCESS)
+        {
+            return std::nullopt;
+        }
+
+        const BYTE red = static_cast<BYTE>((accent >> 16) & 0xFF);
+        const BYTE green = static_cast<BYTE>((accent >> 8) & 0xFF);
+        const BYTE blue = static_cast<BYTE>(accent & 0xFF);
+        return RGB(red, green, blue);
     }
 }
 
@@ -466,6 +510,17 @@ ThemePalette ThemePlatform::BuildPalette() const
         apply(L"appearance.theme.custom.fence_title_text", palette.fenceTitleTextColor);
         apply(L"appearance.theme.custom.fence_item_text", palette.fenceItemTextColor);
         apply(L"appearance.theme.custom.fence_item_hover", palette.fenceItemHoverColor);
+    }
+
+    if (m_store && m_store->GetBool(L"appearance.theme.use_accent", false))
+    {
+        const auto accent = DetectSystemAccentColor();
+        if (accent.has_value())
+        {
+            palette.accentColor = *accent;
+            palette.fenceTitleBarColor = BlendColor(palette.fenceTitleBarColor, *accent, 170);
+            palette.borderColor = BlendColor(palette.borderColor, *accent, 96);
+        }
     }
 
     return palette;

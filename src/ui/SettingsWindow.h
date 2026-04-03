@@ -4,6 +4,7 @@
 #include "extensions/SettingsSchema.h"
 
 #include <string>
+#include <unordered_set>
 #include <unordered_map>
 #include <vector>
 
@@ -104,6 +105,10 @@ private:
     void PopulateFieldControls(size_t tabIndex, int rightX, int rightY, int rightW);
     void HandleFieldControlChange(int ctrlId, int notificationCode, HWND hwndCtrl);
     void RegisterTooltipForControl(HWND control, const std::wstring& tipText);
+    void UpdateShellHeaderAndStatus(size_t tabIndex);
+    void BeginRightPaneTransition();
+    void ApplyRightPaneTransitionLayout();
+    std::wstring BuildTabHelpText(size_t tabIndex) const;
     void DrawNavItem(const DRAWITEMSTRUCT* drawInfo);
     static LRESULT CALLBACK NavListSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
                                                 UINT_PTR subclassId, DWORD_PTR refData);
@@ -114,8 +119,12 @@ private:
 private:
     HWND m_hwnd = nullptr;
     HWND m_navToggleButton = nullptr;
+    HWND m_headerTitle = nullptr;
+    HWND m_headerSubtitle = nullptr;
+    HWND m_headerHelpButton = nullptr;
     HWND m_navList = nullptr;
     HWND m_pageView = nullptr;          // multiline EDIT – used for text/overview pages
+    HWND m_statusBar = nullptr;
     std::vector<UiPage> m_pages;
     std::vector<PluginStatusView> m_plugins;
     std::vector<PluginTab> m_pluginTabs;
@@ -127,6 +136,9 @@ private:
     // Dynamically created field controls (children of m_hwnd, right pane)
     std::vector<HWND>                         m_fieldControls;
     std::unordered_map<int, FieldControlInfo> m_controlFieldMap;
+    std::vector<RECT>                         m_sectionCardRects;
+    std::unordered_map<HWND, RECT>            m_rightPaneTargetRects;
+    std::unordered_set<HWND>                  m_rightPaneTextStatics;
     int                                        m_nextControlId = 2000;
 
     ThemeMode m_themeMode = ThemeMode::Light;
@@ -150,10 +162,16 @@ private:
     int m_navHoverIndex = -1;
     DWORD m_lastNavToggleTick = 0;
     bool m_pendingNavCollapsed = false;
+    int m_rightPaneTransitionOffset = 0;
 
     static constexpr int kNavToggleId = 100;
     static constexpr int kNavId  = 101;
     static constexpr int kPageId = 102;
+    static constexpr int kHeaderTitleId = 103;
+    static constexpr int kHeaderSubtitleId = 104;
+    static constexpr int kStatusId = 105;
+    static constexpr int kHeaderHelpId = 106;
     static constexpr UINT kMsgApplyNavCollapsed = WM_APP + 41;
+    static constexpr UINT_PTR kRightPaneTransitionTimerId = 7;
     static constexpr DWORD kNavToggleDebounceMs = 150;
 };
