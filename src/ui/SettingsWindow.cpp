@@ -719,12 +719,14 @@ void SettingsWindow::ShowSelectedPluginTab()
     }
 
     // Destroy any existing field controls from the previous selection.
+    SendMessageW(m_hwnd, WM_SETREDRAW, FALSE, 0);
     ClearFieldControls();
 
     if (hasFields)
     {
         // Hide the read-only EDIT; render interactive controls instead.
         ShowWindow(m_pageView, SW_HIDE);
+        SetWindowTextW(m_pageView, L"");
 
         RECT clientRect{};
         GetClientRect(m_hwnd, &clientRect);
@@ -743,6 +745,28 @@ void SettingsWindow::ShowSelectedPluginTab()
         // Show the read-only EDIT with text content.
         ShowWindow(m_pageView, SW_SHOW);
         SetWindowTextW(m_pageView, BuildSelectedTabContent(tabIndex).c_str());
+    }
+
+    SendMessageW(m_hwnd, WM_SETREDRAW, TRUE, 0);
+
+    RECT clientRect{};
+    GetClientRect(m_hwnd, &clientRect);
+    const int width = clientRect.right - clientRect.left;
+    const int height = clientRect.bottom - clientRect.top;
+    const int navWidth = m_navCollapsed ? 64 : 280;
+    const int margin = 10;
+    const int topArea = 42;
+
+    RECT rightPaneRect{};
+    rightPaneRect.left = navWidth + (margin * 2);
+    rightPaneRect.top = margin + topArea;
+    rightPaneRect.right = width - margin;
+    rightPaneRect.bottom = height - margin;
+
+    if (rightPaneRect.right > rightPaneRect.left && rightPaneRect.bottom > rightPaneRect.top)
+    {
+        InvalidateRect(m_hwnd, &rightPaneRect, TRUE);
+        RedrawWindow(m_hwnd, &rightPaneRect, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
     }
 }
 
