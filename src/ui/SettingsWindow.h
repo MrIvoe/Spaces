@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/KernelViews.h"
+#include "core/ThemePlatform.h"
 #include "extensions/SettingsSchema.h"
 
 #include <string>
@@ -11,7 +12,6 @@
 #include <windows.h>
 
 class PluginSettingsRegistry;
-class ThemePlatform;
 
 class SettingsWindow
 {
@@ -24,34 +24,6 @@ public:
                       const ThemePlatform* themePlatform);
 
 private:
-    enum class ThemeMode
-    {
-        Light,
-        Dark
-    };
-
-    // Theme profile selected in settings and mapped into concrete palette colors.
-    enum class ThemeStyle
-    {
-        System,
-        Discord,
-        Fences,
-        GitHubDark,
-        GitHubDarkDimmed,
-        GitHubLight,
-        Custom
-    };
-
-    struct ThemePalette
-    {
-        COLORREF windowColor = RGB(255, 255, 255);
-        COLORREF surfaceColor = RGB(255, 255, 255);
-        COLORREF navColor = RGB(245, 245, 245);
-        COLORREF textColor = RGB(20, 20, 20);
-        COLORREF subtleTextColor = RGB(90, 90, 90);
-        COLORREF accentColor = RGB(70, 120, 220);
-    };
-
     struct UiPage
     {
         std::wstring pageId;
@@ -78,9 +50,6 @@ private:
     };
 
     bool EnsureWindow();
-    ThemeMode DetectSystemTheme() const;
-    ThemeStyle ResolveThemeStyle() const;
-    ThemePalette BuildThemePalette(ThemeMode mode, ThemeStyle style) const;
     void RefreshTheme();
     void DestroyThemeBrushes();
     void DestroyFonts();
@@ -106,12 +75,14 @@ private:
     void HandleFieldControlChange(int ctrlId, int notificationCode, HWND hwndCtrl);
     void RegisterTooltipForControl(HWND control, const std::wstring& tipText);
     void UpdateShellHeaderAndStatus(size_t tabIndex);
-    void BeginRightPaneTransition();
-    void ApplyRightPaneTransitionLayout();
     std::wstring BuildTabHelpText(size_t tabIndex) const;
     void DrawNavItem(const DRAWITEMSTRUCT* drawInfo);
     static LRESULT CALLBACK NavListSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
                                                 UINT_PTR subclassId, DWORD_PTR refData);
+    // Right-pane scroll panel
+    static LRESULT CALLBACK ScrollPanelProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+    void ApplyScrollPanelScroll(int delta);
+    LRESULT DrawScrollPanelBkgnd(HDC hdc);
 
     static LRESULT CALLBACK WndProcStatic(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     LRESULT WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -137,10 +108,13 @@ private:
     std::vector<HWND>                         m_fieldControls;
     std::unordered_map<int, FieldControlInfo> m_controlFieldMap;
     std::vector<RECT>                         m_sectionCardRects;
-    std::unordered_map<HWND, RECT>            m_rightPaneTargetRects;
     std::unordered_set<HWND>                  m_rightPaneTextStatics;
     int                                        m_nextControlId = 2000;
 
+    // Right-pane scroll panel (parent of all field controls)
+    HWND m_rightScrollPanel = nullptr;
+
+    // Use system-wide palette types from ThemePlatform.h
     ThemeMode m_themeMode = ThemeMode::Light;
     ThemeStyle m_themeStyle = ThemeStyle::System;
     COLORREF m_windowColor = RGB(255, 255, 255);
@@ -162,7 +136,6 @@ private:
     int m_navHoverIndex = -1;
     DWORD m_lastNavToggleTick = 0;
     bool m_pendingNavCollapsed = false;
-    int m_rightPaneTransitionOffset = 0;
 
     static constexpr int kNavToggleId = 100;
     static constexpr int kNavId  = 101;
@@ -172,6 +145,5 @@ private:
     static constexpr int kStatusId = 105;
     static constexpr int kHeaderHelpId = 106;
     static constexpr UINT kMsgApplyNavCollapsed = WM_APP + 41;
-    static constexpr UINT_PTR kRightPaneTransitionTimerId = 7;
     static constexpr DWORD kNavToggleDebounceMs = 150;
 };

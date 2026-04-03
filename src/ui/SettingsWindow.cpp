@@ -107,6 +107,7 @@ bool SettingsWindow::EnsureWindow()
     }
 
     static const wchar_t* kClassName = L"SimpleFences_SettingsWindow";
+    static const wchar_t* kScrollPanelClass = L"SimpleFences_SettingsRightPane";
 
     WNDCLASSW wc{};
     wc.lpfnWndProc = SettingsWindow::WndProcStatic;
@@ -125,11 +126,26 @@ bool SettingsWindow::EnsureWindow()
         }
     }
 
+    WNDCLASSW scrollWc{};
+    scrollWc.lpfnWndProc = SettingsWindow::ScrollPanelProc;
+    scrollWc.hInstance = GetModuleHandleW(nullptr);
+    scrollWc.lpszClassName = kScrollPanelClass;
+    scrollWc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    scrollWc.hbrBackground = nullptr;
+    if (!RegisterClassW(&scrollWc))
+    {
+        const DWORD error = GetLastError();
+        if (error != ERROR_CLASS_ALREADY_EXISTS)
+        {
+            Win32Helpers::LogError(L"Settings scroll panel class registration failed: " + std::to_wstring(error));
+        }
+    }
+
     m_hwnd = CreateWindowExW(
         0,
         kClassName,
         L"SimpleFences Settings",
-        WS_OVERLAPPEDWINDOW,
+        WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         900,
@@ -146,161 +162,6 @@ bool SettingsWindow::EnsureWindow()
     }
 
     return true;
-}
-
-SettingsWindow::ThemeMode SettingsWindow::DetectSystemTheme() const
-{
-    DWORD lightThemeEnabled = 1;
-    DWORD valueSize = sizeof(lightThemeEnabled);
-    const LSTATUS status = RegGetValueW(
-        HKEY_CURRENT_USER,
-        L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-        L"AppsUseLightTheme",
-        RRF_RT_REG_DWORD,
-        nullptr,
-        &lightThemeEnabled,
-        &valueSize);
-
-    if (status != ERROR_SUCCESS)
-    {
-        return ThemeMode::Light;
-    }
-
-    return (lightThemeEnabled == 0) ? ThemeMode::Dark : ThemeMode::Light;
-}
-
-SettingsWindow::ThemeStyle SettingsWindow::ResolveThemeStyle() const
-{
-    if (!m_settingsRegistry)
-    {
-        return ThemeStyle::System;
-    }
-
-    const std::wstring raw = m_settingsRegistry->GetValue(L"appearance.theme.style", L"system");
-    if (raw == L"discord")
-    {
-        return ThemeStyle::Discord;
-    }
-    if (raw == L"fences")
-    {
-        return ThemeStyle::Fences;
-    }
-    if (raw == L"github_dark")
-    {
-        return ThemeStyle::GitHubDark;
-    }
-    if (raw == L"github_dark_dimmed")
-    {
-        return ThemeStyle::GitHubDarkDimmed;
-    }
-    if (raw == L"github_light")
-    {
-        return ThemeStyle::GitHubLight;
-    }
-    if (raw == L"custom")
-    {
-        return ThemeStyle::Custom;
-    }
-    return ThemeStyle::System;
-}
-
-SettingsWindow::ThemePalette SettingsWindow::BuildThemePalette(ThemeMode mode, ThemeStyle style) const
-{
-    ThemePalette palette;
-
-    // Base system fallback palette.
-    if (mode == ThemeMode::Dark)
-    {
-        palette.windowColor = RGB(24, 24, 24);
-        palette.surfaceColor = RGB(36, 36, 36);
-        palette.navColor = RGB(30, 30, 30);
-        palette.textColor = RGB(232, 232, 232);
-        palette.subtleTextColor = RGB(180, 180, 180);
-        palette.accentColor = RGB(88, 101, 242);
-    }
-    else
-    {
-        palette.windowColor = RGB(248, 249, 252);
-        palette.surfaceColor = RGB(255, 255, 255);
-        palette.navColor = RGB(240, 242, 246);
-        palette.textColor = RGB(32, 34, 37);
-        palette.subtleTextColor = RGB(95, 101, 112);
-        palette.accentColor = RGB(78, 91, 242);
-    }
-
-    // Optional style overlays. These are intentionally centralized to scale
-    // to a future whole-app theme engine.
-    if (style == ThemeStyle::Discord)
-    {
-        if (mode == ThemeMode::Dark)
-        {
-            palette.windowColor = RGB(47, 49, 54);
-            palette.surfaceColor = RGB(54, 57, 63);
-            palette.navColor = RGB(32, 34, 37);
-            palette.textColor = RGB(220, 221, 222);
-            palette.subtleTextColor = RGB(160, 162, 168);
-            palette.accentColor = RGB(88, 101, 242);
-        }
-        else
-        {
-            palette.windowColor = RGB(243, 245, 247);
-            palette.surfaceColor = RGB(255, 255, 255);
-            palette.navColor = RGB(232, 236, 240);
-            palette.textColor = RGB(46, 51, 56);
-            palette.subtleTextColor = RGB(106, 115, 128);
-            palette.accentColor = RGB(88, 101, 242);
-        }
-    }
-    else if (style == ThemeStyle::Fences)
-    {
-        if (mode == ThemeMode::Dark)
-        {
-            palette.windowColor = RGB(22, 27, 34);
-            palette.surfaceColor = RGB(28, 34, 42);
-            palette.navColor = RGB(20, 24, 31);
-            palette.textColor = RGB(225, 231, 238);
-            palette.subtleTextColor = RGB(167, 177, 188);
-            palette.accentColor = RGB(64, 168, 255);
-        }
-        else
-        {
-            palette.windowColor = RGB(236, 242, 248);
-            palette.surfaceColor = RGB(248, 251, 255);
-            palette.navColor = RGB(227, 236, 245);
-            palette.textColor = RGB(27, 35, 42);
-            palette.subtleTextColor = RGB(90, 104, 118);
-            palette.accentColor = RGB(49, 142, 226);
-        }
-    }
-    else if (style == ThemeStyle::GitHubDark)
-    {
-        palette.windowColor = RGB(13, 17, 23);
-        palette.surfaceColor = RGB(22, 27, 34);
-        palette.navColor = RGB(1, 4, 9);
-        palette.textColor = RGB(230, 237, 243);
-        palette.subtleTextColor = RGB(139, 148, 158);
-        palette.accentColor = RGB(47, 129, 247);
-    }
-    else if (style == ThemeStyle::GitHubDarkDimmed)
-    {
-        palette.windowColor = RGB(34, 39, 46);
-        palette.surfaceColor = RGB(44, 50, 58);
-        palette.navColor = RGB(28, 33, 40);
-        palette.textColor = RGB(173, 186, 199);
-        palette.subtleTextColor = RGB(118, 131, 144);
-        palette.accentColor = RGB(83, 155, 245);
-    }
-    else if (style == ThemeStyle::GitHubLight)
-    {
-        palette.windowColor = RGB(246, 248, 250);
-        palette.surfaceColor = RGB(255, 255, 255);
-        palette.navColor = RGB(242, 245, 248);
-        palette.textColor = RGB(31, 35, 40);
-        palette.subtleTextColor = RGB(87, 96, 106);
-        palette.accentColor = RGB(9, 105, 218);
-    }
-
-    return palette;
 }
 
 void SettingsWindow::DestroyThemeBrushes()
@@ -345,72 +206,28 @@ void SettingsWindow::DestroyFonts()
 
 void SettingsWindow::RefreshTheme()
 {
-    ThemeMode requested = DetectSystemTheme();
-    ThemeStyle style = ResolveThemeStyle();
+    // Single source of truth: delegate entirely to ThemePlatform.
+    ThemePalette palette;
     int textScale = 115;
 
     if (m_themePlatform)
     {
-        const auto platformMode = m_themePlatform->ResolveMode();
-        const auto platformStyle = m_themePlatform->ResolveStyle();
-        requested = (platformMode == ::ThemeMode::Dark) ? ThemeMode::Dark : ThemeMode::Light;
-        if (platformStyle == ::ThemeStyle::Discord)
-        {
-            style = ThemeStyle::Discord;
-        }
-        else if (platformStyle == ::ThemeStyle::Fences)
-        {
-            style = ThemeStyle::Fences;
-        }
-        else if (platformStyle == ::ThemeStyle::GitHubDark)
-        {
-            style = ThemeStyle::GitHubDark;
-        }
-        else if (platformStyle == ::ThemeStyle::GitHubDarkDimmed)
-        {
-            style = ThemeStyle::GitHubDarkDimmed;
-        }
-        else if (platformStyle == ::ThemeStyle::GitHubLight)
-        {
-            style = ThemeStyle::GitHubLight;
-        }
-        else if (platformStyle == ::ThemeStyle::Custom)
-        {
-            style = ThemeStyle::Custom;
-        }
-        else
-        {
-            style = ThemeStyle::System;
-        }
+        m_themeMode = m_themePlatform->ResolveMode();
+        m_themeStyle = m_themePlatform->ResolveStyle();
+        palette = m_themePlatform->BuildPalette();
         textScale = m_themePlatform->GetTextScalePercent();
     }
-    else if (m_settingsRegistry)
+    else
     {
-        const std::wstring modeValue = m_settingsRegistry->GetValue(L"appearance.theme.mode", L"system");
-        if (modeValue == L"dark")
-        {
-            requested = ThemeMode::Dark;
-        }
-        else if (modeValue == L"light")
-        {
-            requested = ThemeMode::Light;
-        }
+        // Fallback: detect system theme with a temporary platform (no settings store).
+        ThemePlatform tmp;
+        m_themeMode = tmp.ResolveMode();
+        m_themeStyle = ThemeStyle::System;
+        palette = tmp.BuildPalette();
     }
 
-    m_themeMode = requested;
-    m_themeStyle = style;
+    textScale = (textScale < 90) ? 90 : (textScale > 150) ? 150 : textScale;
 
-    ThemePalette palette = BuildThemePalette(m_themeMode, m_themeStyle);
-    if (m_themePlatform)
-    {
-        const auto pp = m_themePlatform->BuildPalette();
-        palette.windowColor = pp.windowColor;
-        palette.surfaceColor = pp.surfaceColor;
-        palette.navColor = pp.navColor;
-        palette.textColor = pp.textColor;
-        palette.subtleTextColor = pp.subtleTextColor;
-        palette.accentColor = pp.accentColor;
-    }
     m_windowColor = palette.windowColor;
     m_surfaceColor = palette.surfaceColor;
     m_navColor = palette.navColor;
@@ -423,27 +240,6 @@ void SettingsWindow::RefreshTheme()
     m_windowBrush = CreateSolidBrush(m_windowColor);
     m_surfaceBrush = CreateSolidBrush(m_surfaceColor);
     m_navBrush = CreateSolidBrush(m_navColor);
-
-    if (!m_themePlatform && m_settingsRegistry)
-    {
-        const std::wstring rawScale = m_settingsRegistry->GetValue(L"appearance.theme.text_scale_percent", L"115");
-        try
-        {
-            textScale = std::stoi(rawScale);
-        }
-        catch (...)
-        {
-            textScale = 115;
-        }
-    }
-    if (textScale < 90)
-    {
-        textScale = 90;
-    }
-    if (textScale > 150)
-    {
-        textScale = 150;
-    }
 
     const int basePx = (20 * textScale) / 100;
     const int sectionPx = (24 * textScale) / 100;
@@ -502,6 +298,10 @@ void SettingsWindow::RefreshTheme()
     if (m_pageView)
     {
         InvalidateRect(m_pageView, nullptr, TRUE);
+    }
+    if (m_rightScrollPanel)
+    {
+        InvalidateRect(m_rightScrollPanel, nullptr, TRUE);
     }
 }
 
@@ -746,14 +546,26 @@ void SettingsWindow::ShowSelectedPluginTab()
         }
     }
 
-    // Destroy any existing field controls from the previous selection.
+    // Suppress redraws on both the main window and the scroll panel while
+    // we tear down old controls and create new ones.  This prevents the
+    // half-constructed control tree from being painted, which is what
+    // produces the "text glitching over everything" visual artifact.
     SendMessageW(m_hwnd, WM_SETREDRAW, FALSE, 0);
+    if (m_rightScrollPanel)
+    {
+        SendMessageW(m_rightScrollPanel, WM_SETREDRAW, FALSE, 0);
+    }
     ClearFieldControls();
 
     if (hasFields)
     {
         // Hide the read-only EDIT; render interactive controls instead.
         ShowWindow(m_pageView, SW_HIDE);
+        if (m_rightScrollPanel)
+        {
+            // Show AFTER controls are populated so nothing flashes.
+            ShowWindow(m_rightScrollPanel, SW_HIDE);
+        }
         SetWindowTextW(m_pageView, L"");
 
         RECT clientRect{};
@@ -767,10 +579,21 @@ void SettingsWindow::ShowSelectedPluginTab()
         const int rightW   = width - navWidth - (margin * 3);
 
         PopulateFieldControls(tabIndex, rightX, rightY, rightW);
+
+        if (m_rightScrollPanel)
+        {
+            SendMessageW(m_rightScrollPanel, WM_SETREDRAW, TRUE, 0);
+            ShowWindow(m_rightScrollPanel, SW_SHOW);
+        }
     }
     else
     {
         // Show the read-only EDIT with text content.
+        if (m_rightScrollPanel)
+        {
+            SendMessageW(m_rightScrollPanel, WM_SETREDRAW, TRUE, 0);
+            ShowWindow(m_rightScrollPanel, SW_HIDE);
+        }
         ShowWindow(m_pageView, SW_SHOW);
         SetWindowTextW(m_pageView, BuildSelectedTabContent(tabIndex).c_str());
     }
@@ -793,11 +616,25 @@ void SettingsWindow::ShowSelectedPluginTab()
 
     if (rightPaneRect.right > rightPaneRect.left && rightPaneRect.bottom > rightPaneRect.top)
     {
-        InvalidateRect(m_hwnd, &rightPaneRect, TRUE);
-        RedrawWindow(m_hwnd, &rightPaneRect, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+        if (hasFields && m_rightScrollPanel)
+        {
+            InvalidateRect(m_rightScrollPanel, nullptr, TRUE);
+            UpdateWindow(m_rightScrollPanel);
+        }
+        else if (m_pageView)
+        {
+            InvalidateRect(m_pageView, nullptr, TRUE);
+            UpdateWindow(m_pageView);
+        }
     }
 
-    BeginRightPaneTransition();
+    // Skip the slide-in animation for interactive field pages hosted in the
+    // scroll panel child window — SetWindowPos animation on those child
+    // HWNDs causes ghost trails against uncleared background regions.
+    if (!hasFields)
+    {
+        BeginRightPaneTransition();
+    }
 }
 
 std::vector<SettingsWindow::UiPage> SettingsWindow::BuildPages(
@@ -1104,7 +941,7 @@ void SettingsWindow::RegisterTooltipForControl(HWND control, const std::wstring&
     TOOLINFOW ti{};
     ti.cbSize = sizeof(TOOLINFOW);
     ti.uFlags = TTF_SUBCLASS;
-    ti.hwnd = m_hwnd;
+    ti.hwnd = GetParent(control);
     ti.uId = reinterpret_cast<UINT_PTR>(control);
     ti.lpszText = const_cast<LPWSTR>(tipText.c_str());
     GetClientRect(control, &ti.rect);
@@ -1186,6 +1023,18 @@ void SettingsWindow::BeginRightPaneTransition()
 
 void SettingsWindow::ApplyRightPaneTransitionLayout()
 {
+    int scrollY = 0;
+    if (m_rightScrollPanel)
+    {
+        SCROLLINFO si{};
+        si.cbSize = sizeof(si);
+        si.fMask = SIF_POS;
+        if (GetScrollInfo(m_rightScrollPanel, SB_VERT, &si))
+        {
+            scrollY = si.nPos;
+        }
+    }
+
     for (const auto& entry : m_rightPaneTargetRects)
     {
         HWND hwnd = entry.first;
@@ -1198,7 +1047,7 @@ void SettingsWindow::ApplyRightPaneTransitionLayout()
         SetWindowPos(hwnd,
                      nullptr,
                      rc.left + m_rightPaneTransitionOffset,
-                     rc.top,
+                     rc.top - scrollY,
                      rc.right - rc.left,
                      rc.bottom - rc.top,
                      SWP_NOZORDER | SWP_NOACTIVATE);
@@ -1353,8 +1202,188 @@ LRESULT CALLBACK SettingsWindow::NavListSubclassProc(HWND hwnd, UINT msg, WPARAM
     return DefSubclassProc(hwnd, msg, wParam, lParam);
 }
 
+LRESULT CALLBACK SettingsWindow::ScrollPanelProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    auto* self = reinterpret_cast<SettingsWindow*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+
+    switch (msg)
+    {
+    case WM_ERASEBKGND:
+        if (self)
+        {
+            return self->DrawScrollPanelBkgnd(reinterpret_cast<HDC>(wParam));
+        }
+        break;
+    case WM_MOUSEWHEEL:
+        if (self)
+        {
+            const int delta = GET_WHEEL_DELTA_WPARAM(wParam);
+            self->ApplyScrollPanelScroll(delta);
+            return 0;
+        }
+        break;
+    case WM_VSCROLL:
+        if (self)
+        {
+            SCROLLINFO si{};
+            si.cbSize = sizeof(si);
+            si.fMask = SIF_ALL;
+            GetScrollInfo(hwnd, SB_VERT, &si);
+
+            int newPos = si.nPos;
+            switch (LOWORD(wParam))
+            {
+            case SB_LINEUP:
+                newPos -= 32;
+                break;
+            case SB_LINEDOWN:
+                newPos += 32;
+                break;
+            case SB_PAGEUP:
+                newPos -= static_cast<int>(si.nPage);
+                break;
+            case SB_PAGEDOWN:
+                newPos += static_cast<int>(si.nPage);
+                break;
+            case SB_THUMBPOSITION:
+            case SB_THUMBTRACK:
+                newPos = HIWORD(wParam);
+                break;
+            default:
+                break;
+            }
+
+            const int maxPos = (std::max)(0, si.nMax - static_cast<int>(si.nPage) + 1);
+            newPos = (std::max)(0, (std::min)(newPos, maxPos));
+            if (newPos != si.nPos)
+            {
+                si.fMask = SIF_POS;
+                si.nPos = newPos;
+                SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
+                self->ApplyRightPaneTransitionLayout();
+                InvalidateRect(hwnd, nullptr, TRUE);
+            }
+            return 0;
+        }
+        break;
+    case WM_COMMAND:
+        if (self && self->m_hwnd)
+        {
+            SendMessageW(self->m_hwnd, WM_COMMAND, wParam, lParam);
+            return 0;
+        }
+        break;
+    case WM_CTLCOLORSTATIC:
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORBTN:
+    {
+        if (!self)
+        {
+            break;
+        }
+        HDC hdc = reinterpret_cast<HDC>(wParam);
+        HWND ctrl = reinterpret_cast<HWND>(lParam);
+
+        if (self->m_rightPaneTextStatics.find(ctrl) != self->m_rightPaneTextStatics.end())
+        {
+            // Opaque surface fill prevents ghost text trails during repaints.
+            SetTextColor(hdc, self->m_textColor);
+            SetBkColor(hdc, self->m_surfaceColor);
+            return reinterpret_cast<LRESULT>(self->m_surfaceBrush ? self->m_surfaceBrush : GetStockObject(WHITE_BRUSH));
+        }
+
+        SetTextColor(hdc, self->m_textColor);
+        SetBkColor(hdc, self->m_surfaceColor);
+        return reinterpret_cast<LRESULT>(self->m_surfaceBrush ? self->m_surfaceBrush : GetStockObject(WHITE_BRUSH));
+    }
+    default:
+        break;
+    }
+
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+
+void SettingsWindow::ApplyScrollPanelScroll(int delta)
+{
+    if (!m_rightScrollPanel)
+    {
+        return;
+    }
+
+    SCROLLINFO si{};
+    si.cbSize = sizeof(si);
+    si.fMask = SIF_ALL;
+    GetScrollInfo(m_rightScrollPanel, SB_VERT, &si);
+
+    int newPos = si.nPos - ((delta * 48) / WHEEL_DELTA);
+    const int maxPos = (std::max)(0, si.nMax - static_cast<int>(si.nPage) + 1);
+    newPos = (std::max)(0, (std::min)(newPos, maxPos));
+    if (newPos == si.nPos)
+    {
+        return;
+    }
+
+    si.fMask = SIF_POS;
+    si.nPos = newPos;
+    SetScrollInfo(m_rightScrollPanel, SB_VERT, &si, TRUE);
+    ApplyRightPaneTransitionLayout();
+    InvalidateRect(m_rightScrollPanel, nullptr, TRUE);
+}
+
+LRESULT SettingsWindow::DrawScrollPanelBkgnd(HDC hdc)
+{
+    if (!m_rightScrollPanel)
+    {
+        return 0;
+    }
+
+    RECT client{};
+    GetClientRect(m_rightScrollPanel, &client);
+
+    HBRUSH surfaceBrush = CreateSolidBrush(m_surfaceColor);
+    FillRect(hdc, &client, surfaceBrush);
+    DeleteObject(surfaceBrush);
+
+    const COLORREF cardFill = BlendColor(m_surfaceColor, m_windowColor, 84);
+    const COLORREF cardBorder = BlendColor(m_accentColor, m_windowColor, 48);
+    HBRUSH cardBrush = CreateSolidBrush(cardFill);
+    HPEN cardPen = CreatePen(PS_SOLID, 1, cardBorder);
+    HPEN oldPen = reinterpret_cast<HPEN>(SelectObject(hdc, cardPen));
+    HBRUSH oldBrush = reinterpret_cast<HBRUSH>(SelectObject(hdc, cardBrush));
+
+    for (const RECT& cardRect : m_sectionCardRects)
+    {
+        Rectangle(hdc, cardRect.left, cardRect.top, cardRect.right, cardRect.bottom);
+    }
+
+    SelectObject(hdc, oldBrush);
+    SelectObject(hdc, oldPen);
+    DeleteObject(cardBrush);
+    DeleteObject(cardPen);
+    return 1;
+}
+
 void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int rightY, int rightW)
 {
+    if (!m_rightScrollPanel)
+    {
+        return;
+    }
+
+    RECT panelClient{};
+    GetClientRect(m_rightScrollPanel, &panelClient);
+
+    const int panelWidth = panelClient.right - panelClient.left;
+    const int panelHeight = panelClient.bottom - panelClient.top;
+    (void)rightX;
+    (void)rightY;
+    (void)rightW;
+
+    const int leftPad = 12;
+    const int topPad = 12;
+    const int rightPad = 12;
+    const int rightPaneW = (std::max)(120, panelWidth - leftPad - rightPad);
+
     const HFONT hFont = m_baseFont ? m_baseFont : reinterpret_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
     const HFONT hHeaderFont = m_sectionFont ? m_sectionFont : hFont;
     const int   rowH        = 34;
@@ -1364,7 +1393,7 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
     const int   ctrlWidth   = 290;
     const int   ctrlGap     = 14;
 
-    int y = rightY;
+    int y = topPad;
 
     const auto& tab = m_pluginTabs[tabIndex];
 
@@ -1383,9 +1412,9 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
         const int sectionStartY = y;
         const int sectionHeight = rowH + 4 + (static_cast<int>(page.fields.size()) * (rowH + rowGap)) + sectionGap;
         RECT cardRect{};
-        cardRect.left = rightX - 14;
+        cardRect.left = leftPad - 14;
         cardRect.top = sectionStartY - 10;
-        cardRect.right = rightX + rightW;
+        cardRect.right = leftPad + rightPaneW;
         cardRect.bottom = sectionStartY + sectionHeight - 6;
         m_sectionCardRects.push_back(cardRect);
 
@@ -1393,13 +1422,13 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
         HWND hHeader = CreateWindowExW(
             0, L"STATIC", page.title.c_str(),
             WS_CHILD | WS_VISIBLE | SS_LEFT,
-            rightX, y, rightW, rowH,
-            m_hwnd, nullptr, GetModuleHandleW(nullptr), nullptr);
+            leftPad, y, rightPaneW, rowH,
+            m_rightScrollPanel, nullptr, GetModuleHandleW(nullptr), nullptr);
         if (hHeader)
         {
             SendMessageW(hHeader, WM_SETFONT, reinterpret_cast<WPARAM>(hHeaderFont), TRUE);
             m_fieldControls.push_back(hHeader);
-            m_rightPaneTargetRects.emplace(hHeader, RECT{rightX, y, rightX + rightW, y + rowH});
+            m_rightPaneTargetRects.emplace(hHeader, RECT{leftPad, y, leftPad + rightPaneW, y + rowH});
             m_rightPaneTextStatics.insert(hHeader);
         }
         y += rowH + 4;
@@ -1425,14 +1454,14 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
             HWND hLabel = CreateWindowExW(
                 0, L"STATIC", field.label.c_str(),
                 WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE,
-                rightX, y, labelWidth, rowH,
-                m_hwnd, nullptr, GetModuleHandleW(nullptr), nullptr);
+                leftPad, y, labelWidth, rowH,
+                m_rightScrollPanel, nullptr, GetModuleHandleW(nullptr), nullptr);
             if (hLabel)
             {
                 SendMessageW(hLabel, WM_SETFONT, reinterpret_cast<WPARAM>(hFont), TRUE);
                 m_fieldControls.push_back(hLabel);
                 RegisterTooltipForControl(hLabel, field.description);
-                m_rightPaneTargetRects.emplace(hLabel, RECT{rightX, y, rightX + labelWidth, y + rowH});
+                m_rightPaneTargetRects.emplace(hLabel, RECT{leftPad, y, leftPad + labelWidth, y + rowH});
                 m_rightPaneTextStatics.insert(hLabel);
             }
 
@@ -1442,7 +1471,7 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
                 // we'll draw the description below the control row later; skip for now
             }
 
-            const int ctrlX  = rightX + labelWidth + ctrlGap;
+            const int ctrlX  = leftPad + labelWidth + ctrlGap;
             const int ctrlId = m_nextControlId++;
             HWND hCtrl = nullptr;
 
@@ -1457,7 +1486,7 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
                     0, L"BUTTON", L"",
                     WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
                     ctrlX, y, ctrlWidth, rowH,
-                    m_hwnd,
+                    m_rightScrollPanel,
                     reinterpret_cast<HMENU>(static_cast<INT_PTR>(ctrlId)),
                     GetModuleHandleW(nullptr), nullptr);
                 if (hCtrl)
@@ -1472,7 +1501,7 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
                     0, L"COMBOBOX", L"",
                     WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
                     ctrlX, y, ctrlWidth, 200, // height 200 opens dropdown room
-                    m_hwnd,
+                    m_rightScrollPanel,
                     reinterpret_cast<HMENU>(static_cast<INT_PTR>(ctrlId)),
                     GetModuleHandleW(nullptr), nullptr);
                 if (hCtrl)
@@ -1509,7 +1538,7 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
                     WS_EX_CLIENTEDGE, L"EDIT", curVal.c_str(),
                     editStyle,
                     ctrlX, y, ctrlWidth, rowH,
-                    m_hwnd,
+                    m_rightScrollPanel,
                     reinterpret_cast<HMENU>(static_cast<INT_PTR>(ctrlId)),
                     GetModuleHandleW(nullptr), nullptr);
             }
@@ -1533,6 +1562,16 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
 
         y += sectionGap;
     }
+
+    const int contentHeight = (std::max)(y + topPad, panelHeight);
+    SCROLLINFO si{};
+    si.cbSize = sizeof(si);
+    si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    si.nMin = 0;
+    si.nMax = (std::max)(0, contentHeight - 1);
+    si.nPage = static_cast<UINT>((std::max)(1, panelHeight));
+    si.nPos = 0;
+    SetScrollInfo(m_rightScrollPanel, SB_VERT, &si, TRUE);
 }
 
 void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, HWND hwndCtrl)
@@ -1768,6 +1807,24 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             GetModuleHandleW(nullptr),
             nullptr);
 
+        m_rightScrollPanel = CreateWindowExW(
+            0,
+            L"SimpleFences_SettingsRightPane",
+            nullptr,
+            WS_CHILD | WS_CLIPCHILDREN | WS_VSCROLL,
+            0,
+            0,
+            100,
+            100,
+            hwnd,
+            nullptr,
+            GetModuleHandleW(nullptr),
+            nullptr);
+        if (m_rightScrollPanel)
+        {
+            SetWindowLongPtrW(m_rightScrollPanel, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+        }
+
         m_statusBar = CreateWindowExW(
             0,
             L"STATIC",
@@ -1881,6 +1938,15 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                        height - (margin * 3) - topArea - kStatusHeight,
                        TRUE);
         }
+        if (m_rightScrollPanel)
+        {
+            MoveWindow(m_rightScrollPanel,
+                       navWidth + (margin * 2),
+                       margin + topArea,
+                       width - navWidth - (margin * 3),
+                       height - (margin * 3) - topArea - kStatusHeight,
+                       TRUE);
+        }
 
         if (m_statusBar)
         {
@@ -1896,6 +1962,32 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         // Re-layout dynamic field controls for the selected tab.
         ShowSelectedPluginTab();
         return 0;
+    }
+    case WM_GETMINMAXINFO:
+    {
+        auto* info = reinterpret_cast<MINMAXINFO*>(lParam);
+        if (info)
+        {
+            info->ptMinTrackSize.x = 640;
+            info->ptMinTrackSize.y = 480;
+        }
+        return 0;
+    }
+    case WM_MOUSEWHEEL:
+    {
+        if (m_rightScrollPanel && IsWindowVisible(m_rightScrollPanel))
+        {
+            POINT cursor{};
+            GetCursorPos(&cursor);
+            RECT panelRect{};
+            GetWindowRect(m_rightScrollPanel, &panelRect);
+            if (PtInRect(&panelRect, cursor))
+            {
+                SendMessageW(m_rightScrollPanel, msg, wParam, lParam);
+                return 0;
+            }
+        }
+        break;
     }
     case WM_COMMAND:
     {
@@ -1972,7 +2064,18 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             rightPaneRect.top = margin + topArea;
             rightPaneRect.right = rc.right - margin;
             rightPaneRect.bottom = rc.bottom - margin - kStatusHeight;
-            InvalidateRect(hwnd, &rightPaneRect, TRUE);
+            if (m_rightScrollPanel && IsWindowVisible(m_rightScrollPanel))
+            {
+                InvalidateRect(m_rightScrollPanel, nullptr, TRUE);
+            }
+            else if (m_pageView && IsWindowVisible(m_pageView))
+            {
+                InvalidateRect(m_pageView, nullptr, TRUE);
+            }
+            else
+            {
+                InvalidateRect(hwnd, &rightPaneRect, TRUE);
+            }
             return 0;
         }
         break;
@@ -2044,9 +2147,12 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         if (m_rightPaneTextStatics.find(ctrl) != m_rightPaneTextStatics.end())
         {
+            // Use an opaque fill matching the surface.  NULL_BRUSH (transparent)
+            // leaves background content showing through during repaints, which
+            // is the root cause of section headers ghosting over other areas.
             SetTextColor(hdc, m_textColor);
-            SetBkMode(hdc, TRANSPARENT);
-            return reinterpret_cast<LRESULT>(GetStockObject(NULL_BRUSH));
+            SetBkColor(hdc, m_surfaceColor);
+            return reinterpret_cast<LRESULT>(m_surfaceBrush ? m_surfaceBrush : GetStockObject(WHITE_BRUSH));
         }
 
         SetTextColor(hdc, m_textColor);
@@ -2069,23 +2175,6 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         RECT rect{};
         GetClientRect(hwnd, &rect);
         FillRect(hdc, &rect, m_windowBrush);
-
-        const COLORREF cardFill = BlendColor(m_surfaceColor, m_windowColor, 84);
-        const COLORREF cardBorder = BlendColor(m_accentColor, m_windowColor, 48);
-        HBRUSH cardBrush = CreateSolidBrush(cardFill);
-        HPEN cardPen = CreatePen(PS_SOLID, 1, cardBorder);
-        HPEN oldPen = reinterpret_cast<HPEN>(SelectObject(hdc, cardPen));
-        HBRUSH oldBrush = reinterpret_cast<HBRUSH>(SelectObject(hdc, cardBrush));
-
-        for (const RECT& cardRect : m_sectionCardRects)
-        {
-            Rectangle(hdc, cardRect.left, cardRect.top, cardRect.right, cardRect.bottom);
-        }
-
-        SelectObject(hdc, oldBrush);
-        SelectObject(hdc, oldPen);
-        DeleteObject(cardBrush);
-        DeleteObject(cardPen);
         return 1;
     }
     case WM_CLOSE:
@@ -2106,6 +2195,7 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         m_headerHelpButton = nullptr;
         m_navList = nullptr;
         m_pageView = nullptr;
+        m_rightScrollPanel = nullptr;
         m_statusBar = nullptr;
         m_plugins.clear();
         m_pluginTabs.clear();
