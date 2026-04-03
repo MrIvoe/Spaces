@@ -146,6 +146,94 @@ namespace
         const BYTE blue = static_cast<BYTE>(accent & 0xFF);
         return RGB(red, green, blue);
     }
+
+    std::wstring NormalizeThemeName(const std::wstring& raw)
+    {
+        std::wstring normalized;
+        normalized.reserve(raw.size());
+        for (wchar_t c : raw)
+        {
+            if (iswspace(c))
+            {
+                normalized.push_back(L'_');
+            }
+            else
+            {
+                normalized.push_back(static_cast<wchar_t>(towlower(c)));
+            }
+        }
+        return normalized;
+    }
+
+    ThemePalette BuildWin32ThemePalette(const std::wstring& displayName)
+    {
+        const std::wstring key = NormalizeThemeName(displayName.empty() ? L"Graphite Office" : displayName);
+        const bool dark =
+            key == L"amber_terminal" ||
+            key == L"arctic_glass" ||
+            key == L"graphite_office" ||
+            key == L"neon_cyberpunk" ||
+            key == L"nocturne_dark" ||
+            key == L"storm_steel" ||
+            key == L"harbor_blue" ||
+            key == L"olive_terminal";
+
+        ThemePalette palette;
+        if (dark)
+        {
+            palette.windowColor = RGB(34, 39, 46);
+            palette.surfaceColor = RGB(44, 50, 58);
+            palette.navColor = RGB(28, 33, 40);
+            palette.textColor = RGB(173, 186, 199);
+            palette.subtleTextColor = RGB(118, 131, 144);
+            palette.accentColor = RGB(83, 155, 245);
+            palette.borderColor = RGB(68, 76, 86);
+            palette.fenceTitleBarColor = RGB(39, 45, 53);
+            palette.fenceTitleTextColor = RGB(199, 210, 223);
+            palette.fenceItemTextColor = RGB(173, 186, 199);
+            palette.fenceItemHoverColor = RGB(55, 63, 72);
+        }
+        else
+        {
+            palette.windowColor = RGB(246, 248, 250);
+            palette.surfaceColor = RGB(255, 255, 255);
+            palette.navColor = RGB(242, 245, 248);
+            palette.textColor = RGB(31, 35, 40);
+            palette.subtleTextColor = RGB(87, 96, 106);
+            palette.accentColor = RGB(9, 105, 218);
+            palette.borderColor = RGB(208, 215, 222);
+            palette.fenceTitleBarColor = RGB(234, 238, 242);
+            palette.fenceTitleTextColor = RGB(31, 35, 40);
+            palette.fenceItemTextColor = RGB(36, 41, 47);
+            palette.fenceItemHoverColor = RGB(230, 236, 241);
+        }
+
+        if (key == L"graphite_office") palette.accentColor = RGB(90, 113, 143);
+        else if (key == L"amber_terminal") palette.accentColor = RGB(242, 163, 68);
+        else if (key == L"arctic_glass") palette.accentColor = RGB(123, 189, 221);
+        else if (key == L"aurora_light") palette.accentColor = RGB(86, 150, 243);
+        else if (key == L"brass_steampunk") palette.accentColor = RGB(166, 122, 71);
+        else if (key == L"copper_foundry") palette.accentColor = RGB(181, 104, 76);
+        else if (key == L"emerald_ledger") palette.accentColor = RGB(55, 158, 117);
+        else if (key == L"forest_organic") palette.accentColor = RGB(74, 146, 92);
+        else if (key == L"harbor_blue") palette.accentColor = RGB(52, 126, 184);
+        else if (key == L"ivory_bureau") palette.accentColor = RGB(147, 128, 94);
+        else if (key == L"mono_minimal") palette.accentColor = RGB(120, 124, 129);
+        else if (key == L"neon_cyberpunk") palette.accentColor = RGB(235, 63, 255);
+        else if (key == L"nocturne_dark") palette.accentColor = RGB(109, 96, 178);
+        else if (key == L"nova_futuristic") palette.accentColor = RGB(86, 190, 255);
+        else if (key == L"olive_terminal") palette.accentColor = RGB(146, 170, 83);
+        else if (key == L"pop_colorburst") palette.accentColor = RGB(243, 101, 139);
+        else if (key == L"rose_paper") palette.accentColor = RGB(212, 122, 148);
+        else if (key == L"storm_steel") palette.accentColor = RGB(94, 124, 152);
+        else if (key == L"sunset_retro") palette.accentColor = RGB(236, 129, 84);
+        else if (key == L"tape_lo_fi") palette.accentColor = RGB(121, 112, 137);
+
+        palette.fenceTitleBarColor = BlendColor(palette.fenceTitleBarColor, palette.accentColor, dark ? 120 : 90);
+        palette.borderColor = BlendColor(palette.borderColor, palette.accentColor, 72);
+        palette.fenceItemHoverColor = BlendColor(palette.fenceItemHoverColor, palette.accentColor, dark ? 55 : 40);
+        return palette;
+    }
 }
 
 ThemePlatform::ThemePlatform(SettingsStore* store)
@@ -206,6 +294,11 @@ ThemeStyle ThemePlatform::ResolveStyle() const
     if (!m_store)
     {
         return ThemeStyle::System;
+    }
+
+    if (m_store->Get(L"theme.source", L"") == L"win32_theme_system")
+    {
+        return ThemeStyle::Win32ThemeCatalog;
     }
 
     const std::wstring style = m_store->Get(L"appearance.theme.style", L"system");
@@ -487,9 +580,12 @@ ThemePalette ThemePlatform::BuildPaletteFor(ThemeMode mode, ThemeStyle style)
 
 ThemePalette ThemePlatform::BuildPalette() const
 {
-    ThemePalette palette = BuildPaletteFor(ResolveMode(), ResolveStyle());
+    const ThemeStyle style = ResolveStyle();
+    ThemePalette palette = (style == ThemeStyle::Win32ThemeCatalog && m_store)
+        ? BuildWin32ThemePalette(m_store->Get(L"theme.win32.display_name", L"Graphite Office"))
+        : BuildPaletteFor(ResolveMode(), style);
 
-    if (ResolveStyle() == ThemeStyle::Custom && m_store)
+    if (style == ThemeStyle::Custom && m_store)
     {
         auto apply = [&](const std::wstring& key, COLORREF& target) {
             const auto parsed = ParseHexColor(m_store->Get(key, L""));

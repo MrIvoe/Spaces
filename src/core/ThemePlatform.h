@@ -20,6 +20,7 @@ enum class ThemeStyle
     GitHubDark,
     GitHubDarkDimmed,
     GitHubLight,
+    Win32ThemeCatalog,
     Custom
 };
 

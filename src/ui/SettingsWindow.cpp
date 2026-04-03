@@ -18,8 +18,6 @@ namespace
     constexpr int kHeaderSubtitleHeight = 22;
     constexpr int kHeaderGap = 4;
     constexpr int kStatusHeight = 28;
-    constexpr int kRightPaneTransitionStartOffset = 18;
-    constexpr int kRightPaneTransitionStep = 6;
 
     COLORREF BlendColor(COLORREF from, COLORREF to, int alpha)
     {
@@ -127,6 +125,7 @@ bool SettingsWindow::EnsureWindow()
     }
 
     WNDCLASSW scrollWc{};
+    scrollWc.style = CS_HREDRAW | CS_VREDRAW;
     scrollWc.lpfnWndProc = SettingsWindow::ScrollPanelProc;
     scrollWc.hInstance = GetModuleHandleW(nullptr);
     scrollWc.lpszClassName = kScrollPanelClass;
@@ -550,7 +549,8 @@ void SettingsWindow::ShowSelectedPluginTab()
     // we tear down old controls and create new ones.  This prevents the
     // half-constructed control tree from being painted, which is what
     // produces the "text glitching over everything" visual artifact.
-    SendMessageW(m_hwnd, WM_SETREDRAW, FALSE, 0);
+    // Suppress redraws on the scroll panel while rebuilding controls so
+    // the half-constructed control tree is never painted (eliminates glitching).
     if (m_rightScrollPanel)
     {
         SendMessageW(m_rightScrollPanel, WM_SETREDRAW, FALSE, 0);
@@ -598,43 +598,19 @@ void SettingsWindow::ShowSelectedPluginTab()
         SetWindowTextW(m_pageView, BuildSelectedTabContent(tabIndex).c_str());
     }
 
-    SendMessageW(m_hwnd, WM_SETREDRAW, TRUE, 0);
 
-    RECT clientRect{};
-    GetClientRect(m_hwnd, &clientRect);
-    const int width = clientRect.right - clientRect.left;
-    const int height = clientRect.bottom - clientRect.top;
-    const int navWidth = m_navCollapsed ? 64 : 280;
-    const int margin = 10;
-    const int topArea = kHeaderTitleHeight + kHeaderSubtitleHeight + kHeaderGap + 16;
-
-    RECT rightPaneRect{};
-    rightPaneRect.left = navWidth + (margin * 2);
-    rightPaneRect.top = margin + topArea;
-    rightPaneRect.right = width - margin;
-    rightPaneRect.bottom = height - margin - kStatusHeight;
-
-    if (rightPaneRect.right > rightPaneRect.left && rightPaneRect.bottom > rightPaneRect.top)
+    // Force an immediate, complete repaint of whichever pane is now active.
+    if (hasFields && m_rightScrollPanel)
     {
-        if (hasFields && m_rightScrollPanel)
-        {
-            InvalidateRect(m_rightScrollPanel, nullptr, TRUE);
-            UpdateWindow(m_rightScrollPanel);
-        }
-        else if (m_pageView)
-        {
-            InvalidateRect(m_pageView, nullptr, TRUE);
-            UpdateWindow(m_pageView);
-        }
+        RedrawWindow(m_rightScrollPanel, nullptr, nullptr,
+                     RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+    }
+    else if (m_pageView)
+    {
+        InvalidateRect(m_pageView, nullptr, TRUE);
+        UpdateWindow(m_pageView);
     }
 
-    // Skip the slide-in animation for interactive field pages hosted in the
-    // scroll panel child window — SetWindowPos animation on those child
-    // HWNDs causes ghost trails against uncleared background regions.
-    if (!hasFields)
-    {
-        BeginRightPaneTransition();
-    }
 }
 
 std::vector<SettingsWindow::UiPage> SettingsWindow::BuildPages(
@@ -909,12 +885,6 @@ std::wstring SettingsWindow::BuildPluginOverviewContent(const PluginStatusView& 
 
 void SettingsWindow::ClearFieldControls()
 {
-    if (m_hwnd)
-    {
-        KillTimer(m_hwnd, kRightPaneTransitionTimerId);
-    }
-    m_rightPaneTransitionOffset = 0;
-
     for (HWND hwnd : m_fieldControls)
     {
         if (hwnd)
@@ -925,7 +895,6 @@ void SettingsWindow::ClearFieldControls()
     m_fieldControls.clear();
     m_controlFieldMap.clear();
     m_sectionCardRects.clear();
-    m_rightPaneTargetRects.clear();
     m_rightPaneTextStatics.clear();
     // Reset ID counter so IDs don't climb unboundedly across tab switches.
     m_nextControlId = 2000;
@@ -1008,51 +977,6 @@ void SettingsWindow::UpdateShellHeaderAndStatus(size_t tabIndex)
     }
 }
 
-void SettingsWindow::BeginRightPaneTransition()
-{
-    if (!m_hwnd)
-    {
-        return;
-    }
-
-    KillTimer(m_hwnd, kRightPaneTransitionTimerId);
-    m_rightPaneTransitionOffset = kRightPaneTransitionStartOffset;
-    ApplyRightPaneTransitionLayout();
-    SetTimer(m_hwnd, kRightPaneTransitionTimerId, 15, nullptr);
-}
-
-void SettingsWindow::ApplyRightPaneTransitionLayout()
-{
-    int scrollY = 0;
-    if (m_rightScrollPanel)
-    {
-        SCROLLINFO si{};
-        si.cbSize = sizeof(si);
-        si.fMask = SIF_POS;
-        if (GetScrollInfo(m_rightScrollPanel, SB_VERT, &si))
-        {
-            scrollY = si.nPos;
-        }
-    }
-
-    for (const auto& entry : m_rightPaneTargetRects)
-    {
-        HWND hwnd = entry.first;
-        const RECT& rc = entry.second;
-        if (!hwnd || !IsWindow(hwnd))
-        {
-            continue;
-        }
-
-        SetWindowPos(hwnd,
-                     nullptr,
-                     rc.left + m_rightPaneTransitionOffset,
-                     rc.top - scrollY,
-                     rc.right - rc.left,
-                     rc.bottom - rc.top,
-                     SWP_NOZORDER | SWP_NOACTIVATE);
-    }
-}
 
 std::wstring SettingsWindow::BuildTabHelpText(size_t tabIndex) const
 {
@@ -1257,10 +1181,12 @@ LRESULT CALLBACK SettingsWindow::ScrollPanelProc(HWND hwnd, UINT msg, WPARAM wPa
             newPos = (std::max)(0, (std::min)(newPos, maxPos));
             if (newPos != si.nPos)
             {
+                    const int oldVScrollPos = si.nPos;
                 si.fMask = SIF_POS;
                 si.nPos = newPos;
                 SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
-                self->ApplyRightPaneTransitionLayout();
+                    const int scrollAmount = oldVScrollPos - newPos;
+                    ScrollWindowEx(hwnd, 0, scrollAmount, nullptr, nullptr, nullptr, nullptr, SW_SCROLLCHILDREN);
                 InvalidateRect(hwnd, nullptr, TRUE);
             }
             return 0;
@@ -1323,10 +1249,11 @@ void SettingsWindow::ApplyScrollPanelScroll(int delta)
         return;
     }
 
+    const int scrollAmount = si.nPos - newPos;
     si.fMask = SIF_POS;
     si.nPos = newPos;
     SetScrollInfo(m_rightScrollPanel, SB_VERT, &si, TRUE);
-    ApplyRightPaneTransitionLayout();
+    ScrollWindowEx(m_rightScrollPanel, 0, scrollAmount, nullptr, nullptr, nullptr, nullptr, SW_SCROLLCHILDREN);
     InvalidateRect(m_rightScrollPanel, nullptr, TRUE);
 }
 
@@ -1344,6 +1271,16 @@ LRESULT SettingsWindow::DrawScrollPanelBkgnd(HDC hdc)
     FillRect(hdc, &client, surfaceBrush);
     DeleteObject(surfaceBrush);
 
+    // Get current scroll position so section cards are drawn at correct screen positions.
+    int scrollY = 0;
+    {
+        SCROLLINFO si{};
+        si.cbSize = sizeof(si);
+        si.fMask = SIF_POS;
+        GetScrollInfo(m_rightScrollPanel, SB_VERT, &si);
+        scrollY = si.nPos;
+    }
+
     const COLORREF cardFill = BlendColor(m_surfaceColor, m_windowColor, 84);
     const COLORREF cardBorder = BlendColor(m_accentColor, m_windowColor, 48);
     HBRUSH cardBrush = CreateSolidBrush(cardFill);
@@ -1353,7 +1290,13 @@ LRESULT SettingsWindow::DrawScrollPanelBkgnd(HDC hdc)
 
     for (const RECT& cardRect : m_sectionCardRects)
     {
-        Rectangle(hdc, cardRect.left, cardRect.top, cardRect.right, cardRect.bottom);
+        RECT adjusted = cardRect;
+        adjusted.top -= scrollY;
+        adjusted.bottom -= scrollY;
+        if (adjusted.bottom > 0 && adjusted.top < client.bottom)
+        {
+            Rectangle(hdc, adjusted.left, adjusted.top, adjusted.right, adjusted.bottom);
+        }
     }
 
     SelectObject(hdc, oldBrush);
@@ -1428,7 +1371,6 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
         {
             SendMessageW(hHeader, WM_SETFONT, reinterpret_cast<WPARAM>(hHeaderFont), TRUE);
             m_fieldControls.push_back(hHeader);
-            m_rightPaneTargetRects.emplace(hHeader, RECT{leftPad, y, leftPad + rightPaneW, y + rowH});
             m_rightPaneTextStatics.insert(hHeader);
         }
         y += rowH + 4;
@@ -1461,7 +1403,6 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
                 SendMessageW(hLabel, WM_SETFONT, reinterpret_cast<WPARAM>(hFont), TRUE);
                 m_fieldControls.push_back(hLabel);
                 RegisterTooltipForControl(hLabel, field.description);
-                m_rightPaneTargetRects.emplace(hLabel, RECT{leftPad, y, leftPad + labelWidth, y + rowH});
                 m_rightPaneTextStatics.insert(hLabel);
             }
 
@@ -1548,7 +1489,6 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
                 SendMessageW(hCtrl, WM_SETFONT, reinterpret_cast<WPARAM>(hFont), TRUE);
                 m_fieldControls.push_back(hCtrl);
                 RegisterTooltipForControl(hCtrl, field.description);
-                m_rightPaneTargetRects.emplace(hCtrl, RECT{ctrlX, y, ctrlX + ctrlWidth, y + rowH});
 
                 FieldControlInfo info;
                 info.key     = field.key;
@@ -1808,7 +1748,7 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             nullptr);
 
         m_rightScrollPanel = CreateWindowExW(
-            0,
+            WS_EX_COMPOSITED,
             L"SimpleFences_SettingsRightPane",
             nullptr,
             WS_CHILD | WS_CLIPCHILDREN | WS_VSCROLL,
@@ -2043,41 +1983,6 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         SendNotifyMessageW(HWND_BROADCAST, ThemePlatform::GetThemeChangedMessageId(), 0, 0);
         return 0;
     case WM_TIMER:
-        if (wParam == kRightPaneTransitionTimerId)
-        {
-            m_rightPaneTransitionOffset -= kRightPaneTransitionStep;
-            if (m_rightPaneTransitionOffset <= 0)
-            {
-                m_rightPaneTransitionOffset = 0;
-                KillTimer(hwnd, kRightPaneTransitionTimerId);
-            }
-
-            ApplyRightPaneTransitionLayout();
-
-            RECT rc{};
-            GetClientRect(hwnd, &rc);
-            const int navWidth = m_navCollapsed ? 64 : 280;
-            const int margin = 10;
-            const int topArea = kHeaderTitleHeight + kHeaderSubtitleHeight + kHeaderGap + 16;
-            RECT rightPaneRect{};
-            rightPaneRect.left = navWidth + (margin * 2);
-            rightPaneRect.top = margin + topArea;
-            rightPaneRect.right = rc.right - margin;
-            rightPaneRect.bottom = rc.bottom - margin - kStatusHeight;
-            if (m_rightScrollPanel && IsWindowVisible(m_rightScrollPanel))
-            {
-                InvalidateRect(m_rightScrollPanel, nullptr, TRUE);
-            }
-            else if (m_pageView && IsWindowVisible(m_pageView))
-            {
-                InvalidateRect(m_pageView, nullptr, TRUE);
-            }
-            else
-            {
-                InvalidateRect(hwnd, &rightPaneRect, TRUE);
-            }
-            return 0;
-        }
         break;
     case kMsgApplyNavCollapsed:
     {
@@ -2204,7 +2109,6 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         m_fieldControls.clear();
         m_controlFieldMap.clear();
         m_sectionCardRects.clear();
-        m_rightPaneTargetRects.clear();
         m_rightPaneTextStatics.clear();
         return 0;
     default:

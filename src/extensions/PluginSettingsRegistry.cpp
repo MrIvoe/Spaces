@@ -118,7 +118,30 @@ void PluginSettingsRegistry::SetValue(const std::wstring& key, const std::wstrin
     if (m_store)
     {
         m_store->Set(key, value);
-        return;
     }
-    m_memValues[key] = value;
+    else
+    {
+        m_memValues[key] = value;
+    }
+
+    for (const auto& [token, observer] : m_observers)
+    {
+        (void)token;
+        if (observer)
+        {
+            observer(key, value);
+        }
+    }
+}
+
+int PluginSettingsRegistry::RegisterObserver(SettingsObserver observer)
+{
+    const int token = m_nextObserverToken++;
+    m_observers[token] = std::move(observer);
+    return token;
+}
+
+void PluginSettingsRegistry::UnregisterObserver(int observerToken)
+{
+    m_observers.erase(observerToken);
 }

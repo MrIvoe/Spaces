@@ -15,8 +15,55 @@
 #include "extensions/PluginSettingsRegistry.h"
 #include "Win32Helpers.h"
 
+#include <cwctype>
+
+#include <windows.h>
+
 namespace
 {
+    std::wstring Trim(const std::wstring& text)
+    {
+        size_t start = 0;
+        while (start < text.size() && iswspace(text[start]))
+        {
+            ++start;
+        }
+
+        size_t end = text.size();
+        while (end > start && iswspace(text[end - 1]))
+        {
+            --end;
+        }
+
+        return text.substr(start, end - start);
+    }
+
+    namespace Win32ThemeSystem
+    {
+        void Apply(SettingsStore* store, const std::wstring& displayName)
+        {
+            if (!store)
+            {
+                return;
+            }
+
+            std::wstring normalized = Trim(displayName);
+            if (normalized.empty())
+            {
+                normalized = L"Graphite Office";
+            }
+
+            if (store->Get(L"theme.source", L"") != L"win32_theme_system")
+            {
+                store->Set(L"theme.source", L"win32_theme_system");
+            }
+            if (store->Get(L"theme.win32.display_name", L"") != normalized)
+            {
+                store->Set(L"theme.win32.display_name", normalized);
+            }
+        }
+    }
+
     FenceMetadata ToFenceMetadata(const FenceModel& fence)
     {
         FenceMetadata meta;
@@ -225,6 +272,49 @@ bool AppKernel::Initialize(App* app)
     m_settingsRegistry->SetStore(m_settingsStore.get());
     m_themePlatform = std::make_unique<ThemePlatform>(m_settingsStore.get());
 
+    m_settingsObserverToken = m_settingsRegistry->RegisterObserver(
+        [this, app](const std::wstring& key, const std::wstring& value)
+        {
+            if (!m_settingsRegistry)
+            {
+                return;
+            }
+
+            if (key != L"theme.win32.display_name" && key != L"theme.source")
+            {
+                return;
+            }
+
+            const std::wstring source = m_settingsRegistry->GetValue(L"theme.source", L"");
+            if (source != L"win32_theme_system")
+            {
+                return;
+            }
+
+            std::wstring displayName = m_settingsRegistry->GetValue(L"theme.win32.display_name", L"Graphite Office");
+            if (displayName.empty())
+            {
+                displayName = L"Graphite Office";
+                m_settingsRegistry->SetValue(L"theme.win32.display_name", displayName);
+                return;
+            }
+
+            Win32ThemeSystem::Apply(m_settingsStore.get(), displayName);
+
+            if (m_diagnostics)
+            {
+                m_diagnostics->Info(L"Theme bridge apply requested: " + displayName);
+            }
+
+            if (app && app->GetFenceManager())
+            {
+                app->GetFenceManager()->RefreshAll();
+            }
+
+            SendNotifyMessageW(HWND_BROADCAST, ThemePlatform::GetThemeChangedMessageId(), 0, 0);
+            SendNotifyMessageW(HWND_BROADCAST, WM_THEMECHANGED, 0, 0);
+        });
+
     const bool createRegistered = m_commandDispatcher->RegisterCommand(L"fence.create", [commands = m_appCommands.get()]() {
         commands->CreateFenceNearCursor();
     });
@@ -260,6 +350,12 @@ bool AppKernel::Initialize(App* app)
 
 void AppKernel::Shutdown()
 {
+    if (m_settingsRegistry && m_settingsObserverToken != 0)
+    {
+        m_settingsRegistry->UnregisterObserver(m_settingsObserverToken);
+        m_settingsObserverToken = 0;
+    }
+
     if (m_pluginHost)
     {
         m_pluginHost->Shutdown();
