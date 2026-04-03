@@ -2,6 +2,7 @@
 #include "App.h"
 #include "FenceManager.h"
 #include "Win32Helpers.h"
+#include "core/ThemePlatform.h"
 #include <shellapi.h>
 #include <string>
 
@@ -83,7 +84,21 @@ void TrayMenu::ShowContextMenu(POINT pt)
     HMENU menu = CreatePopupMenu();
 
     m_commandByMenuId.clear();
+    m_menuVisuals.clear();
     UINT menuId = ID_TRAY_COMMAND_BASE;
+
+    auto appendSeparator = [&]() {
+        AppendMenuW(menu, MF_OWNERDRAW | MF_DISABLED, menuId, nullptr);
+        m_menuVisuals.emplace(menuId, Win32Helpers::PopupMenuItemVisual{L"", true, false});
+        ++menuId;
+    };
+
+    auto appendItem = [&](const std::wstring& title, const std::wstring& commandId) {
+        AppendMenuW(menu, MF_OWNERDRAW | MF_STRING, menuId, nullptr);
+        m_commandByMenuId[menuId] = commandId;
+        m_menuVisuals.emplace(menuId, Win32Helpers::PopupMenuItemVisual{title, false, true});
+        ++menuId;
+    };
 
     if (m_app)
     {
@@ -92,12 +107,10 @@ void TrayMenu::ShowContextMenu(POINT pt)
         {
             if (entry.separatorBefore)
             {
-                AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+                appendSeparator();
             }
 
-            AppendMenuW(menu, MF_STRING, menuId, entry.title.c_str());
-            m_commandByMenuId[menuId] = entry.commandId;
-            ++menuId;
+            appendItem(entry.title, entry.commandId);
         }
     }
 
@@ -142,6 +155,37 @@ LRESULT CALLBACK TrayMenu::WndProcStatic(HWND hwnd, UINT msg, WPARAM wParam, LPA
 
 LRESULT TrayMenu::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+    if (msg == WM_MEASUREITEM)
+    {
+        auto* measure = reinterpret_cast<MEASUREITEMSTRUCT*>(lParam);
+        if (measure)
+        {
+            const auto it = m_menuVisuals.find(measure->itemID);
+            if (it != m_menuVisuals.end())
+            {
+                Win32Helpers::MeasureThemedPopupMenuItem(measure, it->second);
+                return TRUE;
+            }
+        }
+    }
+
+    if (msg == WM_DRAWITEM)
+    {
+        auto* draw = reinterpret_cast<DRAWITEMSTRUCT*>(lParam);
+        if (draw)
+        {
+            const auto it = m_menuVisuals.find(draw->itemID);
+            if (it != m_menuVisuals.end())
+            {
+                const ThemePalette palette = (m_app && m_app->GetThemePlatform())
+                    ? m_app->GetThemePlatform()->BuildPalette()
+                    : ThemePalette{};
+                Win32Helpers::DrawThemedPopupMenuItem(draw, palette, it->second);
+                return TRUE;
+            }
+        }
+    }
+
     if (msg == WMAPP_TRAYICON)
     {
         if (lParam == WM_RBUTTONUP)

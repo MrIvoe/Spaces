@@ -1,7 +1,69 @@
 #include "extensions/PluginHost.h"
 
+#include "AppVersion.h"
 #include "core/Diagnostics.h"
 #include "plugins/builtins/BuiltinPlugins.h"
+
+#include <set>
+
+#include <windows.h>
+
+namespace
+{
+    std::wstring Utf8ToWString(const std::string& text)
+    {
+        if (text.empty())
+        {
+            return {};
+        }
+
+        const int size = MultiByteToWideChar(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()), nullptr, 0);
+        if (size <= 0)
+        {
+            return L"(message conversion failed)";
+        }
+
+        std::wstring wide(static_cast<size_t>(size), L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()), wide.data(), size);
+        return wide;
+    }
+
+    bool ValidateManifest(const PluginManifest& manifest, std::wstring& reason)
+    {
+        if (manifest.id.empty())
+        {
+            reason = L"Manifest id is empty.";
+            return false;
+        }
+
+        if (manifest.displayName.empty())
+        {
+            reason = L"Manifest displayName is empty.";
+            return false;
+        }
+
+        if (manifest.version.empty())
+        {
+            reason = L"Manifest version is empty.";
+            return false;
+        }
+
+        if (manifest.minHostApiVersion > manifest.maxHostApiVersion)
+        {
+            reason = L"Manifest minHostApiVersion is greater than maxHostApiVersion.";
+            return false;
+        }
+
+        const int hostApi = SimpleFencesVersion::kPluginApiVersion;
+        if (hostApi < manifest.minHostApiVersion || hostApi > manifest.maxHostApiVersion)
+        {
+            reason = L"Plugin API range is incompatible with host API version " + std::to_wstring(hostApi) + L".";
+            return false;
+        }
+
+        return true;
+    }
+}
 
 PluginHost::PluginHost() = default;
 
@@ -12,13 +74,96 @@ PluginHost::~PluginHost()
 
 bool PluginHost::LoadBuiltins(const PluginContext& context)
 {
-    m_plugins = CreateBuiltinPlugins();
+    m_registry.Clear();
+    m_plugins.clear();
+
+    try
+    {
+        m_plugins = CreateBuiltinPlugins();
+    }
+    catch (const std::exception& ex)
+    {
+        if (context.diagnostics)
+        {
+            context.diagnostics->Error(L"Plugin creation failed: " + Utf8ToWString(ex.what()));
+        }
+        return false;
+    }
+    catch (...)
+    {
+        if (context.diagnostics)
+        {
+            context.diagnostics->Error(L"Plugin creation failed with unknown exception.");
+        }
+        return false;
+    }
 
     bool allLoaded = true;
+    std::set<std::wstring> seenPluginIds;
     for (auto& plugin : m_plugins)
     {
         PluginStatus status;
-        status.manifest = plugin->GetManifest();
+        try
+        {
+            status.manifest = plugin->GetManifest();
+        }
+        catch (const std::exception& ex)
+        {
+            status.enabled = false;
+            status.loaded = false;
+            status.lastError = L"GetManifest threw exception: " + Utf8ToWString(ex.what());
+            allLoaded = false;
+            m_registry.Upsert(status);
+            if (context.diagnostics)
+            {
+                context.diagnostics->Error(status.lastError);
+            }
+            continue;
+        }
+        catch (...)
+        {
+            status.enabled = false;
+            status.loaded = false;
+            status.lastError = L"GetManifest threw unknown exception.";
+            allLoaded = false;
+            m_registry.Upsert(status);
+            if (context.diagnostics)
+            {
+                context.diagnostics->Error(status.lastError);
+            }
+            continue;
+        }
+
+        std::wstring manifestError;
+        if (!ValidateManifest(status.manifest, manifestError))
+        {
+            status.enabled = false;
+            status.loaded = false;
+            status.lastError = manifestError;
+            allLoaded = false;
+            m_registry.Upsert(status);
+            if (context.diagnostics)
+            {
+                context.diagnostics->Error(L"Plugin manifest rejected: id='" + status.manifest.id + L"' reason='" + manifestError + L"'");
+            }
+            continue;
+        }
+
+        if (seenPluginIds.find(status.manifest.id) != seenPluginIds.end())
+        {
+            status.enabled = false;
+            status.loaded = false;
+            status.lastError = L"Duplicate plugin id detected.";
+            allLoaded = false;
+            m_registry.Upsert(status);
+            if (context.diagnostics)
+            {
+                context.diagnostics->Error(L"Plugin rejected due to duplicate id: " + status.manifest.id);
+            }
+            continue;
+        }
+        seenPluginIds.insert(status.manifest.id);
+
         status.enabled = status.manifest.enabledByDefault;
 
         if (!status.enabled)
@@ -42,10 +187,16 @@ bool PluginHost::LoadBuiltins(const PluginContext& context)
                 allLoaded = false;
             }
         }
+        catch (const std::exception& ex)
+        {
+            status.loaded = false;
+            status.lastError = L"Initialize threw exception: " + Utf8ToWString(ex.what());
+            allLoaded = false;
+        }
         catch (...)
         {
             status.loaded = false;
-            status.lastError = L"Initialize threw an exception.";
+            status.lastError = L"Initialize threw unknown exception.";
             allLoaded = false;
         }
 
@@ -79,13 +230,26 @@ bool PluginHost::LoadBuiltins(const PluginContext& context)
     return allLoaded;
 }
 
+bool PluginHost::ReloadBuiltins(const PluginContext& context)
+{
+    Shutdown();
+    return LoadBuiltins(context);
+}
+
 void PluginHost::Shutdown()
 {
     for (auto it = m_plugins.rbegin(); it != m_plugins.rend(); ++it)
     {
         if (*it)
         {
-            (*it)->Shutdown();
+            try
+            {
+                (*it)->Shutdown();
+            }
+            catch (...)
+            {
+                // Keep shutdown resilient even if a plugin misbehaves.
+            }
         }
     }
 

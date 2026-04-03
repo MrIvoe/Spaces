@@ -1,0 +1,19 @@
+Start testing: Apr 02 13:20 Pacific Daylight Time
+----------------------------------------------------------
+1/1 Testing: HostCoreTests
+1/1 Test: HostCoreTests
+Command: "C:/Users/MrIvo/Github/IVOESimpleFences/build/Debug/HostCoreTests.exe"
+Directory: C:/Users/MrIvo/Github/IVOESimpleFences/build
+"HostCoreTests" start time: Apr 02 13:20 Pacific Daylight Time
+Output:
+----------------------------------------------------------
+HostCoreTests passed
+<end of output>
+Test time =   0.25 sec
+----------------------------------------------------------
+Test Passed.
+"HostCoreTests" end time: Apr 02 13:20 Pacific Daylight Time
+"HostCoreTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Apr 02 13:20 Pacific Daylight Time

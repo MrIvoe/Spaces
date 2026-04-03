@@ -1,21 +1,68 @@
 #include "FenceWindow.h"
 #include "FenceManager.h"
 #include "Win32Helpers.h"
+#include "core/ThemePlatform.h"
 #include <commctrl.h>
 #include <shellapi.h>
 #include <shlobj.h>
 #include <windowsx.h>
 #include <algorithm>
+#include <cwctype>
 
 #pragma comment(lib, "Comctl32.lib")
 #pragma comment(lib, "Shell32.lib")
 
 static constexpr const wchar_t* kFenceWindowClass = L"SimpleFences_FenceWindow";
+static constexpr const wchar_t* kFenceSettingsClass = L"SimpleFences_FenceSettingsWindow";
 static constexpr int kTitleBarHeight = 28;
 static constexpr int kBorderSize = 1;
+static constexpr int kIconGridSize = 32;
 
-FenceWindow::FenceWindow(FenceManager* manager, const FenceModel& model)
-    : m_manager(manager), m_model(model)
+static constexpr int kCmdFenceSettings = 1007;
+static constexpr int kCtlInheritThemePolicy = 5001;
+static constexpr int kCtlTextOnly = 5002;
+static constexpr int kCtlRollup = 5003;
+static constexpr int kCtlTransparent = 5004;
+static constexpr int kCtlLabelsOnHover = 5005;
+static constexpr int kCtlSpacingPreset = 5006;
+static constexpr int kCtlClose = 5007;
+static constexpr int kCtlApplyAll = 5008;
+
+namespace
+{
+    int TileSizeFromPreset(const std::wstring& preset)
+    {
+        if (preset == L"compact")
+        {
+            return 48;
+        }
+        if (preset == L"spacious")
+        {
+            return 68;
+        }
+        return 56;
+    }
+
+    std::wstring TrimWhitespace(const std::wstring& input)
+    {
+        size_t start = 0;
+        while (start < input.size() && iswspace(input[start]))
+        {
+            ++start;
+        }
+
+        size_t end = input.size();
+        while (end > start && iswspace(input[end - 1]))
+        {
+            --end;
+        }
+
+        return input.substr(start, end - start);
+    }
+}
+
+FenceWindow::FenceWindow(FenceManager* manager, const FenceModel& model, const ThemePlatform* themePlatform)
+    : m_manager(manager), m_model(model), m_themePlatform(themePlatform)
 {
 }
 
@@ -63,8 +110,10 @@ bool FenceWindow::Create(HWND parent)
     if (!m_hwnd)
         return false;
 
+    m_expandedHeight = height;
     DragAcceptFiles(m_hwnd, TRUE);
     InitializeImageList();
+    ApplyIdleVisualState();
 
     return true;
 }
@@ -90,10 +139,18 @@ void FenceWindow::Destroy()
 
 void FenceWindow::UpdateModel(const FenceModel& model)
 {
+    const bool previouslyRolledUp = m_isRolledUp;
     m_model = model;
+    if (!previouslyRolledUp && m_hwnd)
+    {
+        RECT rc{};
+        GetWindowRect(m_hwnd, &rc);
+        m_expandedHeight = rc.bottom - rc.top;
+    }
     if (m_hwnd)
     {
         SetWindowTextW(m_hwnd, m_model.title.c_str());
+        ApplyIdleVisualState();
         InvalidateRect(m_hwnd, nullptr, TRUE);
     }
 }
@@ -145,6 +202,14 @@ LRESULT CALLBACK FenceWindow::WndProcStatic(HWND hwnd, UINT msg, WPARAM wParam, 
 
 LRESULT FenceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+    if (msg == ThemePlatform::GetThemeChangedMessageId())
+    {
+        ApplyIdleVisualState();
+        InvalidateRect(m_hwnd, nullptr, TRUE);
+        UpdateWindow(m_hwnd);
+        return 0;
+    }
+
     switch (msg)
     {
     case WM_PAINT:
@@ -168,7 +233,9 @@ LRESULT FenceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         return 0;
 
     case WM_MOUSELEAVE:
+        m_mouseInside = false;
         m_selectedItem = -1;
+        ApplyIdleVisualState();
         InvalidateRect(m_hwnd, nullptr, FALSE);
         return 0;
 
@@ -201,6 +268,37 @@ LRESULT FenceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         ScreenToClient(m_hwnd, &clientPt);
         OnContextMenu(clientPt.x, clientPt.y);
         return 0;
+    }
+
+    case WM_MEASUREITEM:
+    {
+        auto* measure = reinterpret_cast<MEASUREITEMSTRUCT*>(lParam);
+        if (measure)
+        {
+            const auto it = m_menuVisuals.find(measure->itemID);
+            if (it != m_menuVisuals.end())
+            {
+                Win32Helpers::MeasureThemedPopupMenuItem(measure, it->second);
+                return TRUE;
+            }
+        }
+        break;
+    }
+
+    case WM_DRAWITEM:
+    {
+        auto* draw = reinterpret_cast<DRAWITEMSTRUCT*>(lParam);
+        if (draw)
+        {
+            const auto it = m_menuVisuals.find(draw->itemID);
+            if (it != m_menuVisuals.end())
+            {
+                const ThemePalette palette = m_themePlatform ? m_themePlatform->BuildPalette() : ThemePalette{};
+                Win32Helpers::DrawThemedPopupMenuItem(draw, palette, it->second);
+                return TRUE;
+            }
+        }
+        break;
     }
 
     case WM_DROPFILES:
@@ -240,6 +338,8 @@ LRESULT FenceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     default:
         return DefWindowProcW(hwnd, msg, wParam, lParam);
     }
+
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
 void FenceWindow::OnPaint()
@@ -250,71 +350,121 @@ void FenceWindow::OnPaint()
     RECT rc{};
     GetClientRect(m_hwnd, &rc);
 
+    const ThemePalette palette = m_themePlatform ? m_themePlatform->BuildPalette() : ThemePalette{};
+
     // Draw background
-    HBRUSH bgBrush = CreateSolidBrush(RGB(45, 45, 45));
+    HBRUSH bgBrush = CreateSolidBrush(palette.surfaceColor);
     FillRect(hdc, &rc, bgBrush);
     DeleteObject(bgBrush);
 
     // Draw title bar
     RECT titleRc = rc;
     titleRc.bottom = kTitleBarHeight;
-    HBRUSH titleBrush = CreateSolidBrush(RGB(65, 65, 65));
+    HBRUSH titleBrush = CreateSolidBrush(palette.fenceTitleBarColor);
     FillRect(hdc, &titleRc, titleBrush);
     DeleteObject(titleBrush);
 
     // Draw title text
     SetBkMode(hdc, TRANSPARENT);
-    SetTextColor(hdc, RGB(240, 240, 240));
+    SetTextColor(hdc, palette.fenceTitleTextColor);
     RECT textRc = titleRc;
     textRc.left += 8;
     textRc.top += 4;
-    DrawTextW(hdc, m_model.title.c_str(), -1, &textRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    std::wstring titleText = m_model.title;
+    if (!m_model.contentState.empty() && m_model.contentState != L"ready")
+    {
+        titleText += L" [" + m_model.contentState + L"]";
+    }
+    DrawTextW(hdc, titleText.c_str(), -1, &textRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
     // Draw items
-    int itemY = kTitleBarHeight + 8;
-    SetTextColor(hdc, RGB(200, 200, 200));
-    static constexpr int kItemHeight = 24;  // 16px icon + 4px padding top/bottom
-    static constexpr int kIconSize = 16;
-    
-    for (int i = 0; i < static_cast<int>(m_items.size()); ++i)
+    const bool textOnly = m_model.textOnlyMode;
+    const EffectiveFencePolicy policy = ResolveEffectivePolicy();
+    const int iconTileSize = policy.iconTileSize;
+    const int contentLeft = 8;
+    const int contentTop = kTitleBarHeight + 8;
+
+    if (textOnly)
     {
-        const auto& item = m_items[i];
-        RECT itemRc = rc;
-        itemRc.left += 8;
-        itemRc.top = itemY;
-        itemRc.bottom = itemY + kItemHeight;
-        itemRc.right -= 8;
+        int itemY = contentTop;
+        static constexpr int kItemHeight = 24;
+        static constexpr int kIconSize = 16;
 
-        // Highlight selected item
-        if (i == m_selectedItem)
+        for (int i = 0; i < static_cast<int>(m_items.size()); ++i)
         {
-            HBRUSH hiBrush = CreateSolidBrush(RGB(85, 85, 85));
-            FillRect(hdc, &itemRc, hiBrush);
-            DeleteObject(hiBrush);
-            SetTextColor(hdc, RGB(240, 240, 240));
+            const auto& item = m_items[i];
+            RECT itemRc = rc;
+            itemRc.left += contentLeft;
+            itemRc.top = itemY;
+            itemRc.bottom = itemY + kItemHeight;
+            itemRc.right -= contentLeft;
+
+            if (i == m_selectedItem)
+            {
+                HBRUSH hiBrush = CreateSolidBrush(palette.fenceItemHoverColor);
+                FillRect(hdc, &itemRc, hiBrush);
+                DeleteObject(hiBrush);
+                SetTextColor(hdc, palette.fenceTitleTextColor);
+            }
+            else
+            {
+                SetTextColor(hdc, palette.fenceItemTextColor);
+            }
+
+            RECT itemTextRc = itemRc;
+            itemTextRc.left += 4;
+            DrawTextW(hdc, item.name.c_str(), -1, &itemTextRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+            itemY += kItemHeight;
         }
-        else
+    }
+    else
+    {
+        const int contentWidth = max(1, (rc.right - rc.left) - (contentLeft * 2));
+        const int cols = max(1, contentWidth / iconTileSize);
+
+        for (int i = 0; i < static_cast<int>(m_items.size()); ++i)
         {
-            SetTextColor(hdc, RGB(200, 200, 200));
+            const auto& item = m_items[i];
+            const int row = i / cols;
+            const int col = i % cols;
+
+            RECT tileRc{};
+            tileRc.left = contentLeft + (col * iconTileSize);
+            tileRc.top = contentTop + (row * iconTileSize);
+            tileRc.right = tileRc.left + iconTileSize;
+            tileRc.bottom = tileRc.top + iconTileSize;
+
+            if (i == m_selectedItem)
+            {
+                HBRUSH hiBrush = CreateSolidBrush(palette.fenceItemHoverColor);
+                FillRect(hdc, &tileRc, hiBrush);
+                DeleteObject(hiBrush);
+
+                HPEN ringPen = CreatePen(PS_SOLID, 2, palette.accentColor);
+                HPEN oldPen = reinterpret_cast<HPEN>(SelectObject(hdc, ringPen));
+                HBRUSH oldBrush = reinterpret_cast<HBRUSH>(SelectObject(hdc, GetStockObject(HOLLOW_BRUSH)));
+                Rectangle(hdc, tileRc.left + 1, tileRc.top + 1, tileRc.right - 1, tileRc.bottom - 1);
+                SelectObject(hdc, oldBrush);
+                SelectObject(hdc, oldPen);
+                DeleteObject(ringPen);
+            }
+
+            if (item.iconIndex >= 0 && m_imageList != nullptr)
+            {
+                const int iconX = tileRc.left + ((iconTileSize - kIconGridSize) / 2);
+                const int iconY = tileRc.top + ((iconTileSize - kIconGridSize) / 2) - (policy.labelsOnHover ? 6 : 0);
+                ImageList_DrawEx(m_imageList, item.iconIndex, hdc, iconX, iconY, kIconGridSize, kIconGridSize, CLR_NONE, CLR_NONE, ILD_TRANSPARENT);
+            }
+
+            if (policy.labelsOnHover && i == m_selectedItem)
+            {
+                RECT labelRc = tileRc;
+                labelRc.top = tileRc.bottom - 18;
+                SetBkMode(hdc, TRANSPARENT);
+                SetTextColor(hdc, palette.fenceTitleTextColor);
+                DrawTextW(hdc, item.name.c_str(), -1, &labelRc, DT_CENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+            }
         }
-
-        // Draw icon if available
-        if (item.iconIndex >= 0 && m_imageList != nullptr)
-        {
-            int iconX = itemRc.left + 2;
-            int iconY = itemRc.top + (kItemHeight - kIconSize) / 2;
-            ImageList_Draw(m_imageList, item.iconIndex, hdc, iconX, iconY, ILD_TRANSPARENT);
-        }
-
-        // Draw text beside the icon
-        std::wstring displayText = item.name;
-        if (item.isDirectory)
-            displayText += L" [folder]";
-
-        RECT itemTextRc = itemRc;
-        itemTextRc.left += kIconSize + 6;  // Icon + spacing
-        DrawTextW(hdc, displayText.c_str(), -1, &itemTextRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-        itemY += kItemHeight;
     }
 
     EndPaint(m_hwnd, &ps);
@@ -324,72 +474,134 @@ void FenceWindow::OnLButtonDown(int x, int y)
 {
     if (y < kTitleBarHeight)
     {
-        m_dragging = true;
-        m_dragStart = { x, y };
-        GetWindowRect(m_hwnd, &m_windowStart);
-        SetCapture(m_hwnd);
+        (void)x;
+        ReleaseCapture();
+        SendMessageW(m_hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
     }
 }
 
 void FenceWindow::OnMouseMove(int x, int y, WPARAM flags)
 {
-    if (m_dragging && (flags & MK_LBUTTON))
+    (void)flags;
+
+    if (!m_mouseInside)
     {
-        int dx = x - m_dragStart.x;
-        int dy = y - m_dragStart.y;
-
-        int newX = m_windowStart.left + dx;
-        int newY = m_windowStart.top + dy;
-
-        SetWindowPos(m_hwnd, nullptr, newX, newY, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+        m_mouseInside = true;
+        ApplyIdleVisualState();
     }
-    else
+
+    TRACKMOUSEEVENT tme{};
+    tme.cbSize = sizeof(tme);
+    tme.dwFlags = TME_LEAVE;
+    tme.hwndTrack = m_hwnd;
+    TrackMouseEvent(&tme);
+
+    // Track item under cursor for highlight
+    const int item = GetItemAtPosition(x, y);
+    if (item != m_selectedItem)
     {
-        // Track item under cursor for highlight
-        int item = GetItemAtPosition(x, y);
-        if (item != m_selectedItem)
-        {
-            m_selectedItem = item;
-            InvalidateRect(m_hwnd, nullptr, FALSE);
-        }
+        m_selectedItem = item;
+        InvalidateRect(m_hwnd, nullptr, FALSE);
     }
 }
 
 void FenceWindow::OnLButtonUp()
 {
-    if (m_dragging)
-    {
-        m_dragging = false;
-        ReleaseCapture();
-
-        if (m_manager)
-        {
-            RECT rc{};
-            GetWindowRect(m_hwnd, &rc);
-            m_manager->UpdateFenceGeometry(m_model.id, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top);
-        }
-    }
+    // Native drag move path (WM_NCLBUTTONDOWN + HTCAPTION) handles release for us.
 }
 
 void FenceWindow::OnContextMenu(int x, int y)
 {
     int itemIndex = GetItemAtPosition(x, y);
     HMENU menu = CreatePopupMenu();
+    m_menuVisuals.clear();
+    m_menuCommands.clear();
+
+    CommandContext commandContext;
+    commandContext.fence.id = m_model.id;
+    commandContext.fence.title = m_model.title;
+    commandContext.fence.backingFolderPath = m_model.backingFolder;
+    commandContext.fence.contentType = m_model.contentType;
+    commandContext.fence.contentPluginId = m_model.contentPluginId;
+    commandContext.fence.contentSource = m_model.contentSource;
+    commandContext.fence.contentState = m_model.contentState;
+    commandContext.fence.contentStateDetail = m_model.contentStateDetail;
+    commandContext.invocationSource = itemIndex >= 0 ? L"item_context" : L"fence_context";
+    if (itemIndex >= 0 && itemIndex < static_cast<int>(m_items.size()))
+    {
+        const FenceItem& item = m_items[itemIndex];
+        FenceItemMetadata itemMeta;
+        itemMeta.name = item.name;
+        itemMeta.fullPath = item.fullPath;
+        itemMeta.originalPath = item.originalPath;
+        itemMeta.isDirectory = item.isDirectory;
+        commandContext.item = itemMeta;
+    }
+
+    UINT decorationId = 3000;
+    UINT pluginCommandId = 4000;
+    auto appendSeparator = [&]() {
+        AppendMenuW(menu, MF_OWNERDRAW | MF_DISABLED, decorationId, nullptr);
+        m_menuVisuals.emplace(decorationId, Win32Helpers::PopupMenuItemVisual{L"", true, false});
+        ++decorationId;
+    };
+
+    auto appendItem = [&](const std::wstring& text, UINT commandId) {
+        AppendMenuW(menu, MF_OWNERDRAW | MF_STRING, commandId, nullptr);
+        m_menuVisuals.emplace(commandId, Win32Helpers::PopupMenuItemVisual{text, false, true});
+    };
+
+    auto appendPluginItems = [&](MenuSurface surface) {
+        if (!m_manager)
+        {
+            return;
+        }
+
+        const auto contributions = m_manager->GetMenuContributions(surface);
+        for (const auto& contribution : contributions)
+        {
+            if (contribution.separatorBefore)
+            {
+                appendSeparator();
+            }
+
+            AppendMenuW(menu, MF_OWNERDRAW | MF_STRING, pluginCommandId, nullptr);
+            m_menuVisuals.emplace(pluginCommandId, Win32Helpers::PopupMenuItemVisual{contribution.title, false, true});
+            m_menuCommands.emplace(pluginCommandId, contribution.commandId);
+            ++pluginCommandId;
+        }
+    };
 
     if (itemIndex >= 0)
     {
         // Item context menu
-        AppendMenuW(menu, MF_STRING, 2001, L"Open");
-        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-        AppendMenuW(menu, MF_STRING, 2002, L"Delete Item");
+        appendItem(L"Open", 2001);
+        appendSeparator();
+        appendItem(L"Delete Item", 2002);
+        appendPluginItems(MenuSurface::ItemContext);
     }
     else
     {
         // Fence context menu
-        AppendMenuW(menu, MF_STRING, 1001, L"New Fence");
-        AppendMenuW(menu, MF_STRING, 1002, L"Rename Fence");
-        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-        AppendMenuW(menu, MF_STRING, 1003, L"Delete Fence");
+        const EffectiveFencePolicy effectivePolicy = ResolveEffectivePolicy();
+        appendItem(L"New Fence", 1001);
+        appendItem(L"Rename Fence", 1002);
+        appendItem(L"Fence Settings...", kCmdFenceSettings);
+        appendItem(L"Text Only Mode", 1004);
+        appendItem(L"Roll Up When Not Hovered", 1005);
+        appendItem(L"Transparent When Not Hovered", 1006);
+
+        const UINT textState = m_model.textOnlyMode ? MF_CHECKED : MF_UNCHECKED;
+        const UINT rollupState = effectivePolicy.rollupWhenNotHovered ? MF_CHECKED : MF_UNCHECKED;
+        const UINT transparentState = effectivePolicy.transparentWhenNotHovered ? MF_CHECKED : MF_UNCHECKED;
+        CheckMenuItem(menu, 1004, MF_BYCOMMAND | textState);
+        CheckMenuItem(menu, 1005, MF_BYCOMMAND | rollupState);
+        CheckMenuItem(menu, 1006, MF_BYCOMMAND | transparentState);
+
+        appendSeparator();
+        appendPluginItems(MenuSurface::FenceContext);
+        appendSeparator();
+        appendItem(L"Delete Fence", 1003);
     }
 
     POINT pt = { x, y };
@@ -397,6 +609,17 @@ void FenceWindow::OnContextMenu(int x, int y)
 
     int cmd = TrackPopupMenuEx(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, m_hwnd, nullptr);
     DestroyMenu(menu);
+
+    const auto pluginCommand = m_menuCommands.find(static_cast<UINT>(cmd));
+    if (pluginCommand != m_menuCommands.end())
+    {
+        commandContext.commandId = pluginCommand->second;
+        if (m_manager)
+        {
+            m_manager->ExecuteCommand(pluginCommand->second, commandContext);
+        }
+        return;
+    }
 
     switch (cmd)
     {
@@ -406,7 +629,45 @@ void FenceWindow::OnContextMenu(int x, int y)
         break;
 
     case 1002: // Rename
-        // TODO: Implement rename dialog
+        if (m_manager)
+        {
+            std::wstring newTitle;
+            if (Win32Helpers::PromptTextInput(m_hwnd,
+                                              L"Rename Fence",
+                                              L"Fence title:",
+                                              m_model.title,
+                                              newTitle))
+            {
+                newTitle = TrimWhitespace(newTitle);
+                if (!newTitle.empty() && newTitle.size() <= 128)
+                {
+                    m_manager->RenameFence(m_model.id, newTitle);
+                }
+                else
+                {
+                    Win32Helpers::ShowUserWarning(m_hwnd, L"Rename Fence", L"Fence title must be 1 to 128 characters.");
+                }
+            }
+        }
+        break;
+
+    case kCmdFenceSettings:
+        ShowSettingsPanel();
+        break;
+
+    case 1004: // Text only mode
+        if (m_manager)
+            m_manager->SetFenceTextOnlyMode(m_model.id, !m_model.textOnlyMode);
+        break;
+
+    case 1005: // Roll up when not hovered
+        if (m_manager)
+            m_manager->SetFenceRollupWhenNotHovered(m_model.id, !m_model.rollupWhenNotHovered);
+        break;
+
+    case 1006: // Transparent when not hovered
+        if (m_manager)
+            m_manager->SetFenceTransparentWhenNotHovered(m_model.id, !m_model.transparentWhenNotHovered);
         break;
 
     case 1003: // Delete Fence
@@ -473,26 +734,374 @@ void FenceWindow::OnSize(int width, int height)
 
 int FenceWindow::GetItemAtPosition(int x, int y) const
 {
-    (void)x;
-
     // Check if click is in title bar
     if (y < kTitleBarHeight)
         return -1;
 
-    // Calculate which item was clicked
-    int itemY = kTitleBarHeight + 8;
-    int itemIndex = 0;
-    static constexpr int kItemHeight = 24;
-
-    for (size_t i = 0; i < m_items.size(); ++i)
+    if (m_model.textOnlyMode)
     {
-        if (y >= itemY && y < itemY + kItemHeight)
-            return itemIndex;
-        itemY += kItemHeight;
-        ++itemIndex;
+        int itemY = kTitleBarHeight + 8;
+        static constexpr int kItemHeight = 24;
+        for (size_t i = 0; i < m_items.size(); ++i)
+        {
+            if (y >= itemY && y < itemY + kItemHeight)
+            {
+                return static_cast<int>(i);
+            }
+            itemY += kItemHeight;
+        }
+        return -1;
     }
 
-    return -1;
+    const EffectiveFencePolicy policy = ResolveEffectivePolicy();
+    RECT rc{};
+    GetClientRect(m_hwnd, &rc);
+    const int contentLeft = 8;
+    const int contentTop = kTitleBarHeight + 8;
+    const int iconTileSize = policy.iconTileSize;
+    const int contentWidth = max(1, (rc.right - rc.left) - (contentLeft * 2));
+    const int cols = max(1, contentWidth / iconTileSize);
+
+    const int localX = x - contentLeft;
+    const int localY = y - contentTop;
+    if (localX < 0 || localY < 0)
+    {
+        return -1;
+    }
+
+    const int col = localX / iconTileSize;
+    const int row = localY / iconTileSize;
+    if (col < 0 || col >= cols)
+    {
+        return -1;
+    }
+
+    const int index = row * cols + col;
+    if (index < 0 || index >= static_cast<int>(m_items.size()))
+    {
+        return -1;
+    }
+
+    const int insideTileX = localX % iconTileSize;
+    const int insideTileY = localY % iconTileSize;
+    if (insideTileX < 0 || insideTileY < 0 || insideTileX >= iconTileSize || insideTileY >= iconTileSize)
+    {
+        return -1;
+    }
+
+    return index;
+}
+
+void FenceWindow::ApplyIdleVisualState()
+{
+    if (!m_hwnd)
+    {
+        return;
+    }
+
+    const EffectiveFencePolicy policy = ResolveEffectivePolicy();
+    const bool shouldRollup = policy.rollupWhenNotHovered && !m_mouseInside;
+    if (shouldRollup && !m_isRolledUp)
+    {
+        RECT rc{};
+        GetWindowRect(m_hwnd, &rc);
+        const int currentHeight = rc.bottom - rc.top;
+        if (currentHeight > (kTitleBarHeight + (kBorderSize * 2)))
+        {
+            m_expandedHeight = currentHeight;
+        }
+        SetWindowPos(m_hwnd, nullptr, 0, 0, 0, kTitleBarHeight + (kBorderSize * 2),
+                     SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+        m_isRolledUp = true;
+    }
+    else if (!shouldRollup && m_isRolledUp)
+    {
+        const int restoredHeight = max(m_expandedHeight, 120);
+        SetWindowPos(m_hwnd, nullptr, 0, 0, 0, restoredHeight,
+                     SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+        m_isRolledUp = false;
+    }
+
+    const bool shouldBeTransparent = policy.transparentWhenNotHovered && !m_mouseInside;
+    LONG_PTR exStyle = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
+    if (shouldBeTransparent)
+    {
+        if ((exStyle & WS_EX_LAYERED) == 0)
+        {
+            SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+        }
+        SetLayeredWindowAttributes(m_hwnd, 0, 214, LWA_ALPHA);
+    }
+    else
+    {
+        if ((exStyle & WS_EX_LAYERED) != 0)
+        {
+            SetLayeredWindowAttributes(m_hwnd, 0, 255, LWA_ALPHA);
+        }
+    }
+}
+
+EffectiveFencePolicy FenceWindow::ResolveEffectivePolicy() const
+{
+    EffectiveFencePolicy policy;
+
+    std::wstring spacingPreset = m_model.iconSpacingPreset;
+    if (spacingPreset.empty())
+    {
+        spacingPreset = L"comfortable";
+    }
+
+    policy.rollupWhenNotHovered = m_model.rollupWhenNotHovered;
+    policy.transparentWhenNotHovered = m_model.transparentWhenNotHovered;
+    policy.labelsOnHover = m_model.labelsOnHover;
+
+    if (m_model.inheritThemePolicy && m_themePlatform)
+    {
+        const FencePolicyDefaults defaults = m_themePlatform->ResolveFencePolicyDefaults();
+        policy.rollupWhenNotHovered = defaults.rollupWhenNotHovered;
+        policy.transparentWhenNotHovered = defaults.transparentWhenNotHovered;
+        policy.labelsOnHover = defaults.labelsOnHover;
+        spacingPreset = defaults.iconSpacingPreset;
+    }
+
+    policy.iconTileSize = TileSizeFromPreset(spacingPreset);
+    return policy;
+}
+
+void FenceWindow::ShowSettingsPanel()
+{
+    if (m_settingsPanel && IsWindow(m_settingsPanel))
+    {
+        ShowWindow(m_settingsPanel, SW_SHOWNORMAL);
+        SetForegroundWindow(m_settingsPanel);
+        return;
+    }
+
+    static bool registered = false;
+    if (!registered)
+    {
+        WNDCLASSW wc{};
+        wc.lpfnWndProc = FenceWindow::SettingsPanelWndProcStatic;
+        wc.hInstance = GetModuleHandleW(nullptr);
+        wc.lpszClassName = kFenceSettingsClass;
+        wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+        wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+        RegisterClassW(&wc);
+        registered = true;
+    }
+
+    POINT pt{};
+    GetCursorPos(&pt);
+    m_settingsPanel = CreateWindowExW(
+        WS_EX_TOOLWINDOW,
+        kFenceSettingsClass,
+        L"Fence Settings",
+        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+        pt.x - 120,
+        pt.y - 60,
+        360,
+        300,
+        nullptr,
+        nullptr,
+        GetModuleHandleW(nullptr),
+        this);
+
+    if (m_settingsPanel)
+    {
+        ShowWindow(m_settingsPanel, SW_SHOWNORMAL);
+        UpdateWindow(m_settingsPanel);
+    }
+}
+
+LRESULT CALLBACK FenceWindow::SettingsPanelWndProcStatic(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    FenceWindow* self = nullptr;
+    if (msg == WM_NCCREATE)
+    {
+        auto* create = reinterpret_cast<CREATESTRUCTW*>(lParam);
+        self = reinterpret_cast<FenceWindow*>(create->lpCreateParams);
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
+    }
+    else
+    {
+        self = reinterpret_cast<FenceWindow*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    }
+
+    if (self)
+    {
+        return self->SettingsPanelWndProc(hwnd, msg, wParam, lParam);
+    }
+
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+
+LRESULT FenceWindow::SettingsPanelWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg)
+    {
+    case WM_CREATE:
+    {
+        const EffectiveFencePolicy effectivePolicy = ResolveEffectivePolicy();
+
+        CreateWindowExW(0, L"BUTTON", L"Use theme profile defaults",
+                        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+                        16, 16, 220, 24, hwnd,
+                        reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCtlInheritThemePolicy)),
+                        GetModuleHandleW(nullptr), nullptr);
+
+        CreateWindowExW(0, L"BUTTON", L"Text only mode",
+                        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+                        16, 44, 220, 24, hwnd,
+                        reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCtlTextOnly)),
+                        GetModuleHandleW(nullptr), nullptr);
+
+        CreateWindowExW(0, L"BUTTON", L"Roll up when not hovered",
+                        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+                        16, 72, 220, 24, hwnd,
+                        reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCtlRollup)),
+                        GetModuleHandleW(nullptr), nullptr);
+
+        CreateWindowExW(0, L"BUTTON", L"Transparent when not hovered",
+                        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+                        16, 100, 240, 24, hwnd,
+                        reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCtlTransparent)),
+                        GetModuleHandleW(nullptr), nullptr);
+
+        CreateWindowExW(0, L"BUTTON", L"Show labels on hover",
+                        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+                        16, 128, 220, 24, hwnd,
+                        reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCtlLabelsOnHover)),
+                        GetModuleHandleW(nullptr), nullptr);
+
+        CreateWindowExW(0, L"STATIC", L"Icon spacing:",
+                        WS_CHILD | WS_VISIBLE,
+                        16, 160, 100, 20, hwnd,
+                        nullptr, GetModuleHandleW(nullptr), nullptr);
+
+        HWND combo = CreateWindowExW(0, L"COMBOBOX", nullptr,
+                                     WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
+                                     120, 156, 180, 300, hwnd,
+                                     reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCtlSpacingPreset)),
+                                     GetModuleHandleW(nullptr), nullptr);
+        SendMessageW(combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"Compact"));
+        SendMessageW(combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"Comfortable"));
+        SendMessageW(combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"Spacious"));
+
+        CreateWindowExW(0, L"BUTTON", L"Close",
+                        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                        240, 220, 90, 28, hwnd,
+                        reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCtlClose)),
+                        GetModuleHandleW(nullptr), nullptr);
+
+        CreateWindowExW(0, L"BUTTON", L"Apply to all fences",
+                        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                        16, 220, 150, 28, hwnd,
+                        reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCtlApplyAll)),
+                        GetModuleHandleW(nullptr), nullptr);
+
+        SendMessageW(GetDlgItem(hwnd, kCtlInheritThemePolicy), BM_SETCHECK, m_model.inheritThemePolicy ? BST_CHECKED : BST_UNCHECKED, 0);
+        SendMessageW(GetDlgItem(hwnd, kCtlTextOnly), BM_SETCHECK, m_model.textOnlyMode ? BST_CHECKED : BST_UNCHECKED, 0);
+        SendMessageW(GetDlgItem(hwnd, kCtlRollup), BM_SETCHECK, effectivePolicy.rollupWhenNotHovered ? BST_CHECKED : BST_UNCHECKED, 0);
+        SendMessageW(GetDlgItem(hwnd, kCtlTransparent), BM_SETCHECK, effectivePolicy.transparentWhenNotHovered ? BST_CHECKED : BST_UNCHECKED, 0);
+        SendMessageW(GetDlgItem(hwnd, kCtlLabelsOnHover), BM_SETCHECK, effectivePolicy.labelsOnHover ? BST_CHECKED : BST_UNCHECKED, 0);
+
+        int spacingSel = 1;
+        if (effectivePolicy.iconTileSize <= 48) spacingSel = 0;
+        else if (effectivePolicy.iconTileSize >= 68) spacingSel = 2;
+        SendMessageW(combo, CB_SETCURSEL, spacingSel, 0);
+
+        const BOOL customEnabled = m_model.inheritThemePolicy ? FALSE : TRUE;
+        EnableWindow(GetDlgItem(hwnd, kCtlRollup), customEnabled);
+        EnableWindow(GetDlgItem(hwnd, kCtlTransparent), customEnabled);
+        EnableWindow(GetDlgItem(hwnd, kCtlLabelsOnHover), customEnabled);
+        EnableWindow(GetDlgItem(hwnd, kCtlSpacingPreset), customEnabled);
+        return 0;
+    }
+    case WM_COMMAND:
+    {
+        const int id = LOWORD(wParam);
+        const int code = HIWORD(wParam);
+
+        if (!m_manager)
+        {
+            break;
+        }
+
+        if (id == kCtlClose && code == BN_CLICKED)
+        {
+            DestroyWindow(hwnd);
+            return 0;
+        }
+
+        if (id == kCtlApplyAll && code == BN_CLICKED)
+        {
+            m_manager->ApplyFenceSettingsToAll(m_model.id);
+            MessageBoxW(hwnd, L"Current fence settings were applied to all fences.", L"Fence Settings", MB_OK | MB_ICONINFORMATION);
+            return 0;
+        }
+
+        if (id == kCtlInheritThemePolicy && code == BN_CLICKED)
+        {
+            const bool enabled = (SendMessageW(GetDlgItem(hwnd, kCtlInheritThemePolicy), BM_GETCHECK, 0, 0) == BST_CHECKED);
+            m_manager->SetFenceThemePolicyInheritance(m_model.id, enabled);
+            const BOOL customEnabled = enabled ? FALSE : TRUE;
+            EnableWindow(GetDlgItem(hwnd, kCtlRollup), customEnabled);
+            EnableWindow(GetDlgItem(hwnd, kCtlTransparent), customEnabled);
+            EnableWindow(GetDlgItem(hwnd, kCtlLabelsOnHover), customEnabled);
+            EnableWindow(GetDlgItem(hwnd, kCtlSpacingPreset), customEnabled);
+            return 0;
+        }
+
+        if (id == kCtlTextOnly && code == BN_CLICKED)
+        {
+            const bool enabled = (SendMessageW(GetDlgItem(hwnd, kCtlTextOnly), BM_GETCHECK, 0, 0) == BST_CHECKED);
+            m_manager->SetFenceTextOnlyMode(m_model.id, enabled);
+            return 0;
+        }
+
+        if (id == kCtlRollup && code == BN_CLICKED)
+        {
+            const bool enabled = (SendMessageW(GetDlgItem(hwnd, kCtlRollup), BM_GETCHECK, 0, 0) == BST_CHECKED);
+            m_manager->SetFenceRollupWhenNotHovered(m_model.id, enabled);
+            return 0;
+        }
+
+        if (id == kCtlTransparent && code == BN_CLICKED)
+        {
+            const bool enabled = (SendMessageW(GetDlgItem(hwnd, kCtlTransparent), BM_GETCHECK, 0, 0) == BST_CHECKED);
+            m_manager->SetFenceTransparentWhenNotHovered(m_model.id, enabled);
+            return 0;
+        }
+
+        if (id == kCtlLabelsOnHover && code == BN_CLICKED)
+        {
+            const bool enabled = (SendMessageW(GetDlgItem(hwnd, kCtlLabelsOnHover), BM_GETCHECK, 0, 0) == BST_CHECKED);
+            m_manager->SetFenceLabelsOnHover(m_model.id, enabled);
+            return 0;
+        }
+
+        if (id == kCtlSpacingPreset && code == CBN_SELCHANGE)
+        {
+            const LRESULT sel = SendMessageW(GetDlgItem(hwnd, kCtlSpacingPreset), CB_GETCURSEL, 0, 0);
+            std::wstring preset = L"comfortable";
+            if (sel == 0) preset = L"compact";
+            else if (sel == 2) preset = L"spacious";
+            m_manager->SetFenceIconSpacingPreset(m_model.id, preset);
+            return 0;
+        }
+        break;
+    }
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+    case WM_DESTROY:
+        m_settingsPanel = nullptr;
+        return 0;
+    default:
+        break;
+    }
+
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
 void FenceWindow::ExecuteItem(int itemIndex)
@@ -508,8 +1117,6 @@ void FenceWindow::ExecuteItem(int itemIndex)
 
 void FenceWindow::OnLButtonDblClk(int x, int y)
 {
-    (void)x;
-
     int itemIndex = GetItemAtPosition(x, y);
     if (itemIndex >= 0)
     {
@@ -526,7 +1133,7 @@ bool FenceWindow::InitializeImageList()
         SHFILEINFOW sfi{};
         m_imageList = reinterpret_cast<HIMAGELIST>(
             SHGetFileInfoW(L".", FILE_ATTRIBUTE_NORMAL, &sfi, sizeof(sfi), 
-                          SHGFI_SYSICONINDEX | SHGFI_SMALLICON | SHGFI_USEFILEATTRIBUTES)
+                          SHGFI_SYSICONINDEX | SHGFI_LARGEICON | SHGFI_USEFILEATTRIBUTES)
         );
         return m_imageList != nullptr;
     }

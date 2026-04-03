@@ -1,4 +1,5 @@
 #include "App.h"
+#include "AppVersion.h"
 #include "FenceStorage.h"
 #include "Persistence.h"
 #include "FenceManager.h"
@@ -19,8 +20,22 @@ App::~App()
 
 bool App::Initialize(HINSTANCE hInstance)
 {
-    Win32Helpers::LogInfo(L"App::Initialize starting");
+    Win32Helpers::LogInfo(L"App::Initialize starting (version=" + std::wstring(SimpleFencesVersion::kVersion) + L")");
     m_hInstance = hInstance;
+
+    m_singleInstanceMutex = CreateMutexW(nullptr, TRUE, L"Local\\SimpleFences.MainInstance");
+    if (!m_singleInstanceMutex)
+    {
+        Win32Helpers::LogError(L"CreateMutexW failed for single-instance guard: " + std::to_wstring(GetLastError()));
+    }
+    else if (GetLastError() == ERROR_ALREADY_EXISTS)
+    {
+        Win32Helpers::ShowUserWarning(nullptr, L"SimpleFences", L"SimpleFences is already running.");
+        Win32Helpers::LogError(L"Second instance prevented by single-instance guard.");
+        CloseHandle(m_singleInstanceMutex);
+        m_singleInstanceMutex = nullptr;
+        return false;
+    }
 
     // Initialize common controls (legacy but reliable)
     InitCommonControls();
@@ -45,6 +60,11 @@ bool App::Initialize(HINSTANCE hInstance)
     if (m_manager)
     {
         m_manager->SetFenceExtensionRegistry(m_kernel->GetFenceExtensionRegistry());
+        m_manager->SetMenuContributionRegistry(m_kernel->GetMenuRegistry());
+        m_manager->SetCommandExecutor([this](const std::wstring& commandId, const CommandContext& context) {
+            return ExecuteCommand(commandId, context);
+        });
+        m_manager->SetThemePlatform(m_kernel->GetThemePlatform());
     }
 
     // Create tray icon
@@ -85,14 +105,20 @@ void App::Exit()
     PostQuitMessage(0);
 }
 
-void App::CreateFenceNearCursor()
+std::wstring App::CreateFenceNearCursor()
+{
+    FenceCreateRequest request;
+    return CreateFenceNearCursor(request);
+}
+
+std::wstring App::CreateFenceNearCursor(const FenceCreateRequest& request)
 {
     if (!m_manager)
-        return;
+        return L"";
 
     POINT pt{};
     GetCursorPos(&pt);
-    m_manager->CreateFenceAt(pt.x, pt.y);
+    return m_manager->CreateFenceAt(pt.x, pt.y, request);
 }
 
 FenceManager* App::GetFenceManager() const
@@ -108,6 +134,16 @@ bool App::ExecuteCommand(const std::wstring& commandId) const
     }
 
     return m_kernel->ExecuteCommand(commandId);
+}
+
+bool App::ExecuteCommand(const std::wstring& commandId, const CommandContext& context) const
+{
+    if (!m_kernel)
+    {
+        return false;
+    }
+
+    return m_kernel->ExecuteCommand(commandId, context);
 }
 
 std::vector<TrayMenuEntry> App::GetTrayMenuEntries() const
@@ -140,6 +176,11 @@ std::vector<SettingsPageView> App::GetSettingsPages() const
     return m_kernel->GetSettingsPages();
 }
 
+const ThemePlatform* App::GetThemePlatform() const
+{
+    return m_kernel ? m_kernel->GetThemePlatform() : nullptr;
+}
+
 void App::OpenSettingsWindow()
 {
     if (!m_settingsWindow)
@@ -150,7 +191,8 @@ void App::OpenSettingsWindow()
     m_settingsWindow->ShowScaffold(
         GetSettingsPages(),
         GetPluginStatuses(),
-        m_kernel ? m_kernel->GetSettingsRegistry() : nullptr);
+        m_kernel ? m_kernel->GetSettingsRegistry() : nullptr,
+        m_kernel ? m_kernel->GetThemePlatform() : nullptr);
 }
 
 void App::Shutdown()
@@ -186,5 +228,13 @@ void App::Shutdown()
     m_manager.reset();
     m_persistence.reset();
     m_storage.reset();
+
+    if (m_singleInstanceMutex)
+    {
+        ReleaseMutex(m_singleInstanceMutex);
+        CloseHandle(m_singleInstanceMutex);
+        m_singleInstanceMutex = nullptr;
+    }
+
     Win32Helpers::LogInfo(L"App shutdown completed");
 }

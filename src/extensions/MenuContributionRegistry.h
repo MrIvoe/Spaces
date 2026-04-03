@@ -24,8 +24,9 @@ struct MenuContribution
 class MenuContributionRegistry
 {
 public:
-    void Register(const MenuContribution& contribution);
+    bool Register(const MenuContribution& contribution);
     std::vector<MenuContribution> GetBySurface(MenuSurface surface) const;
+    void Clear();
 
 private:
     std::vector<MenuContribution> m_contributions;

@@ -13,6 +13,7 @@ public:
     ~PluginHost();
 
     bool LoadBuiltins(const PluginContext& context);
+    bool ReloadBuiltins(const PluginContext& context);
     void Shutdown();
 
     const PluginRegistry& GetRegistry() const;

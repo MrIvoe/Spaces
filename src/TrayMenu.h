@@ -1,5 +1,9 @@
 #pragma once
+
+#include "Win32Helpers.h"
+
 #include <windows.h>
+
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -25,4 +29,5 @@ private:
     HWND m_hwnd = nullptr;
     NOTIFYICONDATA m_nid{};
     std::unordered_map<UINT, std::wstring> m_commandByMenuId;
+    std::unordered_map<UINT, Win32Helpers::PopupMenuItemVisual> m_menuVisuals;
 };

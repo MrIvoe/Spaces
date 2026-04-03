@@ -55,6 +55,7 @@ namespace
 bool SettingsStore::Load(const std::filesystem::path& filePath)
 {
     m_filePath = filePath;
+    m_values.clear();
 
     if (!std::filesystem::exists(filePath))
     {
@@ -84,6 +85,22 @@ bool SettingsStore::Load(const std::filesystem::path& filePath)
         {
             for (auto it = values.begin(); it != values.end(); ++it)
             {
+                if (it.value().is_string())
+                {
+                    m_values[Utf8ToWString(it.key())] = Utf8ToWString(it.value().get<std::string>());
+                }
+            }
+        }
+        else
+        {
+            // Backward compatibility: accept legacy flat object where values were at the root.
+            for (auto it = root.begin(); it != root.end(); ++it)
+            {
+                if (it.key() == "version")
+                {
+                    continue;
+                }
+
                 if (it.value().is_string())
                 {
                     m_values[Utf8ToWString(it.key())] = Utf8ToWString(it.value().get<std::string>());

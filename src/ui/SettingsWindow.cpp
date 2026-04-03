@@ -1,14 +1,33 @@
 #include "ui/SettingsWindow.h"
 
+#include "core/PluginHubSync.h"
+#include "core/ThemePlatform.h"
 #include "extensions/PluginSettingsRegistry.h"
 #include "Win32Helpers.h"
 
 #include <algorithm>
 #include <unordered_map>
+#include <commctrl.h>
 #include <windows.h>
+#include <windowsx.h>
 
 namespace
 {
+    COLORREF BlendColor(COLORREF from, COLORREF to, int alpha)
+    {
+        alpha = (alpha < 0) ? 0 : ((alpha > 255) ? 255 : alpha);
+        const int inv = 255 - alpha;
+        const BYTE red = static_cast<BYTE>(((GetRValue(from) * inv) + (GetRValue(to) * alpha)) / 255);
+        const BYTE green = static_cast<BYTE>(((GetGValue(from) * inv) + (GetGValue(to) * alpha)) / 255);
+        const BYTE blue = static_cast<BYTE>(((GetBValue(from) * inv) + (GetBValue(to) * alpha)) / 255);
+        return RGB(red, green, blue);
+    }
+
+    bool StartsWith(const std::wstring& text, const std::wstring& prefix)
+    {
+        return text.size() >= prefix.size() && text.compare(0, prefix.size(), prefix) == 0;
+    }
+
     std::wstring JoinCapabilities(const std::vector<std::wstring>& capabilities)
     {
         if (capabilities.empty())
@@ -41,9 +60,12 @@ namespace
 
 bool SettingsWindow::ShowScaffold(const std::vector<SettingsPageView>& pages,
                                    const std::vector<PluginStatusView>& plugins,
-                                   PluginSettingsRegistry* registry)
+                                   PluginSettingsRegistry* registry,
+                                   const ThemePlatform* themePlatform)
 {
     m_settingsRegistry = registry;
+    m_themePlatform = themePlatform;
+    m_navCollapsed = (m_settingsRegistry && m_settingsRegistry->GetValue(L"settings.ui.nav_collapsed", L"false") == L"true");
     m_plugins = plugins;
     m_pages = BuildPages(pages, plugins);
     if (m_pages.empty())
@@ -139,6 +161,140 @@ SettingsWindow::ThemeMode SettingsWindow::DetectSystemTheme() const
     return (lightThemeEnabled == 0) ? ThemeMode::Dark : ThemeMode::Light;
 }
 
+SettingsWindow::ThemeStyle SettingsWindow::ResolveThemeStyle() const
+{
+    if (!m_settingsRegistry)
+    {
+        return ThemeStyle::System;
+    }
+
+    const std::wstring raw = m_settingsRegistry->GetValue(L"appearance.theme.style", L"system");
+    if (raw == L"discord")
+    {
+        return ThemeStyle::Discord;
+    }
+    if (raw == L"fences")
+    {
+        return ThemeStyle::Fences;
+    }
+    if (raw == L"github_dark")
+    {
+        return ThemeStyle::GitHubDark;
+    }
+    if (raw == L"github_dark_dimmed")
+    {
+        return ThemeStyle::GitHubDarkDimmed;
+    }
+    if (raw == L"github_light")
+    {
+        return ThemeStyle::GitHubLight;
+    }
+    if (raw == L"custom")
+    {
+        return ThemeStyle::Custom;
+    }
+    return ThemeStyle::System;
+}
+
+SettingsWindow::ThemePalette SettingsWindow::BuildThemePalette(ThemeMode mode, ThemeStyle style) const
+{
+    ThemePalette palette;
+
+    // Base system fallback palette.
+    if (mode == ThemeMode::Dark)
+    {
+        palette.windowColor = RGB(24, 24, 24);
+        palette.surfaceColor = RGB(36, 36, 36);
+        palette.navColor = RGB(30, 30, 30);
+        palette.textColor = RGB(232, 232, 232);
+        palette.subtleTextColor = RGB(180, 180, 180);
+        palette.accentColor = RGB(88, 101, 242);
+    }
+    else
+    {
+        palette.windowColor = RGB(248, 249, 252);
+        palette.surfaceColor = RGB(255, 255, 255);
+        palette.navColor = RGB(240, 242, 246);
+        palette.textColor = RGB(32, 34, 37);
+        palette.subtleTextColor = RGB(95, 101, 112);
+        palette.accentColor = RGB(78, 91, 242);
+    }
+
+    // Optional style overlays. These are intentionally centralized to scale
+    // to a future whole-app theme engine.
+    if (style == ThemeStyle::Discord)
+    {
+        if (mode == ThemeMode::Dark)
+        {
+            palette.windowColor = RGB(47, 49, 54);
+            palette.surfaceColor = RGB(54, 57, 63);
+            palette.navColor = RGB(32, 34, 37);
+            palette.textColor = RGB(220, 221, 222);
+            palette.subtleTextColor = RGB(160, 162, 168);
+            palette.accentColor = RGB(88, 101, 242);
+        }
+        else
+        {
+            palette.windowColor = RGB(243, 245, 247);
+            palette.surfaceColor = RGB(255, 255, 255);
+            palette.navColor = RGB(232, 236, 240);
+            palette.textColor = RGB(46, 51, 56);
+            palette.subtleTextColor = RGB(106, 115, 128);
+            palette.accentColor = RGB(88, 101, 242);
+        }
+    }
+    else if (style == ThemeStyle::Fences)
+    {
+        if (mode == ThemeMode::Dark)
+        {
+            palette.windowColor = RGB(22, 27, 34);
+            palette.surfaceColor = RGB(28, 34, 42);
+            palette.navColor = RGB(20, 24, 31);
+            palette.textColor = RGB(225, 231, 238);
+            palette.subtleTextColor = RGB(167, 177, 188);
+            palette.accentColor = RGB(64, 168, 255);
+        }
+        else
+        {
+            palette.windowColor = RGB(236, 242, 248);
+            palette.surfaceColor = RGB(248, 251, 255);
+            palette.navColor = RGB(227, 236, 245);
+            palette.textColor = RGB(27, 35, 42);
+            palette.subtleTextColor = RGB(90, 104, 118);
+            palette.accentColor = RGB(49, 142, 226);
+        }
+    }
+    else if (style == ThemeStyle::GitHubDark)
+    {
+        palette.windowColor = RGB(13, 17, 23);
+        palette.surfaceColor = RGB(22, 27, 34);
+        palette.navColor = RGB(1, 4, 9);
+        palette.textColor = RGB(230, 237, 243);
+        palette.subtleTextColor = RGB(139, 148, 158);
+        palette.accentColor = RGB(47, 129, 247);
+    }
+    else if (style == ThemeStyle::GitHubDarkDimmed)
+    {
+        palette.windowColor = RGB(34, 39, 46);
+        palette.surfaceColor = RGB(44, 50, 58);
+        palette.navColor = RGB(28, 33, 40);
+        palette.textColor = RGB(173, 186, 199);
+        palette.subtleTextColor = RGB(118, 131, 144);
+        palette.accentColor = RGB(83, 155, 245);
+    }
+    else if (style == ThemeStyle::GitHubLight)
+    {
+        palette.windowColor = RGB(246, 248, 250);
+        palette.surfaceColor = RGB(255, 255, 255);
+        palette.navColor = RGB(242, 245, 248);
+        palette.textColor = RGB(31, 35, 40);
+        palette.subtleTextColor = RGB(87, 96, 106);
+        palette.accentColor = RGB(9, 105, 218);
+    }
+
+    return palette;
+}
+
 void SettingsWindow::DestroyThemeBrushes()
 {
     if (m_windowBrush)
@@ -152,30 +308,162 @@ void SettingsWindow::DestroyThemeBrushes()
         DeleteObject(m_surfaceBrush);
         m_surfaceBrush = nullptr;
     }
+
+    if (m_navBrush)
+    {
+        DeleteObject(m_navBrush);
+        m_navBrush = nullptr;
+    }
+}
+
+void SettingsWindow::DestroyFonts()
+{
+    if (m_baseFont)
+    {
+        DeleteObject(m_baseFont);
+        m_baseFont = nullptr;
+    }
+    if (m_sectionFont)
+    {
+        DeleteObject(m_sectionFont);
+        m_sectionFont = nullptr;
+    }
+    if (m_navFont)
+    {
+        DeleteObject(m_navFont);
+        m_navFont = nullptr;
+    }
 }
 
 void SettingsWindow::RefreshTheme()
 {
-    const ThemeMode requested = DetectSystemTheme();
+    ThemeMode requested = DetectSystemTheme();
+    ThemeStyle style = ResolveThemeStyle();
+    int textScale = 115;
 
-    if (requested == ThemeMode::Dark)
+    if (m_themePlatform)
     {
-        m_windowColor = RGB(24, 24, 24);
-        m_surfaceColor = RGB(36, 36, 36);
-        m_textColor = RGB(232, 232, 232);
+        const auto platformMode = m_themePlatform->ResolveMode();
+        const auto platformStyle = m_themePlatform->ResolveStyle();
+        requested = (platformMode == ::ThemeMode::Dark) ? ThemeMode::Dark : ThemeMode::Light;
+        if (platformStyle == ::ThemeStyle::Discord)
+        {
+            style = ThemeStyle::Discord;
+        }
+        else if (platformStyle == ::ThemeStyle::Fences)
+        {
+            style = ThemeStyle::Fences;
+        }
+        else if (platformStyle == ::ThemeStyle::GitHubDark)
+        {
+            style = ThemeStyle::GitHubDark;
+        }
+        else if (platformStyle == ::ThemeStyle::GitHubDarkDimmed)
+        {
+            style = ThemeStyle::GitHubDarkDimmed;
+        }
+        else if (platformStyle == ::ThemeStyle::GitHubLight)
+        {
+            style = ThemeStyle::GitHubLight;
+        }
+        else if (platformStyle == ::ThemeStyle::Custom)
+        {
+            style = ThemeStyle::Custom;
+        }
+        else
+        {
+            style = ThemeStyle::System;
+        }
+        textScale = m_themePlatform->GetTextScalePercent();
     }
-    else
+    else if (m_settingsRegistry)
     {
-        m_windowColor = GetSysColor(COLOR_WINDOW);
-        m_surfaceColor = GetSysColor(COLOR_WINDOW);
-        m_textColor = GetSysColor(COLOR_WINDOWTEXT);
+        const std::wstring modeValue = m_settingsRegistry->GetValue(L"appearance.theme.mode", L"system");
+        if (modeValue == L"dark")
+        {
+            requested = ThemeMode::Dark;
+        }
+        else if (modeValue == L"light")
+        {
+            requested = ThemeMode::Light;
+        }
     }
 
     m_themeMode = requested;
+    m_themeStyle = style;
+
+    ThemePalette palette = BuildThemePalette(m_themeMode, m_themeStyle);
+    if (m_themePlatform)
+    {
+        const auto pp = m_themePlatform->BuildPalette();
+        palette.windowColor = pp.windowColor;
+        palette.surfaceColor = pp.surfaceColor;
+        palette.navColor = pp.navColor;
+        palette.textColor = pp.textColor;
+        palette.subtleTextColor = pp.subtleTextColor;
+        palette.accentColor = pp.accentColor;
+    }
+    m_windowColor = palette.windowColor;
+    m_surfaceColor = palette.surfaceColor;
+    m_navColor = palette.navColor;
+    m_textColor = palette.textColor;
+    m_subtleTextColor = palette.subtleTextColor;
+    m_accentColor = palette.accentColor;
 
     DestroyThemeBrushes();
+    DestroyFonts();
     m_windowBrush = CreateSolidBrush(m_windowColor);
     m_surfaceBrush = CreateSolidBrush(m_surfaceColor);
+    m_navBrush = CreateSolidBrush(m_navColor);
+
+    if (!m_themePlatform && m_settingsRegistry)
+    {
+        const std::wstring rawScale = m_settingsRegistry->GetValue(L"appearance.theme.text_scale_percent", L"115");
+        try
+        {
+            textScale = std::stoi(rawScale);
+        }
+        catch (...)
+        {
+            textScale = 115;
+        }
+    }
+    if (textScale < 90)
+    {
+        textScale = 90;
+    }
+    if (textScale > 150)
+    {
+        textScale = 150;
+    }
+
+    const int basePx = (20 * textScale) / 100;
+    const int sectionPx = (24 * textScale) / 100;
+    const int navPx = (22 * textScale) / 100;
+
+    // Larger typography for accessibility and modern app feel.
+    m_baseFont = CreateFontW(-basePx, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                             CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    m_sectionFont = CreateFontW(-sectionPx, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
+                                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Semibold");
+    m_navFont = CreateFontW(-navPx, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE,
+                            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Variable Text");
+
+    if (m_pageView)
+    {
+        SendMessageW(m_pageView, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
+                     TRUE);
+    }
+    if (m_navList)
+    {
+        SendMessageW(m_navList, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(m_navFont ? m_navFont : GetStockObject(DEFAULT_GUI_FONT)),
+                     TRUE);
+    }
 
     if (m_hwnd)
     {
@@ -301,15 +589,30 @@ void SettingsWindow::PopulatePluginTabs()
         return;
     }
 
+    const LRESULT previousSelection = SendMessageW(m_navList, LB_GETCURSEL, 0, 0);
+
     SendMessageW(m_navList, LB_RESETCONTENT, 0, 0);
 
     for (const auto& tab : m_pluginTabs)
     {
-        std::wstring label = tab.iconGlyph + L"  " + tab.title;
+        std::wstring label = m_navCollapsed ? tab.iconGlyph : (tab.iconGlyph + L"  " + tab.title);
         SendMessageW(m_navList, LB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label.c_str()));
     }
 
-    SendMessageW(m_navList, LB_SETCURSEL, 0, 0);
+    m_navHoverIndex = -1;
+
+    int selectionToApply = 0;
+    if (previousSelection >= 0)
+    {
+        selectionToApply = static_cast<int>(previousSelection);
+    }
+    if (selectionToApply >= static_cast<int>(m_pluginTabs.size()))
+    {
+        selectionToApply = static_cast<int>(m_pluginTabs.empty() ? 0 : (m_pluginTabs.size() - 1));
+    }
+    SendMessageW(m_navList, LB_SETCURSEL, static_cast<WPARAM>(selectionToApply), 0);
+
+    InvalidateRect(m_navList, nullptr, TRUE);
     ShowSelectedPluginTab();
 }
 
@@ -426,10 +729,11 @@ void SettingsWindow::ShowSelectedPluginTab()
         RECT clientRect{};
         GetClientRect(m_hwnd, &clientRect);
         const int width = clientRect.right - clientRect.left;
-        const int navWidth = 250;
+        const int navWidth = m_navCollapsed ? 64 : 280;
         const int margin   = 10;
+        const int topArea = 42;
         const int rightX   = navWidth + (margin * 2);
-        const int rightY   = margin;
+        const int rightY   = margin + topArea;
         const int rightW   = width - navWidth - (margin * 3);
 
         PopulateFieldControls(tabIndex, rightX, rightY, rightW);
@@ -541,6 +845,7 @@ std::wstring SettingsWindow::BuildPluginsContent(const std::vector<PluginStatusV
 {
     std::wstring text;
     text += L"Plugins\r\n\r\n";
+    text += L"Use the Plugin Hub controls above to sync plugins into %LOCALAPPDATA%\\SimpleFences\\plugins.\r\n\r\n";
 
     if (plugins.empty())
     {
@@ -619,10 +924,36 @@ std::wstring SettingsWindow::BuildGenericPageContent(const SettingsPageView& pag
     if (page.pluginId == L"builtin.appearance" && page.pageId == L"appearance.theme")
     {
         const std::wstring themeText = (m_themeMode == ThemeMode::Dark) ? L"dark" : L"light";
+        std::wstring styleText = L"system";
+        if (m_themeStyle == ThemeStyle::Discord)
+        {
+            styleText = L"discord";
+        }
+        else if (m_themeStyle == ThemeStyle::Fences)
+        {
+            styleText = L"fences";
+        }
+        else if (m_themeStyle == ThemeStyle::GitHubDark)
+        {
+            styleText = L"github_dark";
+        }
+        else if (m_themeStyle == ThemeStyle::GitHubDarkDimmed)
+        {
+            styleText = L"github_dark_dimmed";
+        }
+        else if (m_themeStyle == ThemeStyle::GitHubLight)
+        {
+            styleText = L"github_light";
+        }
+        else if (m_themeStyle == ThemeStyle::Custom)
+        {
+            styleText = L"custom";
+        }
         return L"Theme\r\n\r\n"
-               L"- Current app settings host theme follows system preference.\r\n"
+               L"- Theme engine supports mode + style profiles for future app-wide theming.\r\n"
                L"- Active theme: " + themeText + L"\r\n"
-               L"- Suggested future toggles: force light, force dark, use system accent color.";
+               L"- Active style: " + styleText + L"\r\n"
+               L"- Palette includes window, surface, nav, text, subtle-text, and accent colors.";
     }
 
     if (page.pluginId == L"builtin.explorer_portal" && page.pageId == L"explorer.portal")
@@ -700,15 +1031,151 @@ void SettingsWindow::ClearFieldControls()
     m_nextControlId = 2000;
 }
 
+void SettingsWindow::RegisterTooltipForControl(HWND control, const std::wstring& tipText)
+{
+    if (!m_tooltip || !control || tipText.empty())
+    {
+        return;
+    }
+
+    TOOLINFOW ti{};
+    ti.cbSize = sizeof(TOOLINFOW);
+    ti.uFlags = TTF_SUBCLASS;
+    ti.hwnd = m_hwnd;
+    ti.uId = reinterpret_cast<UINT_PTR>(control);
+    ti.lpszText = const_cast<LPWSTR>(tipText.c_str());
+    GetClientRect(control, &ti.rect);
+    SendMessageW(m_tooltip, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM>(&ti));
+}
+
+void SettingsWindow::DrawNavItem(const DRAWITEMSTRUCT* drawInfo)
+{
+    if (!drawInfo || drawInfo->itemID == static_cast<UINT>(-1))
+    {
+        return;
+    }
+
+    const size_t index = static_cast<size_t>(drawInfo->itemID);
+    if (index >= m_pluginTabs.size())
+    {
+        return;
+    }
+
+    HDC hdc = drawInfo->hDC;
+    RECT rc = drawInfo->rcItem;
+    const PluginTab& tab = m_pluginTabs[index];
+    const bool selected = (drawInfo->itemState & ODS_SELECTED) != 0;
+    const bool hovered = (m_navHoverIndex == static_cast<int>(index));
+
+    HBRUSH background = CreateSolidBrush(m_navColor);
+    FillRect(hdc, &rc, background);
+    DeleteObject(background);
+
+    RECT pillRc = rc;
+    InflateRect(&pillRc, -6, -4);
+
+    if (selected || hovered)
+    {
+        const COLORREF fillColor = selected
+            ? BlendColor(m_navColor, m_accentColor, 76)
+            : BlendColor(m_navColor, m_accentColor, 28);
+        HBRUSH fillBrush = CreateSolidBrush(fillColor);
+        FillRect(hdc, &pillRc, fillBrush);
+        DeleteObject(fillBrush);
+    }
+
+    if (selected)
+    {
+        RECT accentRc = pillRc;
+        accentRc.right = accentRc.left + 4;
+        HBRUSH accentBrush = CreateSolidBrush(m_accentColor);
+        FillRect(hdc, &accentRc, accentBrush);
+        DeleteObject(accentBrush);
+    }
+
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, m_textColor);
+    SelectObject(hdc, m_navFont ? m_navFont : GetStockObject(DEFAULT_GUI_FONT));
+
+    if (m_navCollapsed)
+    {
+        DrawTextW(hdc, tab.iconGlyph.c_str(), -1, &pillRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    }
+    else
+    {
+        RECT glyphRc = pillRc;
+        glyphRc.left += 12;
+        glyphRc.right = glyphRc.left + 24;
+        DrawTextW(hdc, tab.iconGlyph.c_str(), -1, &glyphRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+        RECT textRc = pillRc;
+        textRc.left = glyphRc.right + 12;
+        DrawTextW(hdc, tab.title.c_str(), -1, &textRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    }
+
+    if ((drawInfo->itemState & ODS_FOCUS) != 0)
+    {
+        RECT focusRc = pillRc;
+        InflateRect(&focusRc, -2, -2);
+        DrawFocusRect(hdc, &focusRc);
+    }
+}
+
+LRESULT CALLBACK SettingsWindow::NavListSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
+                                                     UINT_PTR subclassId, DWORD_PTR refData)
+{
+    (void)subclassId;
+
+    auto* self = reinterpret_cast<SettingsWindow*>(refData);
+    if (!self)
+    {
+        return DefSubclassProc(hwnd, msg, wParam, lParam);
+    }
+
+    switch (msg)
+    {
+    case WM_MOUSEMOVE:
+    {
+        TRACKMOUSEEVENT tme{};
+        tme.cbSize = sizeof(tme);
+        tme.dwFlags = TME_LEAVE;
+        tme.hwndTrack = hwnd;
+        TrackMouseEvent(&tme);
+
+        const POINT pt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        const LRESULT hit = SendMessageW(hwnd, LB_ITEMFROMPOINT, 0, MAKELPARAM(pt.x, pt.y));
+        const int hoverIndex = (HIWORD(hit) != 0) ? -1 : static_cast<int>(LOWORD(hit));
+        if (hoverIndex != self->m_navHoverIndex)
+        {
+            self->m_navHoverIndex = hoverIndex;
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
+        break;
+    }
+    case WM_MOUSELEAVE:
+        if (self->m_navHoverIndex != -1)
+        {
+            self->m_navHoverIndex = -1;
+            InvalidateRect(hwnd, nullptr, FALSE);
+        }
+        break;
+    default:
+        break;
+    }
+
+    return DefSubclassProc(hwnd, msg, wParam, lParam);
+}
+
 void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int rightY, int rightW)
 {
-    const HFONT hFont = reinterpret_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
-    const int   rowH        = 28;
+    const HFONT hFont = m_baseFont ? m_baseFont : reinterpret_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
+    const HFONT hHeaderFont = m_sectionFont ? m_sectionFont : hFont;
+    const int   rowH        = 34;
     const int   rowGap      = 6;
-    const int   sectionGap  = 18;
-    const int   labelWidth  = 220;
-    const int   ctrlWidth   = 200;
-    const int   ctrlGap     = 8;
+    const int   sectionGap  = 22;
+    const int   labelWidth  = 280;
+    const int   ctrlWidth   = 290;
+    const int   ctrlGap     = 14;
 
     int y = rightY;
 
@@ -734,7 +1201,7 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
             m_hwnd, nullptr, GetModuleHandleW(nullptr), nullptr);
         if (hHeader)
         {
-            SendMessageW(hHeader, WM_SETFONT, reinterpret_cast<WPARAM>(hFont), TRUE);
+            SendMessageW(hHeader, WM_SETFONT, reinterpret_cast<WPARAM>(hHeaderFont), TRUE);
             m_fieldControls.push_back(hHeader);
         }
         y += rowH + 4;
@@ -766,6 +1233,7 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
             {
                 SendMessageW(hLabel, WM_SETFONT, reinterpret_cast<WPARAM>(hFont), TRUE);
                 m_fieldControls.push_back(hLabel);
+                RegisterTooltipForControl(hLabel, field.description);
             }
 
             // Sub-description (optional, shown on the next line)
@@ -850,6 +1318,7 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
             {
                 SendMessageW(hCtrl, WM_SETFONT, reinterpret_cast<WPARAM>(hFont), TRUE);
                 m_fieldControls.push_back(hCtrl);
+                RegisterTooltipForControl(hCtrl, field.description);
 
                 FieldControlInfo info;
                 info.key     = field.key;
@@ -880,17 +1349,99 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
 
     const FieldControlInfo& info = it->second;
 
+    auto applyImmediateUiChanges = [&](const std::wstring& changedKey) {
+        if (changedKey == L"settings.ui.nav_collapsed" && m_settingsRegistry)
+        {
+            const bool desiredCollapsed = (m_settingsRegistry->GetValue(L"settings.ui.nav_collapsed", L"false") == L"true");
+            m_pendingNavCollapsed = desiredCollapsed;
+            PostMessageW(m_hwnd, kMsgApplyNavCollapsed, desiredCollapsed ? 1 : 0, 0);
+        }
+
+        if (StartsWith(changedKey, L"appearance.theme."))
+        {
+            RefreshTheme();
+            const UINT themeMsg = ThemePlatform::GetThemeChangedMessageId();
+            SendNotifyMessageW(HWND_BROADCAST, themeMsg, 0, 0);
+            ShowSelectedPluginTab();
+        }
+    };
+
     if (info.type == SettingsFieldType::Bool && notificationCode == BN_CLICKED)
     {
         const bool checked = (SendMessageW(hwndCtrl, BM_GETCHECK, 0, 0) == BST_CHECKED);
         m_settingsRegistry->SetValue(info.key, checked ? L"true" : L"false");
+        applyImmediateUiChanges(info.key);
     }
     else if (info.type == SettingsFieldType::Enum && notificationCode == CBN_SELCHANGE)
     {
         const LRESULT sel = SendMessageW(hwndCtrl, CB_GETCURSEL, 0, 0);
         if (sel >= 0 && static_cast<size_t>(sel) < info.options.size())
         {
-            m_settingsRegistry->SetValue(info.key, info.options[static_cast<size_t>(sel)].value);
+            const std::wstring selectedValue = info.options[static_cast<size_t>(sel)].value;
+            m_settingsRegistry->SetValue(info.key, selectedValue);
+
+            // Built-in Settings > Plugins action: sync from plugin hub.
+            if (info.key == L"settings.plugins.hub_action" && selectedValue == L"sync_now")
+            {
+                const std::wstring repoUrl = m_settingsRegistry->GetValue(
+                    L"settings.plugins.hub_repo_url",
+                    L"https://github.com/MrIvoe/Simple-Fences-Plugins.git");
+                const std::wstring branch = m_settingsRegistry->GetValue(
+                    L"settings.plugins.hub_branch",
+                    L"main");
+
+                const PluginHubSyncResult result = PluginHubSync::SyncFromRepository(repoUrl, branch);
+                if (!result.success)
+                {
+                    Win32Helpers::ShowUserWarning(m_hwnd, L"Plugin Hub Sync Failed", result.message);
+                }
+                else
+                {
+                    MessageBoxW(m_hwnd, result.message.c_str(), L"Plugin Hub Sync", MB_OK | MB_ICONINFORMATION);
+                }
+
+                // Reset action to idle after running once.
+                m_settingsRegistry->SetValue(L"settings.plugins.hub_action", L"idle");
+                SendMessageW(hwndCtrl, CB_SETCURSEL, 0, 0);
+            }
+
+            if (info.key == L"appearance.theme.preset_action" && m_themePlatform)
+            {
+                std::wstring selectedPath;
+                bool completed = false;
+
+                if (selectedValue == L"import")
+                {
+                    if (Win32Helpers::PromptOpenJsonFile(m_hwnd, L"Import Theme Preset", selectedPath))
+                    {
+                        completed = true;
+                        if (!m_themePlatform->ImportCustomPreset(selectedPath))
+                        {
+                            Win32Helpers::ShowUserWarning(m_hwnd, L"Theme Import Failed", L"The selected preset could not be imported.");
+                        }
+                    }
+                }
+                else if (selectedValue == L"export")
+                {
+                    selectedPath = L"SimpleFences-theme.json";
+                    if (Win32Helpers::PromptSaveJsonFile(m_hwnd, L"Export Theme Preset", selectedPath))
+                    {
+                        completed = true;
+                        if (!m_themePlatform->ExportCustomPreset(selectedPath))
+                        {
+                            Win32Helpers::ShowUserWarning(m_hwnd, L"Theme Export Failed", L"The current preset could not be exported.");
+                        }
+                    }
+                }
+
+                if (completed)
+                {
+                    m_settingsRegistry->SetValue(L"appearance.theme.preset_action", L"idle");
+                    SendMessageW(hwndCtrl, CB_SETCURSEL, 0, 0);
+                }
+            }
+
+            applyImmediateUiChanges(info.key);
         }
     }
     else if ((info.type == SettingsFieldType::String || info.type == SettingsFieldType::Int)
@@ -899,6 +1450,7 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
         wchar_t buf[1024]{};
         GetWindowTextW(hwndCtrl, buf, static_cast<int>(std::size(buf)));
         m_settingsRegistry->SetValue(info.key, buf);
+        applyImmediateUiChanges(info.key);
     }
 }
 
@@ -931,11 +1483,25 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     {
     case WM_CREATE:
     {
+        m_navToggleButton = CreateWindowExW(
+            0,
+            L"BUTTON",
+            L"<",
+            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            0,
+            0,
+            28,
+            28,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kNavToggleId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
         m_navList = CreateWindowExW(
             WS_EX_CLIENTEDGE,
             L"LISTBOX",
             L"",
-            WS_CHILD | WS_VISIBLE | LBS_NOTIFY | WS_VSCROLL,
+            WS_CHILD | WS_VISIBLE | LBS_NOTIFY | LBS_OWNERDRAWFIXED | LBS_HASSTRINGS | WS_VSCROLL,
             0,
             0,
             200,
@@ -959,8 +1525,32 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             GetModuleHandleW(nullptr),
             nullptr);
 
+        m_tooltip = CreateWindowExW(
+            WS_EX_TOPMOST,
+            TOOLTIPS_CLASSW,
+            nullptr,
+            WS_POPUP | TTS_ALWAYSTIP | TTS_NOPREFIX,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            hwnd,
+            nullptr,
+            GetModuleHandleW(nullptr),
+            nullptr);
+
+        if (m_tooltip)
+        {
+            SetWindowPos(m_tooltip, HWND_TOPMOST, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            SendMessageW(m_tooltip, TTM_SETMAXTIPWIDTH, 0, 460);
+            SendMessageW(m_tooltip, TTM_SETDELAYTIME, TTDT_AUTOPOP, 10000);
+            SendMessageW(m_tooltip, TTM_SETDELAYTIME, TTDT_INITIAL, 250);
+        }
+
         SendMessageW(m_pageView, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         SendMessageW(m_navList, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SetWindowSubclass(m_navList, &SettingsWindow::NavListSubclassProc, 1, reinterpret_cast<DWORD_PTR>(this));
 
         RefreshTheme();
         PopulatePluginTabs();
@@ -970,17 +1560,27 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     {
         const int width = LOWORD(lParam);
         const int height = HIWORD(lParam);
-        const int navWidth = 250;
+        const int navWidth = m_navCollapsed ? 64 : 280;
         const int margin = 10;
+        const int topArea = 42;
 
+        if (m_navToggleButton)
+        {
+            MoveWindow(m_navToggleButton, margin, margin, navWidth, 30, TRUE);
+            SetWindowTextW(m_navToggleButton, m_navCollapsed ? L">" : L"<");
+            SendMessageW(m_navToggleButton, WM_SETFONT,
+                reinterpret_cast<WPARAM>(m_navFont ? m_navFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        }
         if (m_navList)
         {
-            MoveWindow(m_navList, margin, margin, navWidth, height - (margin * 2), TRUE);
+            MoveWindow(m_navList, margin, margin + topArea, navWidth, height - (margin * 2) - topArea, TRUE);
         }
         if (m_pageView)
         {
-            MoveWindow(m_pageView, navWidth + (margin * 2), margin, width - navWidth - (margin * 3), height - (margin * 2), TRUE);
+            MoveWindow(m_pageView, navWidth + (margin * 2), margin + topArea, width - navWidth - (margin * 3), height - (margin * 2) - topArea, TRUE);
         }
+        // Re-layout dynamic field controls for the selected tab.
+        ShowSelectedPluginTab();
         return 0;
     }
     case WM_COMMAND:
@@ -988,6 +1588,25 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         const int id   = LOWORD(wParam);
         const int code = HIWORD(wParam);
         HWND hwndCtrl  = reinterpret_cast<HWND>(lParam);
+
+        if (id == kNavToggleId && code == BN_CLICKED)
+        {
+            const DWORD nowTick = GetTickCount();
+            if (m_lastNavToggleTick != 0 && (nowTick - m_lastNavToggleTick) < kNavToggleDebounceMs)
+            {
+                return 0;
+            }
+            m_lastNavToggleTick = nowTick;
+
+            const bool desiredCollapsed = !m_navCollapsed;
+            if (m_settingsRegistry)
+            {
+                m_settingsRegistry->SetValue(L"settings.ui.nav_collapsed", desiredCollapsed ? L"true" : L"false");
+            }
+            m_pendingNavCollapsed = desiredCollapsed;
+            PostMessageW(hwnd, kMsgApplyNavCollapsed, desiredCollapsed ? 1 : 0, 0);
+            return 0;
+        }
 
         if (id == kNavId && code == LBN_SELCHANGE)
         {
@@ -1007,24 +1626,63 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     case WM_THEMECHANGED:
         RefreshTheme();
         return 0;
+    case kMsgApplyNavCollapsed:
+    {
+        const bool requestedCollapsed = (wParam != 0);
+        m_navCollapsed = requestedCollapsed;
+        PopulatePluginTabs();
+        RECT rc{};
+        GetClientRect(hwnd, &rc);
+        SendMessageW(hwnd, WM_SIZE, 0, MAKELPARAM(rc.right - rc.left, rc.bottom - rc.top));
+
+        Win32Helpers::LogInfo(
+            L"Settings nav collapse apply: requested=" + std::wstring(requestedCollapsed ? L"true" : L"false") +
+            L", applied=" + std::wstring(m_navCollapsed ? L"true" : L"false") +
+            L", pending=" + std::wstring(m_pendingNavCollapsed ? L"true" : L"false"));
+        return 0;
+    }
+    case WM_MEASUREITEM:
+    {
+        auto* measure = reinterpret_cast<MEASUREITEMSTRUCT*>(lParam);
+        if (measure && measure->CtlID == kNavId)
+        {
+            measure->itemHeight = m_navCollapsed ? 44 : 40;
+            measure->itemWidth = static_cast<UINT>(m_navCollapsed ? 64 : 280);
+            return TRUE;
+        }
+        break;
+    }
+    case WM_DRAWITEM:
+    {
+        auto* drawInfo = reinterpret_cast<DRAWITEMSTRUCT*>(lParam);
+        if (drawInfo && drawInfo->CtlID == kNavId)
+        {
+            DrawNavItem(drawInfo);
+            return TRUE;
+        }
+        break;
+    }
     case WM_CTLCOLORLISTBOX:
     case WM_CTLCOLOREDIT:
     case WM_CTLCOLORSTATIC:
     case WM_CTLCOLORBTN:
     {
-        if (m_themeMode != ThemeMode::Dark)
-        {
-            break;
-        }
-
         HDC hdc = reinterpret_cast<HDC>(wParam);
+        HWND ctrl = reinterpret_cast<HWND>(lParam);
+        const bool isNav = (ctrl == m_navList);
+
         SetTextColor(hdc, m_textColor);
-        SetBkColor(hdc, m_surfaceColor);
+        SetBkColor(hdc, isNav ? m_navColor : m_surfaceColor);
+
+        if (isNav)
+        {
+            return reinterpret_cast<LRESULT>(m_navBrush ? m_navBrush : m_surfaceBrush);
+        }
         return reinterpret_cast<LRESULT>(m_surfaceBrush ? m_surfaceBrush : GetStockObject(DC_BRUSH));
     }
     case WM_ERASEBKGND:
     {
-        if (m_themeMode != ThemeMode::Dark || !m_windowBrush)
+        if (!m_windowBrush)
         {
             break;
         }
@@ -1039,7 +1697,14 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         return 0;
     case WM_DESTROY:
         DestroyThemeBrushes();
+        DestroyFonts();
+        if (m_tooltip)
+        {
+            DestroyWindow(m_tooltip);
+            m_tooltip = nullptr;
+        }
         m_hwnd = nullptr;
+        m_navToggleButton = nullptr;
         m_navList = nullptr;
         m_pageView = nullptr;
         m_plugins.clear();

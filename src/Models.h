@@ -23,8 +23,19 @@ struct FenceModel
     std::wstring backingFolder;
     std::wstring contentType = L"file_collection";
     std::wstring contentPluginId = L"core.file_collection";
+    std::wstring contentSource;
+    std::wstring contentState = L"ready";
+    std::wstring contentStateDetail;
     std::wstring appearanceProfileId;
     std::wstring widgetLayoutId;
+
+    // Per-fence presentation controls.
+    bool textOnlyMode = false;                  // false => icon-first desktop style
+    bool rollupWhenNotHovered = false;
+    bool transparentWhenNotHovered = false;
+    bool labelsOnHover = true;
+    std::wstring iconSpacingPreset = L"comfortable"; // compact | comfortable | spacious
+    bool inheritThemePolicy = true;
 };
 
 struct FileMoveResult

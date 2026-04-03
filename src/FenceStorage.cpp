@@ -590,7 +590,7 @@ int FenceStorage::GetFileIconIndex(const std::wstring& filePath)
     try
     {
         SHFILEINFOW sfi{};
-        UINT flags = SHGFI_SYSICONINDEX | SHGFI_SMALLICON;
+        UINT flags = SHGFI_SYSICONINDEX | SHGFI_LARGEICON;
         DWORD attrs = 0;
 
         if (!fs::exists(filePath))

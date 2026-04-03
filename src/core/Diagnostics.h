@@ -6,5 +6,6 @@ class Diagnostics
 {
 public:
     void Info(const std::wstring& message) const;
+    void Warn(const std::wstring& message) const;
     void Error(const std::wstring& message) const;
 };

@@ -94,8 +94,10 @@ bool Persistence::LoadFences(std::vector<FenceModel>& fences)
         json root = json::parse(file, nullptr, false);
         if (!root.is_object())
         {
-            Win32Helpers::LogError(L"Metadata file is malformed json, ignoring data: " + m_metadataPath);
-            return false;
+            file.close();
+            Win32Helpers::LogError(L"Metadata file is malformed json. Quarantining file and starting with empty set: " + m_metadataPath);
+            QuarantineCorruptMetadata(L"Malformed JSON root");
+            return true;
         }
 
         if (!root.contains("fences") || !root["fences"].is_array())
@@ -125,8 +127,17 @@ bool Persistence::LoadFences(std::vector<FenceModel>& fences)
             fence.backingFolder = FromUtf8(item.value("backingFolder", std::string{}));
             fence.contentType = FromUtf8(item.value("contentType", std::string{"file_collection"}));
             fence.contentPluginId = FromUtf8(item.value("contentPluginId", std::string{"core.file_collection"}));
+            fence.contentSource = FromUtf8(item.value("contentSource", std::string{}));
+            fence.contentState = FromUtf8(item.value("contentState", std::string{"ready"}));
+            fence.contentStateDetail = FromUtf8(item.value("contentStateDetail", std::string{}));
             fence.appearanceProfileId = FromUtf8(item.value("appearanceProfileId", std::string{}));
             fence.widgetLayoutId = FromUtf8(item.value("widgetLayoutId", std::string{}));
+            fence.textOnlyMode = item.value("textOnlyMode", false);
+            fence.rollupWhenNotHovered = item.value("rollupWhenNotHovered", false);
+            fence.transparentWhenNotHovered = item.value("transparentWhenNotHovered", false);
+            fence.labelsOnHover = item.value("labelsOnHover", true);
+            fence.iconSpacingPreset = FromUtf8(item.value("iconSpacingPreset", std::string{"comfortable"}));
+            fence.inheritThemePolicy = item.value("inheritThemePolicy", true);
 
             if (fence.contentType.empty())
             {
@@ -137,6 +148,11 @@ bool Persistence::LoadFences(std::vector<FenceModel>& fences)
             {
                 fence.contentPluginId = L"core.file_collection";
             }
+
+            if (fence.contentState.empty())
+            {
+                fence.contentState = L"ready";
+            }
             fences.push_back(std::move(fence));
         }
 
@@ -144,8 +160,10 @@ bool Persistence::LoadFences(std::vector<FenceModel>& fences)
     }
     catch (const std::exception& ex)
     {
-        Win32Helpers::LogError(L"LoadFences exception for metadata path: " + m_metadataPath + L" reason: " + NarrowToWide(ex.what()));
-        return false;
+        Win32Helpers::LogError(L"LoadFences exception. Quarantining metadata path: " + m_metadataPath + L" reason: " + NarrowToWide(ex.what()));
+        QuarantineCorruptMetadata(L"Exception during load");
+        fences.clear();
+        return true;
     }
 }
 
@@ -169,8 +187,17 @@ bool Persistence::SaveFences(const std::vector<FenceModel>& fences)
                 {"backingFolder", ToUtf8(fence.backingFolder)},
                 {"contentType", ToUtf8(fence.contentType)},
                 {"contentPluginId", ToUtf8(fence.contentPluginId)},
+                {"contentSource", ToUtf8(fence.contentSource)},
+                {"contentState", ToUtf8(fence.contentState)},
+                {"contentStateDetail", ToUtf8(fence.contentStateDetail)},
                 {"appearanceProfileId", ToUtf8(fence.appearanceProfileId)},
-                {"widgetLayoutId", ToUtf8(fence.widgetLayoutId)}
+                {"widgetLayoutId", ToUtf8(fence.widgetLayoutId)},
+                {"textOnlyMode", fence.textOnlyMode},
+                {"rollupWhenNotHovered", fence.rollupWhenNotHovered},
+                {"transparentWhenNotHovered", fence.transparentWhenNotHovered},
+                {"labelsOnHover", fence.labelsOnHover},
+                {"iconSpacingPreset", ToUtf8(fence.iconSpacingPreset)},
+                {"inheritThemePolicy", fence.inheritThemePolicy}
             });
         }
 
@@ -241,6 +268,47 @@ bool Persistence::SaveTextAtomic(const std::string& text)
     catch (const std::exception& ex)
     {
         Win32Helpers::LogError(L"SaveTextAtomic exception for metadata path: " + m_metadataPath + L" reason: " + NarrowToWide(ex.what()));
+        return false;
+    }
+}
+
+bool Persistence::QuarantineCorruptMetadata(const std::wstring& reason)
+{
+    try
+    {
+        if (!fs::exists(m_metadataPath))
+        {
+            return true;
+        }
+
+        SYSTEMTIME st{};
+        GetLocalTime(&st);
+
+        const fs::path source(m_metadataPath);
+        const fs::path backup = source.wstring() +
+            L".corrupt-" +
+            std::to_wstring(st.wYear) +
+            std::to_wstring(st.wMonth) +
+            std::to_wstring(st.wDay) +
+            L"-" +
+            std::to_wstring(st.wHour) +
+            std::to_wstring(st.wMinute) +
+            std::to_wstring(st.wSecond);
+
+        std::error_code ec;
+        fs::rename(source, backup, ec);
+        if (ec)
+        {
+            Win32Helpers::LogError(L"Failed to quarantine corrupt metadata file: " + source.wstring() + L" reason='" + NarrowToWide(ec.message()) + L"'");
+            return false;
+        }
+
+        Win32Helpers::LogInfo(L"Quarantined corrupt metadata file: " + backup.wstring() + L" reason='" + reason + L"'");
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        Win32Helpers::LogError(L"QuarantineCorruptMetadata exception for path: " + m_metadataPath + L" reason: " + NarrowToWide(ex.what()));
         return false;
     }
 }

@@ -16,6 +16,7 @@ public:
 private:
     bool EnsureDirectory();
     bool SaveTextAtomic(const std::string& text);
+    bool QuarantineCorruptMetadata(const std::wstring& reason);
 
     std::wstring m_metadataPath;
 };

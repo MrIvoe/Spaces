@@ -1,14 +1,19 @@
 #pragma once
+#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <windows.h>
 #include "Models.h"
+#include "extensions/MenuContributionRegistry.h"
+#include "extensions/PluginContracts.h"
 
 class FenceWindow;
 class FenceStorage;
 class Persistence;
 class FenceExtensionRegistry;
+class ThemePlatform;
 
 class FenceManager
 {
@@ -20,6 +25,7 @@ public:
     bool SaveAll();
 
     std::wstring CreateFenceAt(int x, int y, const std::wstring& title = L"New Fence");
+    std::wstring CreateFenceAt(int x, int y, const FenceCreateRequest& request);
     void DeleteFence(const std::wstring& fenceId);
     void RenameFence(const std::wstring& fenceId, const std::wstring& newTitle);
 
@@ -28,15 +34,37 @@ public:
 
     bool HandleDrop(const std::wstring& fenceId, const std::vector<std::wstring>& paths);
     bool DeleteItem(const std::wstring& fenceId, const FenceItem& item);
+    void SetFenceTextOnlyMode(const std::wstring& fenceId, bool enabled);
+    void SetFenceThemePolicyInheritance(const std::wstring& fenceId, bool enabled);
+    void SetFenceRollupWhenNotHovered(const std::wstring& fenceId, bool enabled);
+    void SetFenceTransparentWhenNotHovered(const std::wstring& fenceId, bool enabled);
+    void SetFenceLabelsOnHover(const std::wstring& fenceId, bool enabled);
+    void SetFenceIconSpacingPreset(const std::wstring& fenceId, const std::wstring& preset);
+    void ApplyFenceSettingsToAll(const std::wstring& sourceFenceId);
     void UpdateFenceGeometry(const std::wstring& fenceId, int x, int y, int width, int height);
     void Shutdown();
     FenceModel* FindFence(const std::wstring& fenceId);
+    const FenceModel* FindFence(const std::wstring& fenceId) const;
     FenceWindow* FindFenceWindow(const std::wstring& fenceId);
+    const FenceWindow* FindFenceWindow(const std::wstring& fenceId) const;
+    const FenceModel* FindFenceByWindow(HWND hwnd) const;
+    std::vector<std::wstring> GetAllFenceIds() const;
     void SetFenceExtensionRegistry(const FenceExtensionRegistry* registry);
+    void SetMenuContributionRegistry(const MenuContributionRegistry* registry);
+    void SetCommandExecutor(std::function<bool(const std::wstring&, const CommandContext&)> executor);
+    void SetThemePlatform(const ThemePlatform* themePlatform);
+    bool SetFenceContentSource(const std::wstring& fenceId, const std::wstring& contentSource);
+    void SetFenceContentState(const std::wstring& fenceId,
+                              const std::wstring& state,
+                              const std::wstring& detail);
+    void ApplyFencePresentation(const std::wstring& fenceId, const FencePresentationSettings& settings);
+    std::vector<MenuContribution> GetMenuContributions(MenuSurface surface) const;
+    bool ExecuteCommand(const std::wstring& commandId, const CommandContext& context) const;
 
 private:
     std::wstring GenerateFenceId() const;
     bool NormalizeFenceContentProvider(FenceModel& fence) const;
+    FenceMetadata BuildFenceMetadata(const FenceModel& fence) const;
 
 private:
     std::unique_ptr<FenceStorage> m_storage;
@@ -44,4 +72,7 @@ private:
     std::vector<FenceModel> m_fences;
     std::unordered_map<std::wstring, std::unique_ptr<FenceWindow>> m_windows;
     const FenceExtensionRegistry* m_fenceExtensionRegistry = nullptr;
+    const MenuContributionRegistry* m_menuRegistry = nullptr;
+    const ThemePlatform* m_themePlatform = nullptr;
+    std::function<bool(const std::wstring&, const CommandContext&)> m_commandExecutor;
 };

@@ -5,14 +5,83 @@
 #include <algorithm>
 #include <unordered_map>
 
+namespace
+{
+    bool IsValidField(const SettingsFieldDescriptor& field)
+    {
+        if (field.key.empty() || field.label.empty())
+        {
+            return false;
+        }
+
+        if (field.type == SettingsFieldType::Enum && field.options.empty())
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    bool EnumContainsValue(const SettingsFieldDescriptor& field, const std::wstring& value)
+    {
+        for (const auto& option : field.options)
+        {
+            if (option.value == value)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
 void PluginSettingsRegistry::SetStore(SettingsStore* store)
 {
     m_store = store;
 }
 
-void PluginSettingsRegistry::RegisterPage(const PluginSettingsPage& page)
+bool PluginSettingsRegistry::RegisterPage(const PluginSettingsPage& page)
 {
-    m_pages.push_back(page);
+    if (page.pluginId.empty() || page.pageId.empty() || page.title.empty())
+    {
+        return false;
+    }
+
+    PluginSettingsPage normalized = page;
+    normalized.fields.erase(
+        std::remove_if(normalized.fields.begin(), normalized.fields.end(), [](const SettingsFieldDescriptor& field) {
+            return !IsValidField(field);
+        }),
+        normalized.fields.end());
+
+    for (auto& field : normalized.fields)
+    {
+        if (field.type == SettingsFieldType::Enum && !EnumContainsValue(field, field.defaultValue))
+        {
+            field.defaultValue = field.options.front().value;
+        }
+    }
+
+    std::sort(normalized.fields.begin(), normalized.fields.end(), [](const SettingsFieldDescriptor& a, const SettingsFieldDescriptor& b) {
+        if (a.order == b.order)
+        {
+            return a.label < b.label;
+        }
+        return a.order < b.order;
+    });
+
+    for (auto& existing : m_pages)
+    {
+        if (existing.pluginId == normalized.pluginId && existing.pageId == normalized.pageId)
+        {
+            existing = std::move(normalized);
+            return true;
+        }
+    }
+
+    m_pages.push_back(std::move(normalized));
+    return true;
 }
 
 std::vector<PluginSettingsPage> PluginSettingsRegistry::GetAllPages() const
@@ -27,6 +96,11 @@ std::vector<PluginSettingsPage> PluginSettingsRegistry::GetAllPages() const
     });
 
     return pages;
+}
+
+void PluginSettingsRegistry::ClearPages()
+{
+    m_pages.clear();
 }
 
 std::wstring PluginSettingsRegistry::GetValue(const std::wstring& key, const std::wstring& defaultValue) const

@@ -19,10 +19,16 @@
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\Diagnostics.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\PluginHubSync.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ServiceRegistry.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\SettingsStore.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePlatform.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginHost.cpp">
@@ -84,10 +90,16 @@
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\KernelViews.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\PluginHubSync.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ServiceRegistry.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\SettingsStore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePlatform.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginContracts.h">

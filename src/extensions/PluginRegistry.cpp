@@ -14,7 +14,25 @@ void PluginRegistry::Upsert(const PluginStatus& status)
     m_plugins.push_back(status);
 }
 
+void PluginRegistry::Clear()
+{
+    m_plugins.clear();
+}
+
 const std::vector<PluginStatus>& PluginRegistry::GetAll() const
 {
     return m_plugins;
+}
+
+const PluginStatus* PluginRegistry::FindById(const std::wstring& id) const
+{
+    for (const auto& plugin : m_plugins)
+    {
+        if (plugin.manifest.id == id)
+        {
+            return &plugin;
+        }
+    }
+
+    return nullptr;
 }

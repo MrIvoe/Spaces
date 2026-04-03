@@ -27,10 +27,14 @@ add_executable(SimpleFences WIN32
     src/core/Diagnostics.h
     src/core/Diagnostics.cpp
     src/core/KernelViews.h
+    src/core/PluginHubSync.h
+    src/core/PluginHubSync.cpp
     src/core/ServiceRegistry.h
     src/core/ServiceRegistry.cpp
     src/core/SettingsStore.h
     src/core/SettingsStore.cpp
+    src/core/ThemePlatform.h
+    src/core/ThemePlatform.cpp
     src/extensions/PluginContracts.h
     src/extensions/SettingsSchema.h
     src/extensions/PluginHost.h
@@ -69,6 +73,7 @@ target_include_directories(SimpleFences PRIVATE
 # Link Windows libraries
 target_link_libraries(SimpleFences
     nlohmann_json::nlohmann_json
+    comdlg32
     user32
     shell32
     ole32
@@ -90,3 +95,57 @@ else()
     target_compile_options(SimpleFences PRIVATE -Wall -Wextra)
     target_compile_definitions(SimpleFences PRIVATE UNICODE _UNICODE)
 endif()
+
+enable_testing()
+
+add_executable(HostCoreTests
+    tests/HostCoreTests.cpp
+    src/AppVersion.h
+    src/core/CommandDispatcher.h
+    src/core/CommandDispatcher.cpp
+    src/core/Diagnostics.h
+    src/core/Diagnostics.cpp
+    src/core/SettingsStore.h
+    src/core/SettingsStore.cpp
+    src/Persistence.h
+    src/Persistence.cpp
+    src/Models.h
+    src/extensions/PluginContracts.h
+    src/extensions/MenuContributionRegistry.h
+    src/extensions/MenuContributionRegistry.cpp
+    src/extensions/PluginRegistry.h
+    src/extensions/PluginRegistry.cpp
+    src/extensions/PluginSettingsRegistry.h
+    src/extensions/PluginSettingsRegistry.cpp
+    src/extensions/FenceExtensionRegistry.h
+    src/extensions/FenceExtensionRegistry.cpp
+    src/plugins/builtins/BuiltinPlugins.h
+    src/plugins/builtins/BuiltinPlugins.cpp
+    src/Win32Helpers.h
+    src/Win32Helpers.cpp
+)
+
+target_include_directories(HostCoreTests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+if(MSVC)
+    target_compile_options(HostCoreTests PRIVATE /W4)
+    target_compile_definitions(HostCoreTests PRIVATE UNICODE _UNICODE)
+else()
+    target_compile_options(HostCoreTests PRIVATE -Wall -Wextra)
+    target_compile_definitions(HostCoreTests PRIVATE UNICODE _UNICODE)
+endif()
+
+target_link_libraries(HostCoreTests
+    nlohmann_json::nlohmann_json
+    comdlg32
+    user32
+    shell32
+    ole32
+    comctl32
+    shlwapi
+    kernel32
+)
+
+add_test(NAME HostCoreTests COMMAND HostCoreTests)

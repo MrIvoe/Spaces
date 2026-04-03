@@ -2,9 +2,25 @@
 
 #include <algorithm>
 
-void MenuContributionRegistry::Register(const MenuContribution& contribution)
+bool MenuContributionRegistry::Register(const MenuContribution& contribution)
 {
+    if (contribution.title.empty() || contribution.commandId.empty())
+    {
+        return false;
+    }
+
+    for (const auto& existing : m_contributions)
+    {
+        if (existing.surface == contribution.surface &&
+            existing.title == contribution.title &&
+            existing.commandId == contribution.commandId)
+        {
+            return false;
+        }
+    }
+
     m_contributions.push_back(contribution);
+    return true;
 }
 
 std::vector<MenuContribution> MenuContributionRegistry::GetBySurface(MenuSurface surface) const
@@ -27,4 +43,9 @@ std::vector<MenuContribution> MenuContributionRegistry::GetBySurface(MenuSurface
     });
 
     return items;
+}
+
+void MenuContributionRegistry::Clear()
+{
+    m_contributions.clear();
 }

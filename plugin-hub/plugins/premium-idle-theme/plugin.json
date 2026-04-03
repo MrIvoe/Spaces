@@ -1,0 +1,12 @@
+{
+  "id": "premium-idle-theme",
+  "name": "Premium Idle Theme",
+  "version": "0.0.1",
+  "description": "Per-fence premium behavior profile for icon-first fences: optional transparency and roll-up when not hovered.",
+  "author": "SimpleFences",
+  "capabilities": [
+    "appearance",
+    "fence_behavior"
+  ],
+  "entry": "src/PremiumIdleThemePlugin.cpp"
+}

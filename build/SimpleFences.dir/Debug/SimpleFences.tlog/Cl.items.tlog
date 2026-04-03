@@ -4,8 +4,10 @@ C:\Users\MrIvo\Github\IVOESimpleFences\src\core\AppKernel.cpp;C:\Users\MrIvo\Git
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\CommandDispatcher.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\CommandDispatcher.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\EventBus.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\EventBus.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\Diagnostics.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\Diagnostics.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\core\PluginHubSync.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\PluginHubSync.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ServiceRegistry.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\ServiceRegistry.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\SettingsStore.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\SettingsStore.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePlatform.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\ThemePlatform.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginHost.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\PluginHost.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginRegistry.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\PluginRegistry.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginSettingsRegistry.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\PluginSettingsRegistry.obj

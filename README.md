@@ -3,7 +3,7 @@
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#build-and-run)
 [![Language](https://img.shields.io/badge/language-C%2B%2B17-00599C.svg)](#tech-stack)
 [![Build System](https://img.shields.io/badge/build-CMake-064F8C.svg)](#build-and-run)
-[![Version](https://img.shields.io/badge/version-0.0.010-2EA043.svg)](#release-history)
+[![Version](https://img.shields.io/badge/version-0.0.012-2EA043.svg)](#release-history)
 
 A lightweight Win32 desktop organizer for Windows that lets you create simple desktop fences and move files into them safely.
 
@@ -39,21 +39,20 @@ First run notes:
 
 ## Current Version
 
-Current version: `0.0.010`
+Current version: `0.0.012`
 
 ## Current Status
 
-Current phase: `0.0.010` host-hardening milestone, introducing settings shell scaffolding, plugin diagnostics surface, and core content-provider normalization.
+Current phase: `0.0.012` main-app reliability and polish milestone, focused on startup safety, fence rename UX, drag/drop robustness, and persistence recovery.
 
 Primary focus right now:
 
 - keep core fence create/move/resize/drag-drop/persist/restore behavior stable
-- introduce kernel-level command and extension host scaffolding
-- route tray behavior through command and menu contribution registries
-- prepare content-type aware persistence fields with backward compatibility
-- expose plugin diagnostics and status through kernel-facing APIs
-- scaffold settings host shell pages (General, Plugins, Diagnostics)
-- normalize content-provider fallback to core `file_collection` when plugin providers are unavailable
+- prevent duplicate app instances and improve shutdown reliability
+- keep fence create/move/resize interactions responsive and predictable
+- improve drag/drop handling for duplicate and self-drop edge cases
+- recover safely from malformed persisted config files
+- improve icon fidelity and practical rename/edit flow
 
 ## What the App Does
 
@@ -142,16 +141,20 @@ Current safety rules:
 - built-in plugin host scaffold with capability manifests
 - plugin settings and fence-extension registries with status/page API exposure
 - settings shell command path (`plugin.openSettings`) with scaffold UI
+- fence context organization commands via plugin (`builtin.fence_organizer`)
+- plugin manifest API compatibility checks (`minHostApiVersion` / `maxHostApiVersion`)
+- safe command dispatch diagnostics (unknown/failed command logging)
+- registry validation for menu/settings contributions (invalid and duplicate guardrails)
+- host-core regression tests for command and extension registries (`HostCoreTests`)
 
 ## Known Limitations
 
 - still early alpha
 - visual design is basic
-- rename workflow is not fully implemented in the UI
 - icon fidelity and rendering polish still need work
 - no installer yet
 - no cloud sync
-- no advanced sorting, tabs, or portal fences
+- no tabs yet
 - no shell extension integration
 - plugin architecture is foundation-only (placeholders for advanced providers)
 - settings host uses scaffold window (full rich UI still pending)
@@ -191,7 +194,7 @@ README.md
 
 ## Architecture Overview
 
-The 0.0.009 transition introduces a plugin platform around a protected fence kernel.
+The 0.0.011 milestone reinforces the plugin platform around a protected fence kernel.
 
 Core rule:
 
@@ -201,10 +204,12 @@ Core rule:
 
 Kernel/platform services now include:
 
-- `AppKernel`: startup scaffolding for command routing and plugin host lifecycle
-- `CommandDispatcher`: command registration and dispatch (`fence.create`, `app.exit`)
+- `AppKernel`: startup scaffolding for command routing, plugin host lifecycle, and failure diagnostics
+- `CommandDispatcher`: command registration and isolated dispatch (`fence.create`, `app.exit`)
 - `EventBus`: lightweight event pub/sub scaffold for controlled extension reactions
 - `PluginHost` + registries: built-in plugin loading, capability registration, settings/menu extension points
+
+Extension architecture details now live in [docs/EXTENSIBILITY.md](docs/EXTENSIBILITY.md).
 
 Core fence domain remains responsible for:
 
@@ -233,6 +238,7 @@ flowchart TD
     F --> O[ExplorerFencePlugin]
     F --> P[WidgetsPlugin]
     F --> Q[DesktopContextPlugin]
+    F --> S[FenceOrganizerPlugin]
 
     G --> R[FenceWindow]
     L --> D
@@ -324,6 +330,26 @@ Check:
 This can happen intentionally if restore was only partially successful. The fence is kept so remaining items can still be recovered safely.
 
 ## Release History
+
+### 0.0.012
+
+- added single-instance startup guard with user-facing warning and clean mutex teardown
+- implemented practical fence rename workflow from the fence context menu
+- hardened drag/drop routing to deduplicate paths and skip self-drops from the same fence folder
+- improved corrupted metadata recovery by quarantining malformed config and continuing startup
+- aligned icon list loading to large icon rendering for better icon fidelity
+- expanded host core tests with persistence corruption recovery coverage
+
+### 0.0.011
+
+- added versioned plugin contract compatibility bounds in manifest (`minHostApiVersion` / `maxHostApiVersion`)
+- hardened plugin host loading with manifest validation, duplicate-id rejection, and exception isolation
+- added safer command dispatcher behavior with collision checks and exception-safe dispatch results
+- added command execution diagnostics for unknown commands and command handler failures
+- hardened menu and settings registries with contribution validation and deterministic duplicate handling
+- improved settings-store load compatibility for legacy flat JSON format
+- added focused host infrastructure regression tests (`HostCoreTests`) and wired CTest execution
+- documented plugin-first host responsibilities in `docs/EXTENSIBILITY.md`
 
 ### 0.0.010
 

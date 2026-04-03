@@ -17,7 +17,9 @@ class PluginRegistry
 {
 public:
     void Upsert(const PluginStatus& status);
+    void Clear();
     const std::vector<PluginStatus>& GetAll() const;
+    const PluginStatus* FindById(const std::wstring& id) const;
 
 private:
     std::vector<PluginStatus> m_plugins;

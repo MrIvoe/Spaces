@@ -23,8 +23,9 @@ public:
     // Called by AppKernel to attach persistent storage.
     void SetStore(SettingsStore* store);
 
-    void RegisterPage(const PluginSettingsPage& page);
+    bool RegisterPage(const PluginSettingsPage& page);
     std::vector<PluginSettingsPage> GetAllPages() const;
+    void ClearPages();
 
     // Read / write a persisted setting value.
     // If no SettingsStore is attached the in-memory map is used (session-only).
