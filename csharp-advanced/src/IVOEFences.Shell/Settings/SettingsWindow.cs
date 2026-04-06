@@ -1576,9 +1576,122 @@ internal sealed class SettingsWindow
     private void DrawPluginsTab(IntPtr hdc, int clientRight, bool dark)
     {
         int y = ScrolledContentTop;
+
+        PluginThemeSnapshot themeSnapshot = ThemeService.Instance.GetCurrentTheme();
+        PluginUpdateState updateState = PluginUpdateService.Instance.GetGlobalState();
+        IReadOnlyList<PluginMetadata> pluginMetadata = PluginManagerService.Instance.GetPlugins();
+        PluginTrustPolicyService trustPolicy = PluginTrustPolicyService.Instance;
+        trustPolicy.Reload();
+
+        DrawSectionHeader(hdc, "Host Services", y - 26, clientRight, dark);
+        y = DrawChoiceRow(hdc, y, clientRight, "Current theme", themeSnapshot.ThemeMode, () => { }, dark, trackSettingChange: false);
+        y = DrawChoiceRow(hdc, y, clientRight, "Accent color", themeSnapshot.AccentColorHex, () => { }, dark, trackSettingChange: false);
+        y = DrawChoiceRow(hdc, y, clientRight, "Update state", updateState.Kind.ToString(), () => { }, dark, trackSettingChange: false);
+        y = DrawChoiceRow(hdc, y, clientRight, "Trust policy",
+            $"manifest signed: {trustPolicy.EnforceSignedManifest}, package signed: {trustPolicy.EnforceSignedPackage}",
+            () => { }, dark, trackSettingChange: false);
+        y = DrawActionRow(hdc, y, clientRight, "Refresh plugin status", "Refresh", () =>
+        {
+            PluginUpdateService.Instance.BeginCheck("settings refresh");
+            PluginManagerService.Instance.RefreshFromManifests(AppPaths.PluginsDir, new PluginManifestReader());
+            PluginUpdateService.Instance.RefreshFromMetadata(PluginManagerService.Instance.GetPlugins());
+            _statusText = "Plugin status refreshed";
+            Win32.InvalidateRect(_hwnd, IntPtr.Zero, true);
+        }, dark);
+        y = DrawActionRow(hdc, y, clientRight, "Install plugin package", "Install", () =>
+        {
+            string? packagePath = Win32InputDialog.Show(
+                _hwnd,
+                "Enter full path to a plugin package (.zip)",
+                "Install Plugin Package",
+                string.Empty);
+            if (string.IsNullOrWhiteSpace(packagePath))
+                return;
+
+            string? expectedChecksum = Win32InputDialog.Show(
+                _hwnd,
+                "Optional SHA256 checksum (leave blank to trust plugin.json package checksum)",
+                "Package Checksum",
+                string.Empty);
+
+            PluginInstallResult result = PluginPackageService.Instance.InstallPackageFromArchive(packagePath, expectedChecksum);
+            _statusText = result.Success
+                ? $"Installed {result.PluginId} {result.Version}"
+                : $"Install failed: {result.Message}";
+
+            PluginManagerService.Instance.RefreshFromManifests(AppPaths.PluginsDir, new PluginManifestReader());
+            PluginUpdateService.Instance.RefreshFromMetadata(PluginManagerService.Instance.GetPlugins());
+            Win32.InvalidateRect(_hwnd, IntPtr.Zero, true);
+        }, dark);
+        y = DrawActionRow(hdc, y, clientRight, "Rollback plugin install", "Rollback", () =>
+        {
+            string? pluginId = Win32InputDialog.Show(
+                _hwnd,
+                "Enter plugin id to rollback to the latest backup snapshot",
+                "Rollback Plugin Install",
+                string.Empty);
+
+            if (string.IsNullOrWhiteSpace(pluginId))
+                return;
+
+            PluginInstallResult rollback = PluginPackageService.Instance.RollbackLastInstall(pluginId);
+            _statusText = rollback.Success
+                ? $"Rollback complete: {pluginId}"
+                : $"Rollback failed: {rollback.Message}";
+
+            PluginManagerService.Instance.RefreshFromManifests(AppPaths.PluginsDir, new PluginManifestReader());
+            PluginUpdateService.Instance.RefreshFromMetadata(PluginManagerService.Instance.GetPlugins());
+            Win32.InvalidateRect(_hwnd, IntPtr.Zero, true);
+        }, dark);
+
+        y += 10;
+        DrawSectionHeader(hdc, "Loaded Plugins", y - 26, clientRight, dark);
+        if (pluginMetadata.Count == 0)
+        {
+            y = DrawChoiceRow(hdc, y, clientRight, "Plugins", "None detected", () => { }, dark, trackSettingChange: false);
+        }
+        else
+        {
+            foreach (PluginMetadata metadata in pluginMetadata)
+            {
+                string loaded = metadata.IsLoaded ? "Loaded" : "Not loaded";
+                y = DrawChoiceRow(hdc, y, clientRight, metadata.Name, $"{metadata.Version} | {loaded}", () => { }, dark, trackSettingChange: false);
+                y = DrawChoiceRow(hdc, y, clientRight, "Compatibility", metadata.Compatibility, () => { }, dark, trackSettingChange: false);
+
+                string state = metadata.IsEnabled ? "Enabled" : "Disabled";
+                y = DrawActionRow(hdc, y, clientRight, "State", state == "Enabled" ? "Disable" : "Enable", () =>
+                {
+                    PluginManagerService.Instance.SetPluginEnabled(metadata.Id, !metadata.IsEnabled);
+                    _statusText = metadata.IsEnabled
+                        ? $"Disabled plugin: {metadata.Name}"
+                        : $"Enabled plugin: {metadata.Name}";
+                    Win32.InvalidateRect(_hwnd, IntPtr.Zero, true);
+                }, dark);
+
+                string updateText = metadata.UpdateAvailable
+                    ? $"Update available: {metadata.LatestVersion ?? "new"}"
+                    : "Up to date";
+                y = DrawChoiceRow(hdc, y, clientRight, "Updates", updateText, () => { }, dark, trackSettingChange: false);
+
+                int settingsCount = _pluginSettingDefinitions.Count(def =>
+                    string.Equals(def.PluginId, metadata.Id, StringComparison.OrdinalIgnoreCase));
+                y = DrawActionRow(hdc, y, clientRight, "Settings / config", "Open", () =>
+                {
+                    _statusText = settingsCount > 0
+                        ? $"{metadata.Name}: {settingsCount} setting entries available below"
+                        : $"{metadata.Name}: no registered plugin settings";
+                    _scrollOffsetY = 0;
+                    Win32.InvalidateRect(_hwnd, IntPtr.Zero, true);
+                }, dark);
+
+                y += 8;
+            }
+        }
+
+        y += 10;
         if (_pluginSettingDefinitions.Count == 0)
         {
-            DrawSectionHeader(hdc, "Plugins", y - 26, clientRight, dark);
+            DrawSectionHeader(hdc, "Plugin Settings", y - 26, clientRight, dark);
             var emptyRect = new Win32.RECT { left = ContentLeft, top = y, right = ContentRight(clientRight), bottom = y + 40 };
             Win32.SetBkMode(hdc, Win32.TRANSPARENT);
             Win32.SetTextColor(hdc, ClrTextMuted(dark));

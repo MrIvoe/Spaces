@@ -1,4 +1,8 @@
 C:\Users\MrIvo\Github\IVOESimpleFences\tests\HostCoreTests.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\HostCoreTests.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\PluginContractValidationTests.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\PluginContractValidationTests.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\PluginUpdaterGatesTests.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\PluginUpdaterGatesTests.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\ThemeTokenPolicyTests.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\ThemeTokenPolicyTests.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\PluginSecurityPolicyTests.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\PluginSecurityPolicyTests.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\CommandDispatcher.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\CommandDispatcher.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\Diagnostics.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\Diagnostics.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\SettingsStore.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\SettingsStore.obj

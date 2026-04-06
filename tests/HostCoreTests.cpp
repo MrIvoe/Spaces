@@ -15,6 +15,11 @@
 #include <iostream>
 #include <stdexcept>
 
+int RunPluginContractValidationTests();
+int RunPluginUpdaterGatesTests();
+int RunThemeTokenPolicyTests();
+int RunPluginSecurityPolicyTests();
+
 namespace
 {
     int Fail(const char* message)
@@ -715,6 +720,26 @@ int main()
     }
 
     if (const int result = TestFolderPortalProviderAndVisualModes(); result != 0)
+    {
+        return result;
+    }
+
+    if (const int result = RunPluginContractValidationTests(); result != 0)
+    {
+        return result;
+    }
+
+    if (const int result = RunPluginUpdaterGatesTests(); result != 0)
+    {
+        return result;
+    }
+
+    if (const int result = RunThemeTokenPolicyTests(); result != 0)
+    {
+        return result;
+    }
+
+    if (const int result = RunPluginSecurityPolicyTests(); result != 0)
     {
         return result;
     }

@@ -101,6 +101,10 @@ enable_testing()
 
 add_executable(HostCoreTests
     tests/HostCoreTests.cpp
+    tests/plugins/PluginContractValidationTests.cpp
+    tests/plugins/PluginUpdaterGatesTests.cpp
+    tests/plugins/ThemeTokenPolicyTests.cpp
+    tests/plugins/PluginSecurityPolicyTests.cpp
     src/AppVersion.h
     src/core/CommandDispatcher.h
     src/core/CommandDispatcher.cpp
@@ -124,12 +128,17 @@ add_executable(HostCoreTests
     src/extensions/FenceExtensionRegistry.cpp
     src/plugins/builtins/BuiltinPlugins.h
     src/plugins/builtins/BuiltinPlugins.cpp
+    src/plugins/host/PluginContractModels.h
+    src/plugins/host/ThemeTokenPolicy.h
+    src/plugins/host/PluginContractValidation.h
+    src/plugins/host/PluginUpdaterGates.h
     src/Win32Helpers.h
     src/Win32Helpers.cpp
 )
 
 target_include_directories(HostCoreTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/plugins
 )
 
 if(MSVC)

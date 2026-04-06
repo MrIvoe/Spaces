@@ -1,6 +1,7 @@
 using IVOEFences.Core.Models;
 using IVOEFences.Core.Plugins;
 using IVOEFences.Core.Services;
+using IVOEFences.Core;
 using IVOEFences.Shell.Desktop;
 using IVOEFences.Shell.Fences;
 using Serilog;
@@ -22,10 +23,22 @@ internal sealed class PluginLoader : IDisposable
     private readonly List<IFencePlugin> _loaded = new();
     private readonly HashSet<string> _loadedPluginIds = new(StringComparer.OrdinalIgnoreCase);
     private readonly PluginContext _context;
+    private readonly PluginManagerService _pluginManager;
+    private readonly PluginUpdateService _pluginUpdateService;
+    private readonly PluginManifestReader _pluginManifestReader;
+    private readonly PluginPackageService _pluginPackageService;
+    private readonly PluginCompatibilityService _pluginCompatibilityService;
+    private readonly PluginTrustPolicyService _pluginTrustPolicyService;
     private bool _disposed;
 
     public PluginLoader(Func<string, CreateFenceResult>? createFence = null)
     {
+        _pluginManager = PluginManagerService.Instance;
+        _pluginUpdateService = PluginUpdateService.Instance;
+        _pluginManifestReader = new PluginManifestReader();
+        _pluginPackageService = PluginPackageService.Instance;
+        _pluginCompatibilityService = PluginCompatibilityService.Instance;
+        _pluginTrustPolicyService = PluginTrustPolicyService.Instance;
         _context = new PluginContext(createFence);
     }
 
@@ -42,15 +55,82 @@ internal sealed class PluginLoader : IDisposable
         if (!Directory.Exists(pluginsDirectory))
         {
             Log.Debug("PluginLoader: plugins directory not found at '{Dir}' — skipping", pluginsDirectory);
+            Directory.CreateDirectory(pluginsDirectory);
+        }
+
+        _pluginUpdateService.BeginCheck("startup scan");
+        IReadOnlyList<PluginManifestReader.PluginManifest> manifests =
+            _pluginPackageService.GetCandidateManifests(pluginsDirectory, _pluginManifestReader);
+
+        _pluginManager.RefreshFromManifestList(manifests);
+        _pluginUpdateService.CheckFromManifests(manifests);
+
+        foreach (PluginManifestReader.PluginManifest manifest in manifests)
+        {
+            LoadFromManifest(manifest);
+        }
+
+        if (manifests.Count == 0)
+        {
+            foreach (string dllPath in Directory.EnumerateFiles(pluginsDirectory, "*.Plugin.dll"))
+            {
+                LoadAssembly(dllPath);
+            }
+        }
+
+        _pluginUpdateService.RefreshFromMetadata(_pluginManager.GetPlugins());
+
+        Log.Information("PluginLoader: loaded {Count} plugin(s)", _loaded.Count);
+    }
+
+    private void LoadFromManifest(PluginManifestReader.PluginManifest manifest)
+    {
+        if (!_pluginManager.IsPluginEnabled(manifest.Id))
+        {
+            _pluginManager.SetPluginStatus(manifest.Id, "Disabled");
             return;
         }
 
-        foreach (string dllPath in Directory.EnumerateFiles(pluginsDirectory, "*.Plugin.dll"))
+        PluginCompatibilityResult compatibility = _pluginCompatibilityService.Evaluate(manifest);
+        if (!compatibility.IsCompatible)
         {
-            LoadAssembly(dllPath);
+            _pluginManager.SetPluginStatus(manifest.Id, compatibility.Reason);
+            return;
         }
 
-        Log.Information("PluginLoader: loaded {Count} plugin(s)", _loaded.Count);
+        PluginTrustDecision trustDecision = _pluginTrustPolicyService.EvaluateManifest(manifest);
+        if (!trustDecision.IsTrusted)
+        {
+            _pluginManager.SetPluginStatus(manifest.Id, $"Blocked by trust policy: {trustDecision.Reason}");
+            _pluginUpdateService.SetPluginState(manifest.Id, PluginUpdateState.Create(
+                PluginUpdateStateKind.Failed,
+                trustDecision.Reason,
+                manifest.Version));
+            return;
+        }
+
+        string? assemblyPath = ResolveAssemblyPath(manifest);
+        if (string.IsNullOrWhiteSpace(assemblyPath) || !File.Exists(assemblyPath))
+        {
+            _pluginManager.SetPluginStatus(manifest.Id, "Package manifest present but no plugin assembly was found.");
+            return;
+        }
+
+        LoadAssembly(assemblyPath);
+    }
+
+    private static string? ResolveAssemblyPath(PluginManifestReader.PluginManifest manifest)
+    {
+        if (!string.IsNullOrWhiteSpace(manifest.Assembly))
+        {
+            string resolved = Path.Combine(manifest.DirectoryPath, manifest.Assembly);
+            if (File.Exists(resolved))
+                return resolved;
+        }
+
+        return Directory
+            .EnumerateFiles(manifest.DirectoryPath, "*.Plugin.dll", SearchOption.AllDirectories)
+            .FirstOrDefault();
     }
 
     private void LoadAssembly(string dllPath)
@@ -88,6 +168,9 @@ internal sealed class PluginLoader : IDisposable
         }
         catch (Exception ex)
         {
+            _pluginUpdateService.SetGlobalState(PluginUpdateState.Create(
+                PluginUpdateStateKind.Failed,
+                $"Plugin assembly load failed: {Path.GetFileName(dllPath)}"));
             Log.Warning(ex, "PluginLoader: failed to load assembly '{Path}'", dllPath);
         }
     }
@@ -112,11 +195,19 @@ internal sealed class PluginLoader : IDisposable
 
             plugin.Initialize(_context);
             _loaded.Add(plugin);
+            _pluginManager.RegisterLoadedPlugin(plugin, dllPath);
+            _pluginUpdateService.SetPluginState(plugin.Id, PluginUpdateState.Create(
+                PluginUpdateStateKind.UpToDate,
+                "Loaded successfully.",
+                plugin.Version));
             Log.Information("PluginLoader: loaded plugin '{Name}' v{Version} (id={Id}) from '{Path}'",
                 plugin.Name, plugin.Version, plugin.Id, dllPath);
         }
         catch (Exception ex)
         {
+            _pluginUpdateService.SetGlobalState(PluginUpdateState.Create(
+                PluginUpdateStateKind.Failed,
+                $"Plugin initialization failed: {type.Name}"));
             Log.Warning(ex, "PluginLoader: failed to initialize plugin type '{Type}'", type.FullName);
         }
     }
@@ -147,13 +238,40 @@ internal sealed class PluginLoader : IDisposable
         private readonly List<Action<string>> _workspaceHandlers = new();
         private readonly List<PluginSettingDefinition> _pluginSettings = new();
         private readonly Func<string, CreateFenceResult>? _createFence;
+        private readonly PluginManagerService _pluginManager;
+        private readonly PluginUpdateService _pluginUpdateService;
+        private readonly ThemeService _themeService;
 
         public PluginContext(Func<string, CreateFenceResult>? createFence)
         {
             _createFence = createFence;
+            _pluginManager = PluginManagerService.Instance;
+            _pluginUpdateService = PluginUpdateService.Instance;
+            _themeService = ThemeService.Instance;
         }
 
         public IReadOnlyList<PluginSettingDefinition> PluginSettings => _pluginSettings;
+
+        public PluginThemeSnapshot CurrentTheme => _themeService.GetCurrentTheme();
+
+        public IReadOnlyDictionary<string, string> SharedResources
+        {
+            get
+            {
+                Dictionary<string, string> resources = new(StringComparer.OrdinalIgnoreCase);
+                foreach ((string key, string value) in _themeService.GetSharedResources())
+                    resources[key] = value;
+
+                resources["app.dataRoot"] = AppPaths.DataRoot;
+                resources["app.pluginsDir"] = AppPaths.PluginsDir;
+                resources["app.pluginInstalledDir"] = AppPaths.PluginInstalledDir;
+                resources["app.logsDir"] = AppPaths.LogsDir;
+                resources["app.settingsFile"] = AppPaths.SettingsConfig;
+                resources["app.pluginSettingsFile"] = AppPaths.PluginSettingsConfig;
+                resources["theme.systemDir"] = AppPaths.Win32ThemeSystemDir;
+                return resources;
+            }
+        }
 
         public IReadOnlyList<FenceModel> Fences =>
             FenceStateService.Instance.Fences;
@@ -236,6 +354,31 @@ internal sealed class PluginLoader : IDisposable
         public void SetSetting(string pluginId, string key, string value)
         {
             PluginSettingsStore.Instance.Set(pluginId, key, value);
+        }
+
+        public void ReportStatus(string pluginId, string status)
+        {
+            _pluginManager.SetPluginStatus(pluginId, status);
+            if (!string.IsNullOrWhiteSpace(pluginId))
+            {
+                _pluginUpdateService.SetPluginState(pluginId, PluginUpdateState.Create(
+                    PluginUpdateStateKind.Idle,
+                    status));
+            }
+
+            Serilog.Log.Information("[Plugin:{PluginId}] {Status}", pluginId, status);
+        }
+
+        public IReadOnlyList<PluginMetadata> GetPluginMetadata()
+        {
+            return _pluginManager.GetPlugins();
+        }
+
+        public PluginUpdateState GetUpdateState(string? pluginId = null)
+        {
+            return string.IsNullOrWhiteSpace(pluginId)
+                ? _pluginUpdateService.GetGlobalState()
+                : _pluginUpdateService.GetPluginState(pluginId);
         }
 
         public void RegisterFileAddedHandler(Action<string> handler)

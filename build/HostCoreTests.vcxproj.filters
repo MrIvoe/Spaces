@@ -4,6 +4,18 @@
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\tests\HostCoreTests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\PluginContractValidationTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\PluginUpdaterGatesTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\ThemeTokenPolicyTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\PluginSecurityPolicyTests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\CommandDispatcher.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -76,6 +88,18 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\plugins\builtins\BuiltinPlugins.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\plugins\host\PluginContractModels.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\plugins\host\ThemeTokenPolicy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\plugins\host\PluginContractValidation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\plugins\host\PluginUpdaterGates.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\Win32Helpers.h">

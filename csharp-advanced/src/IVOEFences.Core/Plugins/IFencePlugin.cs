@@ -59,6 +59,21 @@ public interface IPluginContext
     /// <summary>Persist a plugin setting.</summary>
     void SetSetting(string pluginId, string key, string value);
 
+    /// <summary>Current theme snapshot for plugin UI/state decisions.</summary>
+    PluginThemeSnapshot CurrentTheme { get; }
+
+    /// <summary>Shared host resources and known app paths.</summary>
+    IReadOnlyDictionary<string, string> SharedResources { get; }
+
+    /// <summary>Publish plugin status text for host UI and diagnostics.</summary>
+    void ReportStatus(string pluginId, string status);
+
+    /// <summary>Discover plugin metadata known to the host.</summary>
+    IReadOnlyList<PluginMetadata> GetPluginMetadata();
+
+    /// <summary>Get the current plugin update state. Null plugin id returns global state.</summary>
+    PluginUpdateState GetUpdateState(string? pluginId = null);
+
     /// <summary>Subscribe to desktop file-created events.</summary>
     void RegisterFileAddedHandler(Action<string> handler);
 

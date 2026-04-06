@@ -26,6 +26,9 @@ public static class AppPaths
     public static string BehaviorLog    => Path.Combine(DataRoot, "behavior.json");
     public static string DesktopEntitiesConfig => Path.Combine(DataRoot, "desktop-entities.json");
     public static string PluginSettingsConfig => Path.Combine(DataRoot, "plugin-settings.json");
+    public static string PluginHostConfig => Path.Combine(DataRoot, "plugin-host.json");
+    public static string PluginTrustPolicyConfig => Path.Combine(DataRoot, "plugin-trust-policy.json");
+    public static string PluginInstallJournalConfig => Path.Combine(DataRoot, "plugin-install-journal.json");
     public static string WorkspaceBindingsConfig => Path.Combine(DataRoot, "workspace-bindings.json");
     public static string SnapshotsDir   => Path.Combine(DataRoot, "snapshots");
     public static string ThemesDir      => Path.Combine(DataRoot, "themes");
@@ -50,6 +53,12 @@ public static class AppPaths
     
     /// <summary>Folder next to the executable where plugin DLLs are placed.</summary>
     public static string PluginsDir     => Path.Combine(AppContext.BaseDirectory, "plugins");
+    public static string PluginPackagesDir => Path.Combine(DataRoot, "plugin-packages");
+    public static string PluginStagingDir => Path.Combine(PluginPackagesDir, "staging");
+    public static string PluginInstalledDir => Path.Combine(PluginPackagesDir, "installed");
+    public static string PluginCatalogFile => Path.Combine(PluginPackagesDir, "catalog.json");
+    public static string Win32ThemeSystemDir => Path.Combine(ThemesDir, "Win32ThemeSystem");
+    public static string Win32ThemeSystemManifest => Path.Combine(Win32ThemeSystemDir, "theme.json");
     
     /// <summary>True if running in portable mode (portable.flag exists in app directory).</summary>
     public static bool   IsPortableMode => _isPortable;
@@ -65,7 +74,11 @@ public static class AppPaths
         Directory.CreateDirectory(StorageRoot);
         Directory.CreateDirectory(SnapshotsDir);
         Directory.CreateDirectory(ThemesDir);
+        Directory.CreateDirectory(Win32ThemeSystemDir);
         Directory.CreateDirectory(LogsDir);
         Directory.CreateDirectory(PluginsDir);
+        Directory.CreateDirectory(PluginPackagesDir);
+        Directory.CreateDirectory(PluginStagingDir);
+        Directory.CreateDirectory(PluginInstalledDir);
     }
 }

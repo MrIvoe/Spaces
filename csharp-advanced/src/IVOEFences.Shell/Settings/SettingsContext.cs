@@ -9,6 +9,9 @@ internal sealed class SettingsContext
 {
     public FenceManager FenceManager { get; }
     public IReadOnlyList<PluginSettingDefinition> PluginSettings { get; }
+    public PluginManagerService PluginManager { get; }
+    public PluginUpdateService PluginUpdate { get; }
+    public ThemeService ThemeService { get; }
 
     public SettingsContext(
         FenceManager fenceManager,
@@ -16,6 +19,9 @@ internal sealed class SettingsContext
     {
         FenceManager = fenceManager;
         PluginSettings = pluginSettings;
+        PluginManager = PluginManagerService.Instance;
+        PluginUpdate = PluginUpdateService.Instance;
+        ThemeService = ThemeService.Instance;
     }
 
     public AppSettings Settings => AppSettingsRepository.Instance.Current;
