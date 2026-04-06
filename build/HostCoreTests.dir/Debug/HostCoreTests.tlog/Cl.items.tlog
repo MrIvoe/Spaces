@@ -3,9 +3,15 @@ C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\PluginContractValidationTes
 C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\PluginUpdaterGatesTests.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\PluginUpdaterGatesTests.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\ThemeTokenPolicyTests.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\ThemeTokenPolicyTests.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\PluginSecurityPolicyTests.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\PluginSecurityPolicyTests.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\ThemeMigrationTests.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\ThemeMigrationTests.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\ThemeRenderingTests.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\ThemeRenderingTests.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\ThemeIntegrationTests.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\ThemeIntegrationTests.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\CommandDispatcher.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\CommandDispatcher.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\Diagnostics.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\Diagnostics.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\SettingsStore.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\SettingsStore.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePackageLoader.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\ThemePackageLoader.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeTokenResolver.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\ThemeTokenResolver.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeApplyPipeline.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\ThemeApplyPipeline.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePlatform.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\ThemePlatform.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\Persistence.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\Persistence.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\MenuContributionRegistry.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\MenuContributionRegistry.obj
@@ -13,4 +19,7 @@ C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginRegistry.cpp;C:\User
 C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginSettingsRegistry.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\PluginSettingsRegistry.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\FenceExtensionRegistry.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\FenceExtensionRegistry.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\plugins\builtins\BuiltinPlugins.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\BuiltinPlugins.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeMigrationService.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\ThemeMigrationService.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\core\PluginAppearanceConflictGuard.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\PluginAppearanceConflictGuard.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePackageValidator.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\ThemePackageValidator.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\Win32Helpers.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\HostCoreTests.dir\Debug\Win32Helpers.obj

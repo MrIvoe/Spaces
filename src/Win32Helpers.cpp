@@ -328,6 +328,27 @@ namespace Win32Helpers
         return true;
     }
 
+    bool PromptOpenThemeImportFile(HWND owner, const std::wstring& title, std::wstring& selectedPath)
+    {
+        wchar_t buffer[MAX_PATH]{};
+        OPENFILENAMEW ofn{};
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner = owner;
+        ofn.lpstrFilter = L"Theme Files (*.zip;*.json)\0*.zip;*.json\0Theme Packages (*.zip)\0*.zip\0JSON Presets (*.json)\0*.json\0All Files (*.*)\0*.*\0";
+        ofn.lpstrFile = buffer;
+        ofn.nMaxFile = static_cast<DWORD>(std::size(buffer));
+        ofn.lpstrTitle = title.c_str();
+        ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_EXPLORER;
+
+        if (!GetOpenFileNameW(&ofn))
+        {
+            return false;
+        }
+
+        selectedPath.assign(buffer);
+        return true;
+    }
+
     bool PromptSelectFolder(HWND owner, const std::wstring& title, std::wstring& selectedPath)
     {
         BROWSEINFOW info{};

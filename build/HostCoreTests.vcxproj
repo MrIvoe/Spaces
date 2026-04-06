@@ -365,6 +365,9 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\PluginUpdaterGatesTests.cpp" />
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\ThemeTokenPolicyTests.cpp" />
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\PluginSecurityPolicyTests.cpp" />
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\ThemeMigrationTests.cpp" />
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\ThemeRenderingTests.cpp" />
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\tests\plugins\ThemeIntegrationTests.cpp" />
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\AppVersion.h" />
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\CommandDispatcher.h" />
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\CommandDispatcher.cpp" />
@@ -372,6 +375,12 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\Diagnostics.cpp" />
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\SettingsStore.h" />
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\SettingsStore.cpp" />
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePackageLoader.h" />
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePackageLoader.cpp" />
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeTokenResolver.h" />
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeTokenResolver.cpp" />
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeApplyPipeline.h" />
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeApplyPipeline.cpp" />
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePlatform.h" />
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePlatform.cpp" />
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\Persistence.h" />
@@ -392,6 +401,12 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\plugins\host\ThemeTokenPolicy.h" />
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\plugins\host\PluginContractValidation.h" />
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\plugins\host\PluginUpdaterGates.h" />
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeMigrationService.h" />
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeMigrationService.cpp" />
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\PluginAppearanceConflictGuard.h" />
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\PluginAppearanceConflictGuard.cpp" />
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePackageValidator.h" />
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePackageValidator.cpp" />
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\Win32Helpers.h" />
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\Win32Helpers.cpp" />
     <Natvis Include="C:\Users\MrIvo\Github\IVOESimpleFences\build\_deps\nlohmann_json-src\nlohmann_json.natvis">

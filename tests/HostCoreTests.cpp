@@ -19,6 +19,14 @@ int RunPluginContractValidationTests();
 int RunPluginUpdaterGatesTests();
 int RunThemeTokenPolicyTests();
 int RunPluginSecurityPolicyTests();
+int RunThemeMigrationTests();
+int RunThemeRenderingConsistencyTests();
+int RunThemeFallbackTests();
+int RunThemePersistenceTests();
+int RunThemeApplyIntegrationTests();
+int RunThemeTokenResolverIntegrationTests();
+int RunThemeFullLifecycleTests();
+int RunThemePackageValidationIntegrationTests();
 
 namespace
 {
@@ -744,6 +752,45 @@ int main()
         return result;
     }
 
+    if (const int result = RunThemeMigrationTests(); result != 0)
+    {
+        return result;
+    }
+
+    if (const int result = RunThemeRenderingConsistencyTests(); result != 0)
+    {
+        return result;
+    }
+
+    if (const int result = RunThemeFallbackTests(); result != 0)
+    {
+        return result;
+    }
+
+    if (const int result = RunThemePersistenceTests(); result != 0)
+    {
+        return result;
+    }
+
     std::cout << "HostCoreTests passed\n";
+        if (const int result = RunThemeApplyIntegrationTests(); result != 0)
+        {
+            return result;
+        }
+
+        if (const int result = RunThemeTokenResolverIntegrationTests(); result != 0)
+        {
+            return result;
+        }
+
+        if (const int result = RunThemeFullLifecycleTests(); result != 0)
+        {
+            return result;
+        }
+
+        if (const int result = RunThemePackageValidationIntegrationTests(); result != 0)
+        {
+            return result;
+        }
     return 0;
 }

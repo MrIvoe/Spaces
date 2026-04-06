@@ -7,6 +7,7 @@
 #include "core/EventBus.h"
 #include "core/ServiceRegistry.h"
 #include "core/SettingsStore.h"
+#include "core/ThemeMigrationService.h"
 #include "core/ThemePlatform.h"
 #include "extensions/FenceExtensionRegistry.h"
 #include "extensions/PluginContracts.h"
@@ -269,6 +270,15 @@ bool AppKernel::Initialize(App* app)
     m_settingsStore = std::make_unique<SettingsStore>();
     const auto settingsPath = Win32Helpers::GetFencesRoot() / L"settings.json";
     m_settingsStore->Load(settingsPath);
+
+    // Run idempotent theme migration before any theme rendering.
+    ThemeMigrationService themeMigration(m_settingsStore.get());
+    if (!themeMigration.Migrate())
+    {
+        if (m_diagnostics)
+            m_diagnostics->Warn(L"Theme migration encountered an error; using defaults");
+    }
+
     m_settingsRegistry->SetStore(m_settingsStore.get());
     m_themePlatform = std::make_unique<ThemePlatform>(m_settingsStore.get());
 

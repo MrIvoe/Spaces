@@ -28,6 +28,24 @@
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\SettingsStore.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeMigrationService.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\PluginAppearanceConflictGuard.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePackageValidator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePackageLoader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeTokenResolver.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeApplyPipeline.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePlatform.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -97,6 +115,24 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\SettingsStore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeMigrationService.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\PluginAppearanceConflictGuard.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePackageValidator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePackageLoader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeTokenResolver.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeApplyPipeline.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePlatform.h">

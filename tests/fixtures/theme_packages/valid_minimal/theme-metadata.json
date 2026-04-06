@@ -1,0 +1,8 @@
+{
+  "theme_id": "sample-valid-theme",
+  "display_name": "Sample Valid Theme",
+  "version": "1.0.0",
+  "author": "SimpleFences Tests",
+  "description": "Fixture package for integration tests",
+  "default_mode": "default"
+}

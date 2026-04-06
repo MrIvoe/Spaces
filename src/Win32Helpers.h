@@ -31,6 +31,7 @@ namespace Win32Helpers
                          std::wstring& resultValue);
     bool PromptSelectFolder(HWND owner, const std::wstring& title, std::wstring& selectedPath);
     bool PromptOpenJsonFile(HWND owner, const std::wstring& title, std::wstring& selectedPath);
+    bool PromptOpenThemeImportFile(HWND owner, const std::wstring& title, std::wstring& selectedPath);
     bool PromptSaveJsonFile(HWND owner, const std::wstring& title, std::wstring& selectedPath);
     void MeasureThemedPopupMenuItem(MEASUREITEMSTRUCT* measureInfo, const PopupMenuItemVisual& item);
     void DrawThemedPopupMenuItem(const DRAWITEMSTRUCT* drawInfo, const ThemePalette& palette, const PopupMenuItemVisual& item);

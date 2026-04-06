@@ -33,6 +33,18 @@ add_executable(SimpleFences WIN32
     src/core/ServiceRegistry.cpp
     src/core/SettingsStore.h
     src/core/SettingsStore.cpp
+    src/core/ThemeMigrationService.h
+    src/core/ThemeMigrationService.cpp
+    src/core/PluginAppearanceConflictGuard.h
+    src/core/PluginAppearanceConflictGuard.cpp
+    src/core/ThemePackageValidator.h
+    src/core/ThemePackageValidator.cpp
+    src/core/ThemePackageLoader.h
+    src/core/ThemePackageLoader.cpp
+    src/core/ThemeTokenResolver.h
+    src/core/ThemeTokenResolver.cpp
+    src/core/ThemeApplyPipeline.h
+    src/core/ThemeApplyPipeline.cpp
     src/core/ThemePlatform.h
     src/core/ThemePlatform.cpp
     src/extensions/PluginContracts.h
@@ -105,6 +117,9 @@ add_executable(HostCoreTests
     tests/plugins/PluginUpdaterGatesTests.cpp
     tests/plugins/ThemeTokenPolicyTests.cpp
     tests/plugins/PluginSecurityPolicyTests.cpp
+    tests/plugins/ThemeMigrationTests.cpp
+    tests/plugins/ThemeRenderingTests.cpp
+        tests/plugins/ThemeIntegrationTests.cpp
     src/AppVersion.h
     src/core/CommandDispatcher.h
     src/core/CommandDispatcher.cpp
@@ -112,6 +127,12 @@ add_executable(HostCoreTests
     src/core/Diagnostics.cpp
     src/core/SettingsStore.h
     src/core/SettingsStore.cpp
+        src/core/ThemePackageLoader.h
+        src/core/ThemePackageLoader.cpp
+        src/core/ThemeTokenResolver.h
+        src/core/ThemeTokenResolver.cpp
+        src/core/ThemeApplyPipeline.h
+        src/core/ThemeApplyPipeline.cpp
     src/core/ThemePlatform.h
     src/core/ThemePlatform.cpp
     src/Persistence.h
@@ -132,6 +153,18 @@ add_executable(HostCoreTests
     src/plugins/host/ThemeTokenPolicy.h
     src/plugins/host/PluginContractValidation.h
     src/plugins/host/PluginUpdaterGates.h
+    src/core/ThemeMigrationService.h
+    src/core/ThemeMigrationService.cpp
+    src/core/PluginAppearanceConflictGuard.h
+    src/core/PluginAppearanceConflictGuard.cpp
+    src/core/ThemePackageValidator.h
+    src/core/ThemePackageValidator.cpp
+        src/core/ThemePackageLoader.h
+        src/core/ThemePackageLoader.cpp
+        src/core/ThemeTokenResolver.h
+        src/core/ThemeTokenResolver.cpp
+        src/core/ThemeApplyPipeline.h
+        src/core/ThemeApplyPipeline.cpp
     src/Win32Helpers.h
     src/Win32Helpers.cpp
 )

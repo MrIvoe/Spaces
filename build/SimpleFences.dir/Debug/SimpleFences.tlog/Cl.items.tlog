@@ -7,6 +7,12 @@ C:\Users\MrIvo\Github\IVOESimpleFences\src\core\Diagnostics.cpp;C:\Users\MrIvo\G
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\PluginHubSync.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\PluginHubSync.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ServiceRegistry.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\ServiceRegistry.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\SettingsStore.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\SettingsStore.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeMigrationService.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\ThemeMigrationService.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\core\PluginAppearanceConflictGuard.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\PluginAppearanceConflictGuard.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePackageValidator.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\ThemePackageValidator.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePackageLoader.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\ThemePackageLoader.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeTokenResolver.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\ThemeTokenResolver.obj
+C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemeApplyPipeline.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\ThemeApplyPipeline.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\core\ThemePlatform.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\ThemePlatform.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginHost.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\PluginHost.obj
 C:\Users\MrIvo\Github\IVOESimpleFences\src\extensions\PluginRegistry.cpp;C:\Users\MrIvo\Github\IVOESimpleFences\build\SimpleFences.dir\Debug\PluginRegistry.obj

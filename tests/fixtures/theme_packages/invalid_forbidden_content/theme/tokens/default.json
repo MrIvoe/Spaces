@@ -1,0 +1,7 @@
+{
+  "tokens": {
+    "win32.base.window_color": "#EDEDED",
+    "win32.base.text_color": "#202020",
+    "win32.base.accent_color": "#5A7DFF"
+  }
+}

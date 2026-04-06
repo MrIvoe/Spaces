@@ -1,13 +1,19 @@
 #include "ui/SettingsWindow.h"
 
 #include "core/PluginHubSync.h"
+#include "core/ThemePackageLoader.h"
+#include "core/ThemePackageValidator.h"
 #include "core/ThemePlatform.h"
 #include "extensions/PluginSettingsRegistry.h"
 #include "Win32Helpers.h"
 
 #include <algorithm>
+#include <cwctype>
+#include <filesystem>
+#include <fstream>
 #include <sstream>
 #include <unordered_map>
+#include <nlohmann/json.hpp>
 #include <commctrl.h>
 #include <windows.h>
 #include <windowsx.h>
@@ -61,6 +67,82 @@ namespace
         }
 
         return plugin.loaded ? L"loaded" : L"failed";
+    }
+
+    std::wstring ToLowerCopy(std::wstring text)
+    {
+        std::transform(text.begin(), text.end(), text.begin(),
+            [](wchar_t c) { return static_cast<wchar_t>(towlower(c)); });
+        return text;
+    }
+
+    bool HasZipExtension(const std::wstring& filePath)
+    {
+        const std::wstring ext = ToLowerCopy(std::filesystem::path(filePath).extension().wstring());
+        return ext == L".zip";
+    }
+
+    std::string NarrowAscii(const std::wstring& text)
+    {
+        std::string result;
+        result.reserve(text.size());
+        for (wchar_t c : text)
+        {
+            result.push_back((c >= 0 && c <= 0x7F) ? static_cast<char>(c) : '?');
+        }
+        return result;
+    }
+
+    void AddColorTokenIfPresent(nlohmann::json& colors,
+                                const ThemePackageLoader::TokenMap& tokenMap,
+                                const std::wstring& tokenName,
+                                const char* presetKey)
+    {
+        std::wstring value;
+        if (tokenMap.GetToken(tokenName, value) && !value.empty())
+        {
+            colors[presetKey] = NarrowAscii(value);
+        }
+    }
+
+    bool BuildPresetJsonFromTokenMap(const ThemePackageLoader::TokenMap& tokenMap,
+                                     const std::wstring& outputPath)
+    {
+        nlohmann::json root;
+        root["version"] = 1;
+        root["type"] = "simplefences.theme-preset";
+        root["mode"] = "system";
+        root["style"] = "custom";
+        root["textScalePercent"] = 100;
+
+        nlohmann::json colors = nlohmann::json::object();
+        AddColorTokenIfPresent(colors, tokenMap, L"win32.base.window_color", "window");
+        AddColorTokenIfPresent(colors, tokenMap, L"win32.base.surface_color", "surface");
+        AddColorTokenIfPresent(colors, tokenMap, L"win32.base.nav_color", "nav");
+        AddColorTokenIfPresent(colors, tokenMap, L"win32.base.text_color", "text");
+        AddColorTokenIfPresent(colors, tokenMap, L"win32.base.subtle_text_color", "subtleText");
+        AddColorTokenIfPresent(colors, tokenMap, L"win32.base.accent_color", "accent");
+        AddColorTokenIfPresent(colors, tokenMap, L"win32.base.border_color", "border");
+        AddColorTokenIfPresent(colors, tokenMap, L"win32.fence.title_bar_color", "fenceTitleBar");
+        AddColorTokenIfPresent(colors, tokenMap, L"win32.fence.title_text_color", "fenceTitleText");
+        AddColorTokenIfPresent(colors, tokenMap, L"win32.fence.item_text_color", "fenceItemText");
+        AddColorTokenIfPresent(colors, tokenMap, L"win32.fence.item_hover_color", "fenceItemHover");
+
+        if (colors.empty())
+        {
+            return false;
+        }
+
+        root["colors"] = colors;
+
+        std::ofstream output(outputPath);
+        if (!output.is_open())
+        {
+            return false;
+        }
+
+        output << root.dump(2);
+        return true;
     }
 }
 
@@ -1592,12 +1674,82 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
 
                 if (selectedValue == L"import")
                 {
-                    if (Win32Helpers::PromptOpenJsonFile(m_hwnd, L"Import Theme Preset", selectedPath))
+                    if (Win32Helpers::PromptOpenThemeImportFile(m_hwnd, L"Import Theme Preset or Package", selectedPath))
                     {
                         completed = true;
-                        if (!m_themePlatform->ImportCustomPreset(selectedPath))
+
+                        bool imported = false;
+                        if (HasZipExtension(selectedPath))
+                        {
+                            ThemePackageValidator validator;
+                            const auto validation = validator.ValidatePackage(selectedPath);
+                            if (!validation.isValid)
+                            {
+                                Win32Helpers::ShowUserWarning(
+                                    m_hwnd,
+                                    L"Theme Package Validation Failed",
+                                    validation.errorMessage.empty() ? L"The selected package is invalid." : validation.errorMessage);
+                            }
+                            else
+                            {
+                                ThemePackageLoader loader;
+                                const auto loadResult = loader.LoadPackage(selectedPath);
+                                if (!loadResult.success)
+                                {
+                                    Win32Helpers::ShowUserWarning(
+                                        m_hwnd,
+                                        L"Theme Package Load Failed",
+                                        loadResult.errorMessage.empty() ? L"Could not parse theme package." : loadResult.errorMessage);
+                                }
+                                else
+                                {
+                                    const auto tempPresetPath = (std::filesystem::temp_directory_path() / L"simplefences-imported-theme-preset.json").wstring();
+                                    if (!BuildPresetJsonFromTokenMap(loadResult.tokenMap, tempPresetPath))
+                                    {
+                                        Win32Helpers::ShowUserWarning(
+                                            m_hwnd,
+                                            L"Theme Package Load Failed",
+                                            L"Package token map is missing required color tokens.");
+                                    }
+                                    else if (!m_themePlatform->ImportCustomPreset(tempPresetPath))
+                                    {
+                                        Win32Helpers::ShowUserWarning(
+                                            m_hwnd,
+                                            L"Theme Import Failed",
+                                            L"The package was loaded but could not be applied.");
+                                    }
+                                    else
+                                    {
+                                        imported = true;
+                                        if (m_settingsRegistry)
+                                        {
+                                            m_settingsRegistry->SetValue(L"theme.source", L"win32_theme_system");
+                                            m_settingsRegistry->SetValue(L"theme.win32.theme_id", validation.themeId);
+                                            m_settingsRegistry->SetValue(L"theme.win32.display_name", validation.displayName);
+                                            m_settingsRegistry->SetValue(L"theme.win32.catalog_version", validation.version);
+                                        }
+                                        Win32Helpers::LogInfo(L"Theme package imported: id='" + validation.themeId + L"' name='" + validation.displayName + L"'");
+                                    }
+
+                                    std::error_code ec;
+                                    std::filesystem::remove(tempPresetPath, ec);
+                                    ThemePackageLoader::CleanupExtraction(loadResult.extractedPath);
+                                }
+                            }
+                        }
+                        else if (!m_themePlatform->ImportCustomPreset(selectedPath))
                         {
                             Win32Helpers::ShowUserWarning(m_hwnd, L"Theme Import Failed", L"The selected preset could not be imported.");
+                        }
+                        else
+                        {
+                            imported = true;
+                            Win32Helpers::LogInfo(L"Theme JSON preset imported: " + selectedPath);
+                        }
+
+                        if (!imported)
+                        {
+                            Win32Helpers::LogInfo(L"Theme import did not apply changes.");
                         }
                     }
                 }

@@ -1,0 +1,8 @@
+{
+  "theme_id": "sample-invalid-forbidden",
+  "display_name": "Sample Invalid Forbidden",
+  "version": "1.0.0",
+  "author": "SimpleFences Tests",
+  "description": "Fixture package that includes forbidden file",
+  "default_mode": "default"
+}

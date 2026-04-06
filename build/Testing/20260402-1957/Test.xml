@@ -25,8 +25,8 @@
 	ProcessorClockFrequency="2100"
 	>
 	<Testing>
-		<StartDateTime>Apr 06 11:16 Pacific Daylight Time</StartDateTime>
-		<StartTestTime>1775499411</StartTestTime>
+		<StartDateTime>Apr 06 13:00 Pacific Daylight Time</StartDateTime>
+		<StartTestTime>1775505620</StartTestTime>
 		<TestList>
 			<Test>./HostCoreTests</Test>
 		</TestList>
@@ -37,7 +37,7 @@
 			<FullCommandLine>C:\Users\MrIvo\Github\IVOESimpleFences\build\Debug\HostCoreTests.exe</FullCommandLine>
 			<Results>
 				<NamedMeasurement type="numeric/double" name="Execution Time">
-					<Value>0.432594</Value>
+					<Value>21.4024</Value>
 				</NamedMeasurement>
 				<NamedMeasurement type="numeric/double" name="Processors">
 					<Value>1</Value>
@@ -57,8 +57,8 @@
 				</Measurement>
 			</Results>
 		</Test>
-		<EndDateTime>Apr 06 11:16 Pacific Daylight Time</EndDateTime>
-		<EndTestTime>1775499412</EndTestTime>
+		<EndDateTime>Apr 06 13:00 Pacific Daylight Time</EndDateTime>
+		<EndTestTime>1775505642</EndTestTime>
 		<ElapsedMinutes>0</ElapsedMinutes>
 	</Testing>
 </Site>
