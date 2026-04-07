@@ -40,6 +40,24 @@ namespace
         return text.substr(start, end - start);
     }
 
+    std::wstring BuildUtcTimestampIso8601()
+    {
+        SYSTEMTIME utc{};
+        GetSystemTime(&utc);
+
+        wchar_t buffer[32] = {};
+        swprintf_s(
+            buffer,
+            L"%04u-%02u-%02uT%02u:%02u:%02uZ",
+            static_cast<unsigned>(utc.wYear),
+            static_cast<unsigned>(utc.wMonth),
+            static_cast<unsigned>(utc.wDay),
+            static_cast<unsigned>(utc.wHour),
+            static_cast<unsigned>(utc.wMinute),
+            static_cast<unsigned>(utc.wSecond));
+        return buffer;
+    }
+
     namespace Win32ThemeSystem
     {
         std::wstring NormalizeThemeId(std::wstring themeId)
@@ -402,6 +420,7 @@ bool AppKernel::Initialize(App* app)
                         L", failed=" + std::to_wstring(failedCount) +
                         L", disabled=" + std::to_wstring(disabledCount);
                     m_settingsRegistry->SetValue(L"settings.plugins.last_reload_summary", summary);
+                    m_settingsRegistry->SetValue(L"settings.plugins.last_reload_utc", BuildUtcTimestampIso8601());
                 }
 
                 if (m_diagnostics)

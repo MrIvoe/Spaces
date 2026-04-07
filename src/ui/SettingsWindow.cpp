@@ -952,9 +952,14 @@ std::wstring SettingsWindow::BuildDiagnosticsContent(const std::vector<PluginSta
     if (m_settingsRegistry)
     {
         const std::wstring lastReloadSummary = m_settingsRegistry->GetValue(L"settings.plugins.last_reload_summary", L"");
+        const std::wstring lastReloadUtc = m_settingsRegistry->GetValue(L"settings.plugins.last_reload_utc", L"");
         if (!lastReloadSummary.empty())
         {
             text += L"Last plugin host reload summary: " + lastReloadSummary + L"\r\n\r\n";
+        }
+        if (!lastReloadUtc.empty())
+        {
+            text += L"Last plugin host reload UTC: " + lastReloadUtc + L"\r\n\r\n";
         }
     }
 
