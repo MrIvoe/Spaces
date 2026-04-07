@@ -1,8 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/cmake_install.cmake",
-		"C:/Users/MrIvo/Github/IVOESimpleFences/IVOEFences/build-vs18/_deps/nlohmann_json-build/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
