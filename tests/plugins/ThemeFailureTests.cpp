@@ -485,5 +485,52 @@ int RunThemeFailureFocusedTests()
         }
     }
 
+    // Failure test 10: required token keys with non-string value types are rejected.
+    {
+        const std::filesystem::path pkgRoot = tempDir / "required_token_wrong_value_type";
+        std::filesystem::remove_all(pkgRoot, ec);
+        std::filesystem::create_directories(pkgRoot, ec);
+
+        const std::string metadata =
+            "{\n"
+            "  \"theme_id\": \"required-token-wrong-type\",\n"
+            "  \"display_name\": \"Required Token Wrong Type\",\n"
+            "  \"version\": \"1.0.0\"\n"
+            "}\n";
+        // Keys are correct, but required values are non-strings and must be ignored/rejected.
+        const std::string tokens =
+            "{\n"
+            "  \"tokens\": {\n"
+            "    \"win32.base.window_color\": [\"#202124\"],\n"
+            "    \"win32.base.text_color\": { \"value\": \"#F5F7FA\" },\n"
+            "    \"win32.base.accent_color\": \"#5090F6\",\n"
+            "    \"win32.base.border_color\": \"#E5E7EB\"\n"
+            "  }\n"
+            "}\n";
+
+        if (!CreatePackageFolder(pkgRoot, metadata, tokens))
+        {
+            return Fail("Theme failure test 10: failed to create wrong-type package");
+        }
+
+        const std::filesystem::path zip = tempDir / "required_token_wrong_value_type.zip";
+        if (!CreateZipFromDirectory(pkgRoot, zip))
+        {
+            return Fail("Theme failure test 10: failed to zip wrong-type package");
+        }
+
+        ThemePackageValidator validator;
+        const auto result = validator.ValidatePackage(zip.wstring());
+        if (result.isValid)
+        {
+            return Fail("Theme failure test 10: non-string required token values should be rejected");
+        }
+
+        if (result.errorMessage.find(L"required base tokens") == std::wstring::npos)
+        {
+            return Fail("Theme failure test 10: rejection should indicate required token coverage failure");
+        }
+    }
+
     return 0;
 }
