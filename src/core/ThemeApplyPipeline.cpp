@@ -6,6 +6,47 @@
 
 namespace
 {
+    std::wstring DisplayNameFromThemeId(const std::wstring& themeId)
+    {
+        if (themeId == L"amber-terminal") return L"Amber Terminal";
+        if (themeId == L"arctic-glass") return L"Arctic Glass";
+        if (themeId == L"aurora-light") return L"Aurora Light";
+        if (themeId == L"brass-steampunk") return L"Brass Steampunk";
+        if (themeId == L"copper-foundry") return L"Copper Foundry";
+        if (themeId == L"emerald-ledger") return L"Emerald Ledger";
+        if (themeId == L"forest-organic") return L"Forest Organic";
+        if (themeId == L"graphite-office") return L"Graphite Office";
+        if (themeId == L"harbor-blue") return L"Harbor Blue";
+        if (themeId == L"ivory-bureau") return L"Ivory Bureau";
+        if (themeId == L"mono-minimal") return L"Mono Minimal";
+        if (themeId == L"neon-cyberpunk") return L"Neon Cyberpunk";
+        if (themeId == L"nocturne-dark") return L"Nocturne Dark";
+        if (themeId == L"nova-futuristic") return L"Nova Futuristic";
+        if (themeId == L"olive-terminal") return L"Olive Terminal";
+        if (themeId == L"pop-colorburst") return L"Pop Colorburst";
+        if (themeId == L"rose-paper") return L"Rose Paper";
+        if (themeId == L"storm-steel") return L"Storm Steel";
+        if (themeId == L"sunset-retro") return L"Sunset Retro";
+        if (themeId == L"tape-lo-fi") return L"Tape Lo-Fi";
+        return L"Graphite Office";
+    }
+
+    std::wstring NormalizeThemeId(std::wstring raw)
+    {
+        for (auto& ch : raw)
+        {
+            if (ch == L'_')
+            {
+                ch = L'-';
+            }
+            else if (ch >= L'A' && ch <= L'Z')
+            {
+                ch = static_cast<wchar_t>(ch - L'A' + L'a');
+            }
+        }
+        return raw;
+    }
+
     const std::vector<std::wstring> g_knownThemes =
     {
         L"amber-terminal",
@@ -100,25 +141,25 @@ ThemeApplyPipeline::ApplyResult ThemeApplyPipeline::ApplyTheme(const std::wstrin
         return ApplyResult::Failure(L"Settings store not initialized");
     }
 
-    if (themeId.empty())
+    const std::wstring requestedThemeId = NormalizeThemeId(themeId);
+    if (requestedThemeId.empty())
     {
         Win32Helpers::LogError(L"ThemeApplyPipeline: empty theme id requested.");
         return ApplyResult::Failure(L"Theme ID cannot be empty");
     }
 
     const std::wstring migrationMarker = m_settingsStore->Get(L"theme.migration_v2_complete", L"false");
-    Win32Helpers::LogInfo(L"ThemeApplyPipeline: apply start id='" + themeId +
+    Win32Helpers::LogInfo(L"ThemeApplyPipeline: apply start id='" + requestedThemeId +
                           L"' migration_v2_complete='" + migrationMarker + L"'");
 
-    // Validate theme ID
-    std::wstring effectiveThemeId = themeId;
+    std::wstring effectiveThemeId = requestedThemeId;
     std::wstring fallbackReason;
 
-    if (!ValidateThemeId(themeId))
+    if (!ValidateThemeId(requestedThemeId))
     {
         effectiveThemeId = L"graphite-office";
         fallbackReason = L"Unknown theme ID; using fallback";
-        Win32Helpers::LogInfo(L"ThemeApplyPipeline: fallback from '" + themeId + L"' to '" + effectiveThemeId + L"'.");
+        Win32Helpers::LogInfo(L"ThemeApplyPipeline: warning unknown theme id '" + requestedThemeId + L"'; fallback to '" + effectiveThemeId + L"'.");
     }
 
     // Build palette for theme
@@ -192,21 +233,12 @@ bool ThemeApplyPipeline::PersistThemeSelection(const std::wstring& themeId)
     {
         // Atomic persist: update all canonical theme keys together
         m_settingsStore->Set(L"theme.win32.theme_id", themeId);
+        m_settingsStore->Set(L"theme.preset", themeId);
         m_settingsStore->Set(L"theme.source", L"win32_theme_system");
 
-        // Update display name based on theme ID
-        std::wstring displayName;
-        if (themeId == L"graphite-office")
-            displayName = L"Graphite Office";
-        else if (themeId == L"aurora-light")
-            displayName = L"Aurora Light";
-        else if (themeId == L"nocturne-dark")
-            displayName = L"Nocturne Dark";
-        else
-            displayName = themeId;
-
+        const std::wstring displayName = DisplayNameFromThemeId(themeId);
         m_settingsStore->Set(L"theme.win32.display_name", displayName);
-        m_settingsStore->Set(L"theme.win32.catalog_version", L"1.0.0");
+        m_settingsStore->Set(L"theme.win32.catalog_version", L"2026.04.06");
 
         // Persist immediately
         return m_settingsStore->Save();
@@ -227,3 +259,4 @@ ThemePalette ThemeApplyPipeline::BuildKnownThemePalette(const std::wstring& them
 {
     return GetThemePalette(themeId);
 }
+
