@@ -30,6 +30,7 @@ int RunThemePackageValidationIntegrationTests();
 int RunThemeFailureFocusedTests();
 int RunPluginLoaderConflictIntegrationTests();
 int RunPluginHostRuntimeConflictTests();
+int RunTelemetrySnapshotDiagnostics();
 
 namespace
 {
@@ -814,5 +815,12 @@ int main()
         {
             return result;
         }
+
+    if (const int result = RunTelemetrySnapshotDiagnostics(); result != 0)
+    {
+        return result;
+    }
+
     return 0;
 }
+

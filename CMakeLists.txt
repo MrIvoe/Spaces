@@ -123,6 +123,7 @@ add_executable(HostCoreTests
     tests/plugins/PluginLoaderConflictIntegrationTests.cpp
     tests/plugins/PluginHostRuntimeConflictTests.cpp
         tests/plugins/ThemeIntegrationTests.cpp
+    tests/plugins/TelemetrySnapshotDiagnostics.cpp
     src/AppVersion.h
     src/core/CommandDispatcher.h
     src/core/CommandDispatcher.cpp
