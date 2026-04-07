@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <mutex>
+#include <unordered_map>
 #include <vector>
 
 namespace Win32Helpers
@@ -13,6 +14,8 @@ namespace Win32Helpers
     namespace
     {
         std::mutex g_logMutex;
+        std::mutex g_telemetryMutex;
+        std::unordered_map<std::wstring, uint64_t> g_telemetryCounters;
         constexpr int kPromptEditId = 6001;
         constexpr int kPromptOkId = 6002;
         constexpr int kPromptCancelId = 6003;
@@ -476,6 +479,35 @@ namespace Win32Helpers
         WriteLogLine(L"ERROR", message);
     }
 
+    void IncrementTelemetryCounter(const std::wstring& counterName)
+    {
+        if (counterName.empty())
+        {
+            return;
+        }
+
+        std::lock_guard<std::mutex> guard(g_telemetryMutex);
+        ++g_telemetryCounters[counterName];
+    }
+
+    uint64_t GetTelemetryCounterValue(const std::wstring& counterName)
+    {
+        if (counterName.empty())
+        {
+            return 0;
+        }
+
+        std::lock_guard<std::mutex> guard(g_telemetryMutex);
+        const auto it = g_telemetryCounters.find(counterName);
+        return (it == g_telemetryCounters.end()) ? 0 : it->second;
+    }
+
+    void ResetTelemetryCounters()
+    {
+        std::lock_guard<std::mutex> guard(g_telemetryMutex);
+        g_telemetryCounters.clear();
+    }
+
     POINT GetCursorPos()
     {
         POINT pt{};
@@ -489,3 +521,4 @@ namespace Win32Helpers
         SetWindowPos(hwnd, nullptr, pt.x, pt.y, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
     }
 }
+

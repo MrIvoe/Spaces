@@ -186,6 +186,12 @@ theme/assets/readme.txt       # Optional: documentation
 4. Plugin conflict: detected + action taken
 5. Package validation: success, failure reason
 
+**In-process counters** (lightweight observability hook):
+- `theme.migration`
+- `theme.apply.fallback`
+- `theme.apply.success`
+- `theme.apply.failure`
+
 **Format** (serilog/text):
 ```
 [Migration] Normalizing appearance.theme.style=graphite_office → theme.win32.theme_id=graphite-office

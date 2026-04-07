@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <ctime>
 
+#include "Win32Helpers.h"
 #include "core/PluginAppearanceConflictGuard.h"
 #include "core/SettingsStore.h"
 #include "core/ThemeApplyPipeline.h"
@@ -85,6 +86,8 @@ int RunThemeFallbackTests()
 {
     // Fallback test: unknown theme ID gracefully falls back to graphite-office.
     {
+        Win32Helpers::ResetTelemetryCounters();
+
         const std::filesystem::path tempPath = GetUniqueTempPath();
         TempFileGuard guard(tempPath);
 
@@ -104,6 +107,19 @@ int RunThemeFallbackTests()
 
         if (store.Get(L"theme.win32.theme_id", L"") != L"graphite-office")
             return Fail("Fallback test: persisted theme ID should be graphite-office");
+
+        if (Win32Helpers::GetTelemetryCounterValue(L"theme.apply.fallback") < 1)
+            return Fail("Fallback test: telemetry fallback counter should increment");
+
+        if (Win32Helpers::GetTelemetryCounterValue(L"theme.apply.success") < 1)
+            return Fail("Fallback test: telemetry apply success counter should increment");
+
+        const auto failed = pipeline.ApplyTheme(L"");
+        if (failed.success)
+            return Fail("Fallback test: empty theme id should fail");
+
+        if (Win32Helpers::GetTelemetryCounterValue(L"theme.apply.failure") < 1)
+            return Fail("Fallback test: telemetry apply failure counter should increment");
     }
 
     return 0;

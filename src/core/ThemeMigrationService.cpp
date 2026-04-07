@@ -211,7 +211,12 @@ bool ThemeMigrationService::PerformMigration()
         }
     }
 
-    return m_settingsStore->Save();
+    const bool saved = m_settingsStore->Save();
+    if (saved)
+    {
+        Win32Helpers::IncrementTelemetryCounter(L"theme.migration");
+    }
+    return saved;
 }
 
 bool ThemeMigrationService::PersistMigrationMarker()

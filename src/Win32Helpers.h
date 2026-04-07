@@ -4,6 +4,7 @@
 
 #include <windows.h>
 
+#include <cstdint>
 #include <filesystem>
 #include <string>
 
@@ -39,6 +40,12 @@ namespace Win32Helpers
     void LogInfo(const std::wstring& message);
     void LogError(const std::wstring& message);
 
+    // Lightweight in-process telemetry counters for observability.
+    void IncrementTelemetryCounter(const std::wstring& counterName);
+    uint64_t GetTelemetryCounterValue(const std::wstring& counterName);
+    void ResetTelemetryCounters();
+
     POINT GetCursorPos();
     void CenterWindowNearCursor(HWND hwnd);
 }
+

@@ -140,6 +140,7 @@ ThemeApplyPipeline::ApplyResult ThemeApplyPipeline::ApplyTheme(const std::wstrin
     if (!m_settingsStore)
     {
         Win32Helpers::LogError(L"ThemeApplyPipeline: apply requested without settings store.");
+        Win32Helpers::IncrementTelemetryCounter(L"theme.apply.failure");
         return ApplyResult::Failure(L"Settings store not initialized");
     }
 
@@ -147,6 +148,7 @@ ThemeApplyPipeline::ApplyResult ThemeApplyPipeline::ApplyTheme(const std::wstrin
     if (requestedThemeId.empty())
     {
         Win32Helpers::LogError(L"ThemeApplyPipeline: empty theme id requested.");
+        Win32Helpers::IncrementTelemetryCounter(L"theme.apply.failure");
         return ApplyResult::Failure(L"Theme ID cannot be empty");
     }
 
@@ -174,6 +176,7 @@ ThemeApplyPipeline::ApplyResult ThemeApplyPipeline::ApplyTheme(const std::wstrin
     {
         effectiveThemeId = L"graphite-office";
         fallbackReason = L"Unknown theme ID; using fallback";
+        Win32Helpers::IncrementTelemetryCounter(L"theme.apply.fallback");
         Win32Helpers::LogInfo(L"ThemeApplyPipeline: warning unknown theme id '" + requestedThemeId + L"'; fallback to '" + effectiveThemeId + L"'.");
     }
 
@@ -185,6 +188,7 @@ ThemeApplyPipeline::ApplyResult ThemeApplyPipeline::ApplyTheme(const std::wstrin
     if (!result.success)
     {
         Win32Helpers::LogError(L"ThemeApplyPipeline: palette apply failed for id='" + effectiveThemeId + L"'.");
+        Win32Helpers::IncrementTelemetryCounter(L"theme.apply.failure");
         return result;
     }
 
@@ -192,6 +196,7 @@ ThemeApplyPipeline::ApplyResult ThemeApplyPipeline::ApplyTheme(const std::wstrin
     if (!PersistThemeSelection(effectiveThemeId))
     {
         Win32Helpers::LogError(L"ThemeApplyPipeline: persistence failed for id='" + effectiveThemeId + L"'.");
+        Win32Helpers::IncrementTelemetryCounter(L"theme.apply.failure");
         return ApplyResult::Failure(L"Failed to persist theme selection");
     }
 
@@ -200,6 +205,7 @@ ThemeApplyPipeline::ApplyResult ThemeApplyPipeline::ApplyTheme(const std::wstrin
 
     m_lastApplyTime = now;
     m_lastAppliedThemeId = effectiveThemeId;
+    Win32Helpers::IncrementTelemetryCounter(L"theme.apply.success");
 
     Win32Helpers::LogInfo(L"ThemeApplyPipeline: apply success id='" + effectiveThemeId + L"'.");
 
