@@ -31,7 +31,7 @@ namespace
         return wide;
     }
 
-    bool ValidateManifest(const PluginManifest& manifest, std::wstring& reason)
+    bool EvaluateManifestCompatibility(const PluginManifest& manifest, std::wstring& reason)
     {
         if (manifest.id.empty())
         {
@@ -137,25 +137,31 @@ bool PluginHost::LoadBuiltins(const PluginContext& context)
             continue;
         }
 
-        std::wstring manifestError;
-        if (!ValidateManifest(status.manifest, manifestError))
+        std::wstring manifestCompatibilityReason;
+        if (!EvaluateManifestCompatibility(status.manifest, manifestCompatibilityReason))
         {
             status.enabled = false;
             status.loaded = false;
-            status.lastError = manifestError;
+            status.compatibilityStatus = L"incompatible";
+            status.compatibilityReason = manifestCompatibilityReason;
+            status.lastError = manifestCompatibilityReason;
             allLoaded = false;
             m_registry.Upsert(status);
             if (context.diagnostics)
             {
-                context.diagnostics->Error(L"Plugin manifest rejected: id='" + status.manifest.id + L"' reason='" + manifestError + L"'");
+                context.diagnostics->Error(L"Plugin manifest rejected: id='" + status.manifest.id + L"' reason='" + manifestCompatibilityReason + L"'");
             }
             continue;
         }
+        status.compatibilityStatus = L"compatible";
+        status.compatibilityReason = L"Host API range satisfied.";
 
         if (seenPluginIds.find(status.manifest.id) != seenPluginIds.end())
         {
             status.enabled = false;
             status.loaded = false;
+            status.compatibilityStatus = L"rejected";
+            status.compatibilityReason = L"Duplicate plugin id detected.";
             status.lastError = L"Duplicate plugin id detected.";
             allLoaded = false;
             m_registry.Upsert(status);
@@ -261,12 +267,17 @@ bool PluginHost::LoadBuiltins(const PluginContext& context)
             if (status.loaded)
             {
                 context.diagnostics->Info(
-                    L"Plugin loaded: id='" + status.manifest.id + L"' capabilities='" + capabilities + L"'");
+                    L"Plugin loaded: id='" + status.manifest.id +
+                    L"' compatibility='" + status.compatibilityStatus +
+                    L"' capabilities='" + capabilities + L"'");
             }
             else
             {
                 context.diagnostics->Error(
-                    L"Plugin failed: id='" + status.manifest.id + L"' error='" + status.lastError + L"'");
+                    L"Plugin failed: id='" + status.manifest.id +
+                    L"' compatibility='" + status.compatibilityStatus +
+                    L"' reason='" + status.compatibilityReason +
+                    L"' error='" + status.lastError + L"'");
             }
         }
     }

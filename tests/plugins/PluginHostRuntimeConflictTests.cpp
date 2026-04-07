@@ -48,6 +48,12 @@ int RunPluginHostRuntimeConflictTests()
         return Fail("Plugin host runtime test: community.visual_modes should remain loaded under selector ownership enforcement");
     }
 
+    if (appearance->compatibilityStatus != L"compatible")
+    {
+        host.Shutdown();
+        return Fail("Plugin host runtime test: compatibility status should be surfaced as compatible for community.visual_modes");
+    }
+
     if (!dispatcher.HasCommand(L"appearance.mode.focus") ||
         !dispatcher.HasCommand(L"appearance.mode.gallery") ||
         !dispatcher.HasCommand(L"appearance.mode.quiet"))

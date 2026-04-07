@@ -10,6 +10,8 @@ struct PluginStatus
     PluginManifest manifest;
     bool enabled = false;
     bool loaded = false;
+    std::wstring compatibilityStatus = L"unknown";
+    std::wstring compatibilityReason;
     std::wstring lastError;
 };
 

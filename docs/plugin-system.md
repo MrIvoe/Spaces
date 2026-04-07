@@ -11,6 +11,8 @@
 - Plugin discovery and load through host runtime.
 - Command, menu, provider, and settings contributions.
 - Appearance selector ownership guardrails (community.visual_modes canonical path).
+- Registry surfaces compatibility status and compatibility reason for each plugin.
+- Diagnostics now include compatibility state on plugin load/failure messages.
 
 Related implementation:
 

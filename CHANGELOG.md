@@ -7,6 +7,7 @@
 - Added failure-focused validation tests for malformed/invalid third-party theme packages.
 - Added rapid-switch debounce and telemetry counters for migration/apply lifecycle observability.
 - Added telemetry smoke snapshot output in HostCoreTests for release verification.
+- Added plugin compatibility status/reason surfacing in host registry and diagnostics output.
 
 ## Notes
 
