@@ -480,7 +480,8 @@ public:
                 {
                     SettingsEnumOption{L"idle", L"Idle"},
                     SettingsEnumOption{L"disable_selected", L"Disable selected plugin"},
-                    SettingsEnumOption{L"enable_selected", L"Enable selected plugin"}
+                    SettingsEnumOption{L"enable_selected", L"Enable selected plugin"},
+                    SettingsEnumOption{L"apply_now", L"Apply now (reload plugin host)"}
                 },
                 70}
         };

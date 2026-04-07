@@ -1789,6 +1789,20 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
 
             if (info.key == L"settings.plugins.manager_action" && selectedValue != L"idle")
             {
+                if (selectedValue == L"apply_now")
+                {
+                    MessageBoxW(
+                        m_hwnd,
+                        L"Plugin host reload requested. Current enable/disable overrides are being applied now.",
+                        L"Plugin Manager",
+                        MB_OK | MB_ICONINFORMATION);
+
+                    m_settingsRegistry->SetValue(L"settings.plugins.manager_action", L"idle");
+                    SendMessageW(hwndCtrl, CB_SETCURSEL, 0, 0);
+                    ShowSelectedPluginTab();
+                    return;
+                }
+
                 const std::wstring targetId = m_settingsRegistry->GetValue(L"settings.plugins.manager_target_plugin", L"");
 
                 bool targetFound = false;

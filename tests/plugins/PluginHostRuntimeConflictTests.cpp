@@ -115,5 +115,55 @@ int RunPluginHostRuntimeConflictTests()
         host.Shutdown();
     }
 
+    {
+        CommandDispatcher dispatcher;
+        Diagnostics diagnostics;
+        PluginSettingsRegistry settingsRegistry;
+        MenuContributionRegistry menuRegistry;
+        FenceExtensionRegistry fenceExtensionRegistry;
+
+        PluginContext context;
+        context.commandDispatcher = &dispatcher;
+        context.diagnostics = &diagnostics;
+        context.settingsRegistry = &settingsRegistry;
+        context.menuRegistry = &menuRegistry;
+        context.fenceExtensionRegistry = &fenceExtensionRegistry;
+
+        PluginHost host;
+        host.LoadBuiltins(context);
+
+        if (!dispatcher.HasCommand(L"appearance.mode.focus"))
+        {
+            host.Shutdown();
+            return Fail("Plugin host runtime test: appearance selector should be active before reload override test");
+        }
+
+        settingsRegistry.SetValue(L"settings.plugins.enable.community.visual_modes", L"false");
+        host.ReloadBuiltins(context);
+
+        const auto* appearance = host.GetRegistry().FindById(L"community.visual_modes");
+        if (!appearance)
+        {
+            host.Shutdown();
+            return Fail("Plugin host runtime test: community.visual_modes should still be in registry after reload");
+        }
+
+        if (appearance->enabled || appearance->loaded)
+        {
+            host.Shutdown();
+            return Fail("Plugin host runtime test: reload should apply persisted disable override for community.visual_modes");
+        }
+
+        if (dispatcher.HasCommand(L"appearance.mode.focus") ||
+            dispatcher.HasCommand(L"appearance.mode.gallery") ||
+            dispatcher.HasCommand(L"appearance.mode.quiet"))
+        {
+            host.Shutdown();
+            return Fail("Plugin host runtime test: reload should unregister appearance selector commands after disable override");
+        }
+
+        host.Shutdown();
+    }
+
     return 0;
 }

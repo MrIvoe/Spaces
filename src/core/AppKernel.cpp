@@ -356,6 +356,38 @@ bool AppKernel::Initialize(App* app)
                 return;
             }
 
+            if (key == L"settings.plugins.manager_action" && value == L"apply_now")
+            {
+                if (!m_pluginHost)
+                {
+                    return;
+                }
+
+                PluginContext pluginContext;
+                pluginContext.commandDispatcher = m_commandDispatcher.get();
+                pluginContext.eventBus = m_eventBus.get();
+                pluginContext.diagnostics = m_diagnostics.get();
+                pluginContext.settingsRegistry = m_settingsRegistry.get();
+                pluginContext.menuRegistry = m_menuRegistry.get();
+                pluginContext.fenceExtensionRegistry = m_fenceExtensionRegistry.get();
+                pluginContext.appCommands = m_appCommands.get();
+
+                const bool reloaded = m_pluginHost->ReloadBuiltins(pluginContext);
+                if (m_diagnostics)
+                {
+                    if (reloaded)
+                    {
+                        m_diagnostics->Info(L"Plugin host reloaded after settings.plugins.manager_action=apply_now");
+                    }
+                    else
+                    {
+                        m_diagnostics->Warn(L"Plugin host reload after settings.plugins.manager_action=apply_now completed with one or more plugin failures");
+                    }
+                }
+
+                return;
+            }
+
             if (key != L"theme.win32.theme_id" && key != L"theme.win32.display_name" && key != L"theme.source" && key != L"theme.preset")
             {
                 return;

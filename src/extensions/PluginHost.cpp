@@ -78,8 +78,10 @@ PluginHost::~PluginHost()
 
 bool PluginHost::LoadBuiltins(const PluginContext& context)
 {
+    m_commandDispatcher = context.commandDispatcher;
     m_registry.Clear();
     m_plugins.clear();
+    m_registeredPluginCommands.clear();
 
     try
     {
@@ -262,6 +264,10 @@ bool PluginHost::LoadBuiltins(const PluginContext& context)
                         L"' owner='" + PluginAppearanceConflictGuard::GetCanonicalAppearanceSelectorId() + L"'");
                 }
             }
+            else
+            {
+                m_registeredPluginCommands[status.manifest.id] = pluginCommandIds;
+            }
         }
 
         m_registry.Upsert(status);
@@ -307,6 +313,18 @@ bool PluginHost::ReloadBuiltins(const PluginContext& context)
 
 void PluginHost::Shutdown()
 {
+    if (m_commandDispatcher)
+    {
+        for (const auto& entry : m_registeredPluginCommands)
+        {
+            for (const auto& commandId : entry.second)
+            {
+                m_commandDispatcher->UnregisterCommand(commandId);
+            }
+        }
+    }
+    m_registeredPluginCommands.clear();
+
     for (auto it = m_plugins.rbegin(); it != m_plugins.rend(); ++it)
     {
         if (*it)
@@ -323,6 +341,7 @@ void PluginHost::Shutdown()
     }
 
     m_plugins.clear();
+    m_commandDispatcher = nullptr;
 }
 
 const PluginRegistry& PluginHost::GetRegistry() const
