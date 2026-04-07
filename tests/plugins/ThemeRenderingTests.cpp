@@ -1,6 +1,12 @@
 #include <string>
 #include <iostream>
 #include <cstdio>
+#include <filesystem>
+#include <ctime>
+
+#include "core/PluginAppearanceConflictGuard.h"
+#include "core/SettingsStore.h"
+#include "core/ThemeApplyPipeline.h"
 
 namespace
 {
@@ -9,28 +15,67 @@ namespace
         std::cerr << "[FAIL] " << message << "\n";
         return 1;
     }
+
+    std::filesystem::path GetUniqueTempPath()
+    {
+        static int counter = 0;
+        const std::filesystem::path tempDir = std::filesystem::temp_directory_path();
+        return tempDir / ("theme_rendering_test_" + std::to_string(counter++) + "_" + std::to_string(std::time(nullptr)) + ".json");
+    }
+
+    class TempFileGuard
+    {
+    public:
+        explicit TempFileGuard(const std::filesystem::path& path)
+            : m_path(path)
+        {
+        }
+
+        ~TempFileGuard()
+        {
+            try
+            {
+                if (std::filesystem::exists(m_path))
+                    std::filesystem::remove(m_path);
+                if (std::filesystem::exists(m_path.wstring() + L".tmp"))
+                    std::filesystem::remove(m_path.wstring() + L".tmp");
+            }
+            catch (...)
+            {
+            }
+        }
+
+    private:
+        std::filesystem::path m_path;
+    };
 }
 
 int RunThemeRenderingConsistencyTests()
 {
-    // Test: Applying a theme renders consistently across UI surfaces
-    // Verify atomicity - theme apply doesn't leave UI in partial state
+    // Selector test: canonical plugin is the only active selector.
     {
-        // In production: would verify Win32ThemeSystem::Apply() updates
-        // all theme colors before returning (atomic transaction)
-        // For now, document test requirement
+        if (!PluginAppearanceConflictGuard::IsCanonicalSelector(L"community.visual_modes"))
+            return Fail("Selector test: community.visual_modes should be canonical selector");
+
+        if (PluginAppearanceConflictGuard::IsCanonicalSelector(L"builtin.appearance"))
+            return Fail("Selector test: builtin.appearance should not be canonical selector");
     }
 
-    // Test: Theme changes don't crash on unknown theme ID
+    // Conflict test: extra appearance plugins are blocked from theme-write paths.
     {
-        // Verify fallback to graphite-office is graceful
-        // with no assertion failures or access violations
-    }
+        PluginAppearanceConflictGuard guard;
 
-    // Test: Token cache invalidation on theme change
-    {
-        // If caching is implemented, verify theme change triggers
-        // cache invalidation so next render gets new values
+        const bool nonAppearanceConflict = guard.HasAppearanceConflict(
+            L"community.extra_widget",
+            {L"widget.open", L"widget.pin"});
+        if (nonAppearanceConflict)
+            return Fail("Conflict test: non-appearance plugin commands should not be blocked");
+
+        const bool conflict = guard.HasAppearanceConflict(
+            L"community.theme_switcher_alt",
+            {L"appearance.mode.dark", L"theme.apply"});
+        if (!conflict)
+            return Fail("Conflict test: extra appearance selector should be blocked");
     }
 
     return 0;
@@ -38,30 +83,27 @@ int RunThemeRenderingConsistencyTests()
 
 int RunThemeFallbackTests()
 {
-    // Test: Unknown theme ID gracefully falls back to graphite-office
+    // Fallback test: unknown theme ID gracefully falls back to graphite-office.
     {
-        // Verify that an unknown theme ID like "invalid-xyz"
-        // is detected as invalid and replaced with "graphite-office"
-        // without crashing or rendering with partial data
-    }
+        const std::filesystem::path tempPath = GetUniqueTempPath();
+        TempFileGuard guard(tempPath);
 
-    // Test: Missing token in palette uses default color
-    {
-        // If a token (e.g., win32.fence.border_color) is missing,
-        // the renderer should use a reasonable default color
-        // for that element rather than crash
-    }
+        SettingsStore store;
+        store.Load(tempPath);
 
-    // Test: Load failure keeps previous valid theme applied
-    {
-        // If theme file load fails, the app should remain in
-        // the previously active theme state, not revert to broken state
-    }
+        ThemeApplyPipeline pipeline(&store);
+        const auto result = pipeline.ApplyTheme(L"invalid-theme-xyz");
+        if (!result.success)
+            return Fail("Fallback test: apply should not fail for unknown theme");
 
-    // Test: Fallback is logged with original ID for diagnostics
-    {
-        // When fallback occurs, log should record the invalid theme ID
-        // that was attempted, for user troubleshooting
+        if (result.appliedThemeId != L"graphite-office")
+            return Fail("Fallback test: unknown ID should fall back to graphite-office");
+
+        if (result.fallbackReason.empty())
+            return Fail("Fallback test: fallback reason should be provided");
+
+        if (store.Get(L"theme.win32.theme_id", L"") != L"graphite-office")
+            return Fail("Fallback test: persisted theme ID should be graphite-office");
     }
 
     return 0;
@@ -69,25 +111,58 @@ int RunThemeFallbackTests()
 
 int RunThemePersistenceTests()
 {
-    // Test: Chosen theme survives application restart
+    // Persistence test: chosen theme survives restart unchanged.
     {
-        // After SetWin32ThemeId("aurora-light") and app close,
-        // restarting app should load "aurora-light" again
-        // (requires settings file persisted and reloaded on startup)
+        const std::filesystem::path tempPath = GetUniqueTempPath();
+        TempFileGuard guard(tempPath);
+
+        SettingsStore store;
+        store.Load(tempPath);
+
+        ThemeApplyPipeline pipeline(&store);
+        const auto apply = pipeline.ApplyTheme(L"aurora-light");
+        if (!apply.success)
+            return Fail("Persistence test: applying aurora-light should succeed");
+
+        SettingsStore reloaded;
+        reloaded.Load(tempPath);
+        if (reloaded.Get(L"theme.win32.theme_id", L"") != L"aurora-light")
+            return Fail("Persistence test: theme ID should survive restart");
+
+        if (reloaded.Get(L"theme.source", L"") != L"win32_theme_system")
+            return Fail("Persistence test: theme.source should survive restart");
+
+        if (reloaded.Get(L"theme.preset", L"") != L"aurora-light")
+            return Fail("Persistence test: theme.preset bridge key should survive restart");
+
+        if (reloaded.Get(L"theme.win32.display_name", L"") != L"Aurora Light")
+            return Fail("Persistence test: display name should survive restart");
+
+        if (reloaded.Get(L"theme.win32.catalog_version", L"") != L"2026.04.06")
+            return Fail("Persistence test: catalog version should survive restart");
     }
 
-    // Test: Theme settings are persisted on apply
+    // Persistence test: normalization is persisted for compatibility aliases.
     {
-        // When Win32ThemeSystem::Apply() is called,
-        // theme.win32.theme_id and other cannonical keys
-        // should be persisted to settings.json immediately
-    }
+        const std::filesystem::path tempPath = GetUniqueTempPath();
+        TempFileGuard guard(tempPath);
 
-    // Test: No stale cached values after settings change
-    {
-        // If in-memory caching is used, changing settings.json
-        // externally should not leave stale values in cache
-        // (proper validation/invalidation required)
+        SettingsStore store;
+        store.Load(tempPath);
+
+        ThemeApplyPipeline pipeline(&store);
+        const auto apply = pipeline.ApplyTheme(L"AURORA_LIGHT");
+        if (!apply.success)
+            return Fail("Persistence test: applying normalized alias should succeed");
+
+        if (apply.appliedThemeId != L"aurora-light")
+            return Fail("Persistence test: alias should normalize to aurora-light");
+
+        if (store.Get(L"theme.win32.theme_id", L"") != L"aurora-light")
+            return Fail("Persistence test: normalized ID should persist");
+
+        if (store.Get(L"theme.preset", L"") != L"aurora-light")
+            return Fail("Persistence test: normalized bridge key should persist");
     }
 
     return 0;

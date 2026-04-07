@@ -339,6 +339,7 @@ This can happen intentionally if restore was only partially successful. The fenc
 - improved visual hierarchy and spacing of navigation versus content regions
 - reduced tab-switch repaint work to right content pane to improve responsiveness
 - kept existing settings behavior and persistence semantics intact
+- Theme system consolidated to Win32ThemeSystem with backward-compatible migration and public theme package support.
 
 ### 0.0.012
 
