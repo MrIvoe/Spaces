@@ -440,7 +440,29 @@ public:
                     SettingsEnumOption{L"idle", L"Idle"},
                     SettingsEnumOption{L"sync_now", L"Sync now"}
                 },
-                30}
+                30},
+            SettingsFieldDescriptor{
+                L"settings.plugins.manager_filter_status",
+                L"Plugin manager status filter",
+                L"Filter plugin list by runtime status and compatibility.",
+                SettingsFieldType::Enum,
+                L"all",
+                {
+                    SettingsEnumOption{L"all", L"All"},
+                    SettingsEnumOption{L"loaded", L"Loaded"},
+                    SettingsEnumOption{L"failed", L"Failed"},
+                    SettingsEnumOption{L"disabled", L"Disabled"},
+                    SettingsEnumOption{L"incompatible", L"Incompatible"}
+                },
+                40},
+            SettingsFieldDescriptor{
+                L"settings.plugins.manager_filter_text",
+                L"Plugin manager text filter",
+                L"Filter by plugin id or display name (applies after leaving the field).",
+                SettingsFieldType::String,
+                L"",
+                {},
+                50}
         };
         context.settingsRegistry->RegisterPage(std::move(pluginsPage));
 

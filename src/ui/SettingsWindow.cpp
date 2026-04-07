@@ -76,6 +76,49 @@ namespace
         return text;
     }
 
+    bool MatchesPluginStatusFilter(const PluginStatusView& plugin, const std::wstring& statusFilter)
+    {
+        if (statusFilter.empty() || statusFilter == L"all")
+        {
+            return true;
+        }
+
+        if (statusFilter == L"loaded")
+        {
+            return plugin.enabled && plugin.loaded;
+        }
+
+        if (statusFilter == L"failed")
+        {
+            return plugin.enabled && !plugin.loaded;
+        }
+
+        if (statusFilter == L"disabled")
+        {
+            return !plugin.enabled;
+        }
+
+        if (statusFilter == L"incompatible")
+        {
+            return plugin.compatibilityStatus == L"incompatible" || plugin.compatibilityStatus == L"rejected";
+        }
+
+        return true;
+    }
+
+    bool MatchesPluginTextFilter(const PluginStatusView& plugin, const std::wstring& textFilter)
+    {
+        if (textFilter.empty())
+        {
+            return true;
+        }
+
+        const std::wstring query = ToLowerCopy(textFilter);
+        const std::wstring id = ToLowerCopy(plugin.id);
+        const std::wstring name = ToLowerCopy(plugin.displayName);
+        return id.find(query) != std::wstring::npos || name.find(query) != std::wstring::npos;
+    }
+
     bool HasZipExtension(const std::wstring& filePath)
     {
         const std::wstring ext = ToLowerCopy(std::filesystem::path(filePath).extension().wstring());
@@ -797,14 +840,35 @@ std::wstring SettingsWindow::BuildPluginsContent(const std::vector<PluginStatusV
     text += L"Use the Plugin Hub controls above to sync plugins into %LOCALAPPDATA%\\SimpleFences\\plugins.\r\n\r\n";
     text += L"Planned actions: install, enable/disable, update, reinstall, remove, open settings, open diagnostics, rollback.\r\n\r\n";
 
+    const std::wstring statusFilter = m_settingsRegistry
+        ? m_settingsRegistry->GetValue(L"settings.plugins.manager_filter_status", L"all")
+        : L"all";
+    const std::wstring textFilter = m_settingsRegistry
+        ? m_settingsRegistry->GetValue(L"settings.plugins.manager_filter_text", L"")
+        : L"";
+
+    text += L"Active filter: status='" + statusFilter + L"'";
+    if (!textFilter.empty())
+    {
+        text += L", text='" + textFilter + L"'";
+    }
+    text += L"\r\n\r\n";
+
     if (plugins.empty())
     {
         text += L"No plugins registered.\r\n";
         return text;
     }
 
+    int shown = 0;
     for (const auto& plugin : plugins)
     {
+        if (!MatchesPluginStatusFilter(plugin, statusFilter) || !MatchesPluginTextFilter(plugin, textFilter))
+        {
+            continue;
+        }
+
+        ++shown;
         text += plugin.displayName + L" (" + plugin.id + L", v" + plugin.version + L")\r\n";
         text += L"State: " + PluginStateText(plugin) + L"\r\n";
         text += L"Compatibility: " + (plugin.compatibilityStatus.empty() ? L"unknown" : plugin.compatibilityStatus) + L"\r\n";
@@ -819,6 +883,11 @@ std::wstring SettingsWindow::BuildPluginsContent(const std::vector<PluginStatusV
             text += L"Error: " + plugin.lastError + L"\r\n";
         }
         text += L"\r\n";
+    }
+
+    if (shown == 0)
+    {
+        text += L"No plugins matched the active filter.\r\n";
     }
 
     return text;

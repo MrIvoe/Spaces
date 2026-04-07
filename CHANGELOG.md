@@ -9,6 +9,7 @@
 - Added telemetry smoke snapshot output in HostCoreTests for release verification.
 - Added plugin compatibility status/reason surfacing in host registry and diagnostics output.
 - Added read-only Plugin Manager scaffold page in settings with per-plugin compatibility visibility.
+- Added Plugin Manager scaffold filters for status and text-based plugin triage.
 
 ## Notes
 

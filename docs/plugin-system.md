@@ -14,6 +14,7 @@
 - Registry surfaces compatibility status and compatibility reason for each plugin.
 - Diagnostics now include compatibility state on plugin load/failure messages.
 - Settings shell includes a read-only Plugin Manager scaffold page with per-plugin state and compatibility visibility.
+- Plugin Manager scaffold includes status and text filters to triage plugin load/compatibility issues.
 
 Related implementation:
 
