@@ -4,6 +4,7 @@
 #include "core/Diagnostics.h"
 #include "core/CommandDispatcher.h"
 #include "core/PluginAppearanceConflictGuard.h"
+#include "extensions/PluginSettingsRegistry.h"
 #include "plugins/builtins/BuiltinPlugins.h"
 
 #include <algorithm>
@@ -174,6 +175,19 @@ bool PluginHost::LoadBuiltins(const PluginContext& context)
         seenPluginIds.insert(status.manifest.id);
 
         status.enabled = status.manifest.enabledByDefault;
+        if (context.settingsRegistry)
+        {
+            const std::wstring overrideKey = L"settings.plugins.enable." + status.manifest.id;
+            const std::wstring overrideValue = context.settingsRegistry->GetValue(overrideKey, L"");
+            if (overrideValue == L"true")
+            {
+                status.enabled = true;
+            }
+            else if (overrideValue == L"false")
+            {
+                status.enabled = false;
+            }
+        }
 
         if (!status.enabled)
         {

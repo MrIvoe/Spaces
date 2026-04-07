@@ -871,6 +871,21 @@ std::wstring SettingsWindow::BuildPluginsContent(const std::vector<PluginStatusV
         ++shown;
         text += plugin.displayName + L" (" + plugin.id + L", v" + plugin.version + L")\r\n";
         text += L"State: " + PluginStateText(plugin) + L"\r\n";
+        std::wstring startupOverride = L"inherit manifest default";
+        if (m_settingsRegistry)
+        {
+            const std::wstring overrideKey = L"settings.plugins.enable." + plugin.id;
+            const std::wstring overrideValue = m_settingsRegistry->GetValue(overrideKey, L"");
+            if (overrideValue == L"true")
+            {
+                startupOverride = L"force enabled";
+            }
+            else if (overrideValue == L"false")
+            {
+                startupOverride = L"force disabled";
+            }
+        }
+        text += L"Startup override: " + startupOverride + L"\r\n";
         text += L"Compatibility: " + (plugin.compatibilityStatus.empty() ? L"unknown" : plugin.compatibilityStatus) + L"\r\n";
         if (!plugin.compatibilityReason.empty())
         {
@@ -1769,6 +1784,53 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
 
                 // Reset action to idle after running once.
                 m_settingsRegistry->SetValue(L"settings.plugins.hub_action", L"idle");
+                SendMessageW(hwndCtrl, CB_SETCURSEL, 0, 0);
+            }
+
+            if (info.key == L"settings.plugins.manager_action" && selectedValue != L"idle")
+            {
+                const std::wstring targetId = m_settingsRegistry->GetValue(L"settings.plugins.manager_target_plugin", L"");
+
+                bool targetFound = false;
+                for (const auto& plugin : m_plugins)
+                {
+                    if (plugin.id == targetId)
+                    {
+                        targetFound = true;
+                        break;
+                    }
+                }
+
+                if (targetId.empty() || !targetFound)
+                {
+                    Win32Helpers::ShowUserWarning(
+                        m_hwnd,
+                        L"Plugin Manager Action",
+                        L"Enter a valid plugin id in 'Plugin manager target plugin id' before applying an action.");
+                }
+                else
+                {
+                    const std::wstring enableKey = L"settings.plugins.enable." + targetId;
+                    if (selectedValue == L"disable_selected")
+                    {
+                        m_settingsRegistry->SetValue(enableKey, L"false");
+                        Win32Helpers::LogInfo(L"Plugin manager override: disabled plugin id='" + targetId + L"' (effective on next plugin host load)");
+                    }
+                    else if (selectedValue == L"enable_selected")
+                    {
+                        m_settingsRegistry->SetValue(enableKey, L"true");
+                        Win32Helpers::LogInfo(L"Plugin manager override: enabled plugin id='" + targetId + L"' (effective on next plugin host load)");
+                    }
+
+                    MessageBoxW(
+                        m_hwnd,
+                        L"Plugin override saved. The change will take effect on next plugin host load (for example, app restart).",
+                        L"Plugin Manager",
+                        MB_OK | MB_ICONINFORMATION);
+                    ShowSelectedPluginTab();
+                }
+
+                m_settingsRegistry->SetValue(L"settings.plugins.manager_action", L"idle");
                 SendMessageW(hwndCtrl, CB_SETCURSEL, 0, 0);
             }
 

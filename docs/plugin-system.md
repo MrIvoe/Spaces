@@ -15,6 +15,7 @@
 - Diagnostics now include compatibility state on plugin load/failure messages.
 - Settings shell includes a read-only Plugin Manager scaffold page with per-plugin state and compatibility visibility.
 - Plugin Manager scaffold includes status and text filters to triage plugin load/compatibility issues.
+- Plugin Manager scaffold now supports persisted enable/disable overrides per plugin id (`settings.plugins.enable.<pluginId>`), applied on next plugin host load.
 
 Related implementation:
 

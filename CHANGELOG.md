@@ -11,6 +11,7 @@
 - Added read-only Plugin Manager scaffold page in settings with per-plugin compatibility visibility.
 - Added Plugin Manager scaffold filters for status and text-based plugin triage.
 - Expanded settings Diagnostics page with per-plugin triage summaries and compatibility counters.
+- Added persisted Plugin Manager enable/disable overrides per plugin id (applied on next plugin host load).
 
 ## Notes
 

@@ -462,7 +462,27 @@ public:
                 SettingsFieldType::String,
                 L"",
                 {},
-                50}
+                50},
+            SettingsFieldDescriptor{
+                L"settings.plugins.manager_target_plugin",
+                L"Plugin manager target plugin id",
+                L"Exact plugin id to enable/disable (example: community.visual_modes).",
+                SettingsFieldType::String,
+                L"",
+                {},
+                60},
+            SettingsFieldDescriptor{
+                L"settings.plugins.manager_action",
+                L"Plugin manager action",
+                L"Apply enable/disable override for target plugin; change takes effect on next plugin host load.",
+                SettingsFieldType::Enum,
+                L"idle",
+                {
+                    SettingsEnumOption{L"idle", L"Idle"},
+                    SettingsEnumOption{L"disable_selected", L"Disable selected plugin"},
+                    SettingsEnumOption{L"enable_selected", L"Enable selected plugin"}
+                },
+                70}
         };
         context.settingsRegistry->RegisterPage(std::move(pluginsPage));
 
