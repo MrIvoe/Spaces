@@ -2,8 +2,11 @@
 
 #include "AppVersion.h"
 #include "core/Diagnostics.h"
+#include "core/CommandDispatcher.h"
+#include "core/PluginAppearanceConflictGuard.h"
 #include "plugins/builtins/BuiltinPlugins.h"
 
+#include <algorithm>
 #include <set>
 
 #include <windows.h>
@@ -177,6 +180,12 @@ bool PluginHost::LoadBuiltins(const PluginContext& context)
         }
 
         bool loaded = false;
+        std::vector<std::wstring> commandIdsBeforeInit;
+        if (context.commandDispatcher)
+        {
+            commandIdsBeforeInit = context.commandDispatcher->ListCommandIds();
+        }
+
         try
         {
             loaded = plugin->Initialize(context);
@@ -198,6 +207,41 @@ bool PluginHost::LoadBuiltins(const PluginContext& context)
             status.loaded = false;
             status.lastError = L"Initialize threw unknown exception.";
             allLoaded = false;
+        }
+
+        if (loaded && context.commandDispatcher)
+        {
+            const auto commandIdsAfterInit = context.commandDispatcher->ListCommandIds();
+
+            std::vector<std::wstring> pluginCommandIds;
+            pluginCommandIds.reserve(commandIdsAfterInit.size());
+            for (const auto& commandId : commandIdsAfterInit)
+            {
+                if (std::find(commandIdsBeforeInit.begin(), commandIdsBeforeInit.end(), commandId) == commandIdsBeforeInit.end())
+                {
+                    pluginCommandIds.push_back(commandId);
+                }
+            }
+
+            PluginAppearanceConflictGuard conflictGuard;
+            if (conflictGuard.HasAppearanceConflict(status.manifest.id, pluginCommandIds))
+            {
+                for (const auto& commandId : pluginCommandIds)
+                {
+                    context.commandDispatcher->UnregisterCommand(commandId);
+                }
+
+                status.loaded = false;
+                status.lastError = L"Appearance command path disabled due to selector ownership conflict.";
+                allLoaded = false;
+
+                if (context.diagnostics)
+                {
+                    context.diagnostics->Warn(
+                        L"Plugin appearance command path disabled: id='" + status.manifest.id +
+                        L"' owner='" + PluginAppearanceConflictGuard::GetCanonicalAppearanceSelectorId() + L"'");
+                }
+            }
         }
 
         m_registry.Upsert(status);
@@ -260,3 +304,4 @@ const PluginRegistry& PluginHost::GetRegistry() const
 {
     return m_registry;
 }
+

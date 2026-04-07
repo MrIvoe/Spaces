@@ -102,6 +102,32 @@ namespace
 
         return std::system(command.c_str()) == 0 && std::filesystem::exists(zipPath);
     }
+
+    bool WriteUtf8File(const std::filesystem::path& path, const std::string& content)
+    {
+        std::error_code ec;
+        std::filesystem::create_directories(path.parent_path(), ec);
+        std::ofstream out(path, std::ios::binary | std::ios::trunc);
+        if (!out.is_open())
+        {
+            return false;
+        }
+
+        out << content;
+        return out.good();
+    }
+
+    bool CreatePackageFolder(const std::filesystem::path& root,
+                             const std::string& metadataJson,
+                             const std::string& defaultTokensJson)
+    {
+        if (!WriteUtf8File(root / "theme-metadata.json", metadataJson))
+        {
+            return false;
+        }
+
+        return WriteUtf8File(root / "theme" / "tokens" / "default.json", defaultTokensJson);
+    }
 }
 
 int RunThemeFailureFocusedTests()
@@ -218,6 +244,150 @@ int RunThemeFailureFocusedTests()
         if (store.Get(L"theme.win32.theme_id", L"") != L"nocturne-dark")
         {
             return Fail("Theme failure test 3: post-rejection theme apply should persist correctly");
+        }
+    }
+
+    // Failure test 4: metadata schema permutation (camelCase keys) is rejected.
+    {
+        const std::filesystem::path pkgRoot = tempDir / "invalid_schema_camel_case";
+        std::filesystem::remove_all(pkgRoot, ec);
+        std::filesystem::create_directories(pkgRoot, ec);
+
+        const std::string metadata =
+            "{\n"
+            "  \"themeId\": \"camel-case-id\",\n"
+            "  \"displayName\": \"Camel Case\",\n"
+            "  \"version\": \"1.0.0\"\n"
+            "}\n";
+        const std::string tokens =
+            "{\n"
+            "  \"win32.base.window_color\": \"#101010\",\n"
+            "  \"win32.base.text_color\": \"#EFEFEF\",\n"
+            "  \"win32.base.accent_color\": \"#2288FF\"\n"
+            "}\n";
+
+        if (!CreatePackageFolder(pkgRoot, metadata, tokens))
+        {
+            return Fail("Theme failure test 4: failed to create package folder");
+        }
+
+        const std::filesystem::path zip = tempDir / "invalid_schema_camel_case.zip";
+        if (!CreateZipFromDirectory(pkgRoot, zip))
+        {
+            return Fail("Theme failure test 4: failed to create schema-permutation zip");
+        }
+
+        ThemePackageValidator validator;
+        const auto result = validator.ValidatePackage(zip.wstring());
+        if (result.isValid)
+        {
+            return Fail("Theme failure test 4: schema-permutation metadata should be rejected");
+        }
+    }
+
+    // Failure test 5: malformed metadata JSON is rejected.
+    {
+        const std::filesystem::path pkgRoot = tempDir / "invalid_metadata_json";
+        std::filesystem::remove_all(pkgRoot, ec);
+        std::filesystem::create_directories(pkgRoot, ec);
+
+        const std::string metadata = "{\"theme_id\": \"broken-theme\", \"display_name\": \"Broken\",";
+        const std::string tokens =
+            "{\n"
+            "  \"win32.base.window_color\": \"#101010\",\n"
+            "  \"win32.base.text_color\": \"#EFEFEF\",\n"
+            "  \"win32.base.accent_color\": \"#2288FF\"\n"
+            "}\n";
+
+        if (!CreatePackageFolder(pkgRoot, metadata, tokens))
+        {
+            return Fail("Theme failure test 5: failed to create malformed-metadata package");
+        }
+
+        const std::filesystem::path zip = tempDir / "invalid_metadata_json.zip";
+        if (!CreateZipFromDirectory(pkgRoot, zip))
+        {
+            return Fail("Theme failure test 5: failed to zip malformed-metadata package");
+        }
+
+        ThemePackageValidator validator;
+        const auto result = validator.ValidatePackage(zip.wstring());
+        if (result.isValid)
+        {
+            return Fail("Theme failure test 5: malformed metadata JSON should be rejected");
+        }
+    }
+
+    // Failure test 6: malformed token JSON is rejected.
+    {
+        const std::filesystem::path pkgRoot = tempDir / "invalid_tokens_json";
+        std::filesystem::remove_all(pkgRoot, ec);
+        std::filesystem::create_directories(pkgRoot, ec);
+
+        const std::string metadata =
+            "{\n"
+            "  \"theme_id\": \"broken-token-json\",\n"
+            "  \"display_name\": \"Broken Token JSON\",\n"
+            "  \"version\": \"1.0.0\"\n"
+            "}\n";
+        const std::string tokens = "{\"tokens\": { \"win32.base.window_color\": \"#101010\" ";
+
+        if (!CreatePackageFolder(pkgRoot, metadata, tokens))
+        {
+            return Fail("Theme failure test 6: failed to create malformed-token package");
+        }
+
+        const std::filesystem::path zip = tempDir / "invalid_tokens_json.zip";
+        if (!CreateZipFromDirectory(pkgRoot, zip))
+        {
+            return Fail("Theme failure test 6: failed to zip malformed-token package");
+        }
+
+        ThemePackageValidator validator;
+        const auto result = validator.ValidatePackage(zip.wstring());
+        if (result.isValid)
+        {
+            return Fail("Theme failure test 6: malformed token JSON should be rejected");
+        }
+    }
+
+    // Failure test 7: token schema permutation with invalid color values is rejected.
+    {
+        const std::filesystem::path pkgRoot = tempDir / "invalid_token_values";
+        std::filesystem::remove_all(pkgRoot, ec);
+        std::filesystem::create_directories(pkgRoot, ec);
+
+        const std::string metadata =
+            "{\n"
+            "  \"theme_id\": \"invalid-token-values\",\n"
+            "  \"display_name\": \"Invalid Token Values\",\n"
+            "  \"version\": \"1.0.0\"\n"
+            "}\n";
+        const std::string tokens =
+            "{\n"
+            "  \"tokens\": {\n"
+            "    \"win32.base.window_color\": \"not-a-hex\",\n"
+            "    \"win32.base.text_color\": \"#12345\",\n"
+            "    \"win32.base.accent_color\": 123\n"
+            "  }\n"
+            "}\n";
+
+        if (!CreatePackageFolder(pkgRoot, metadata, tokens))
+        {
+            return Fail("Theme failure test 7: failed to create invalid-token-values package");
+        }
+
+        const std::filesystem::path zip = tempDir / "invalid_token_values.zip";
+        if (!CreateZipFromDirectory(pkgRoot, zip))
+        {
+            return Fail("Theme failure test 7: failed to zip invalid-token-values package");
+        }
+
+        ThemePackageValidator validator;
+        const auto result = validator.ValidatePackage(zip.wstring());
+        if (result.isValid)
+        {
+            return Fail("Theme failure test 7: invalid token values should be rejected");
         }
     }
 

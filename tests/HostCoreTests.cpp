@@ -29,6 +29,7 @@ int RunThemeFullLifecycleTests();
 int RunThemePackageValidationIntegrationTests();
 int RunThemeFailureFocusedTests();
 int RunPluginLoaderConflictIntegrationTests();
+int RunPluginHostRuntimeConflictTests();
 
 namespace
 {
@@ -784,6 +785,11 @@ int main()
     }
 
     if (const int result = RunPluginLoaderConflictIntegrationTests(); result != 0)
+    {
+        return result;
+    }
+
+    if (const int result = RunPluginHostRuntimeConflictTests(); result != 0)
     {
         return result;
     }

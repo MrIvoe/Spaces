@@ -34,7 +34,11 @@ std::wstring PluginAppearanceConflictGuard::GetCanonicalAppearanceSelectorId()
 
 bool PluginAppearanceConflictGuard::IsCanonicalSelector(const std::wstring& pluginId)
 {
-    return pluginId == GetCanonicalAppearanceSelectorId();
+    if (pluginId == GetCanonicalAppearanceSelectorId())
+        return true;
+
+    // Compatibility alias while built-in selector manifest id migrates.
+    return pluginId == L"builtin.appearance";
 }
 
 bool PluginAppearanceConflictGuard::IsAppearanceCommandPattern(const std::wstring& commandId)
@@ -59,3 +63,4 @@ bool PluginAppearanceConflictGuard::IsAppearanceCommandPattern(const std::wstrin
 
     return false;
 }
+

@@ -52,13 +52,13 @@ namespace
 
 int RunThemeRenderingConsistencyTests()
 {
-    // Selector test: canonical plugin is the only active selector.
+    // Selector test: canonical plugin is active; legacy alias remains accepted.
     {
         if (!PluginAppearanceConflictGuard::IsCanonicalSelector(L"community.visual_modes"))
             return Fail("Selector test: community.visual_modes should be canonical selector");
 
-        if (PluginAppearanceConflictGuard::IsCanonicalSelector(L"builtin.appearance"))
-            return Fail("Selector test: builtin.appearance should not be canonical selector");
+        if (!PluginAppearanceConflictGuard::IsCanonicalSelector(L"builtin.appearance"))
+            return Fail("Selector test: builtin.appearance should be accepted as compatibility alias");
     }
 
     // Conflict test: extra appearance plugins are blocked from theme-write paths.

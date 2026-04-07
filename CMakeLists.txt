@@ -121,6 +121,7 @@ add_executable(HostCoreTests
     tests/plugins/ThemeRenderingTests.cpp
     tests/plugins/ThemeFailureTests.cpp
     tests/plugins/PluginLoaderConflictIntegrationTests.cpp
+    tests/plugins/PluginHostRuntimeConflictTests.cpp
         tests/plugins/ThemeIntegrationTests.cpp
     src/AppVersion.h
     src/core/CommandDispatcher.h
@@ -149,6 +150,8 @@ add_executable(HostCoreTests
     src/extensions/PluginSettingsRegistry.cpp
     src/extensions/FenceExtensionRegistry.h
     src/extensions/FenceExtensionRegistry.cpp
+    src/extensions/PluginHost.h
+    src/extensions/PluginHost.cpp
     src/plugins/builtins/BuiltinPlugins.h
     src/plugins/builtins/BuiltinPlugins.cpp
     src/plugins/host/PluginContractModels.h
