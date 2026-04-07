@@ -280,6 +280,28 @@ Packages are rejected if they:
 - Have malformed JSON in token files
 - Specify impossible version requirements (e.g., min > max)
 
+### Diagnostic Messages (Current Host)
+
+When validation fails, SimpleFences surfaces these concrete diagnostics:
+
+| Failure Path | Diagnostic Message |
+|-------|-------|
+| Package path empty | `Package path is empty` |
+| Package file missing | `Package file not found` |
+| File is not zip | `Theme package must be a .zip file` |
+| Package exceeds size cap | `Package exceeds maximum size (10MB)` |
+| Extraction or parse failed | `Package extraction/parsing failed` (or specific loader error) |
+| Missing/invalid metadata | `Invalid or incomplete theme metadata` |
+| Invalid theme id format | `theme_id must be kebab-case and 1-100 chars` |
+| Forbidden payload present | `Package contains forbidden content (executables, scripts)` |
+| Required token coverage missing | `Token map is missing required base tokens` |
+
+Notes for authors:
+
+- Required base coverage currently includes window, text, and accent tokens.
+- Token values must be valid `#RRGGBB`; malformed values are ignored and can cause required-token rejection.
+- Supported metadata keys are snake_case (`theme_id`, `display_name`, `version`, etc.); camelCase variants are rejected.
+
 ## Best Practices
 
 1. **Test on multiple Windows versions**: Ensure your colors look good on Windows 10 and Windows 11.

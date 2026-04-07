@@ -391,5 +391,52 @@ int RunThemeFailureFocusedTests()
         }
     }
 
+    // Failure test 8: mixed valid/invalid required tokens are rejected under partial corruption.
+    {
+        const std::filesystem::path pkgRoot = tempDir / "mixed_required_token_corruption";
+        std::filesystem::remove_all(pkgRoot, ec);
+        std::filesystem::create_directories(pkgRoot, ec);
+
+        const std::string metadata =
+            "{\n"
+            "  \"theme_id\": \"mixed-token-corruption\",\n"
+            "  \"display_name\": \"Mixed Token Corruption\",\n"
+            "  \"version\": \"1.0.0\"\n"
+            "}\n";
+        // window/accent are valid, but required text token is malformed and should be filtered out.
+        const std::string tokens =
+            "{\n"
+            "  \"tokens\": {\n"
+            "    \"win32.base.window_color\": \"#202124\",\n"
+            "    \"win32.base.text_color\": \"#GGGGGG\",\n"
+            "    \"win32.base.accent_color\": \"#3B82F6\",\n"
+            "    \"win32.base.border_color\": \"#E5E7EB\"\n"
+            "  }\n"
+            "}\n";
+
+        if (!CreatePackageFolder(pkgRoot, metadata, tokens))
+        {
+            return Fail("Theme failure test 8: failed to create mixed-token-corruption package");
+        }
+
+        const std::filesystem::path zip = tempDir / "mixed_required_token_corruption.zip";
+        if (!CreateZipFromDirectory(pkgRoot, zip))
+        {
+            return Fail("Theme failure test 8: failed to zip mixed-token-corruption package");
+        }
+
+        ThemePackageValidator validator;
+        const auto result = validator.ValidatePackage(zip.wstring());
+        if (result.isValid)
+        {
+            return Fail("Theme failure test 8: package with mixed required token corruption should be rejected");
+        }
+
+        if (result.errorMessage.find(L"required base tokens") == std::wstring::npos)
+        {
+            return Fail("Theme failure test 8: rejection should indicate required token coverage failure");
+        }
+    }
+
     return 0;
 }
