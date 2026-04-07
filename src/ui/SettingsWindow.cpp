@@ -949,6 +949,15 @@ std::wstring SettingsWindow::BuildDiagnosticsContent(const std::vector<PluginSta
     text += L"Compatibility healthy: " + std::to_wstring(compatible) + L"\r\n";
     text += L"Compatibility unknown: " + std::to_wstring(unknown) + L"\r\n\r\n";
 
+    if (m_settingsRegistry)
+    {
+        const std::wstring lastReloadSummary = m_settingsRegistry->GetValue(L"settings.plugins.last_reload_summary", L"");
+        if (!lastReloadSummary.empty())
+        {
+            text += L"Last plugin host reload summary: " + lastReloadSummary + L"\r\n\r\n";
+        }
+    }
+
     if (plugins.empty())
     {
         text += L"No plugin status records available.\r\n\r\n";

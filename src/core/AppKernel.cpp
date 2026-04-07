@@ -373,6 +373,37 @@ bool AppKernel::Initialize(App* app)
                 pluginContext.appCommands = m_appCommands.get();
 
                 const bool reloaded = m_pluginHost->ReloadBuiltins(pluginContext);
+
+                if (m_settingsRegistry)
+                {
+                    int loadedCount = 0;
+                    int failedCount = 0;
+                    int disabledCount = 0;
+
+                    const auto& statuses = m_pluginHost->GetRegistry().GetAll();
+                    for (const auto& status : statuses)
+                    {
+                        if (!status.enabled)
+                        {
+                            ++disabledCount;
+                        }
+                        else if (status.loaded)
+                        {
+                            ++loadedCount;
+                        }
+                        else
+                        {
+                            ++failedCount;
+                        }
+                    }
+
+                    const std::wstring summary =
+                        L"loaded=" + std::to_wstring(loadedCount) +
+                        L", failed=" + std::to_wstring(failedCount) +
+                        L", disabled=" + std::to_wstring(disabledCount);
+                    m_settingsRegistry->SetValue(L"settings.plugins.last_reload_summary", summary);
+                }
+
                 if (m_diagnostics)
                 {
                     if (reloaded)

@@ -162,6 +162,30 @@ int RunPluginHostRuntimeConflictTests()
             return Fail("Plugin host runtime test: reload should unregister appearance selector commands after disable override");
         }
 
+        settingsRegistry.SetValue(L"settings.plugins.enable.community.visual_modes", L"true");
+        host.ReloadBuiltins(context);
+
+        appearance = host.GetRegistry().FindById(L"community.visual_modes");
+        if (!appearance)
+        {
+            host.Shutdown();
+            return Fail("Plugin host runtime test: community.visual_modes should still be in registry after re-enable reload");
+        }
+
+        if (!appearance->enabled || !appearance->loaded)
+        {
+            host.Shutdown();
+            return Fail("Plugin host runtime test: reload should re-enable and reload community.visual_modes when override is true");
+        }
+
+        if (!dispatcher.HasCommand(L"appearance.mode.focus") ||
+            !dispatcher.HasCommand(L"appearance.mode.gallery") ||
+            !dispatcher.HasCommand(L"appearance.mode.quiet"))
+        {
+            host.Shutdown();
+            return Fail("Plugin host runtime test: reload should restore appearance selector commands after re-enable override");
+        }
+
         host.Shutdown();
     }
 
