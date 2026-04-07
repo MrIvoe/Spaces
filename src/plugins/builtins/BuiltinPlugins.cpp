@@ -465,7 +465,7 @@ public:
     PluginManifest GetManifest() const override
     {
         PluginManifest manifest;
-        manifest.id = L"builtin.appearance";
+        manifest.id = L"community.visual_modes";
         manifest.displayName = L"Appearance Plugin";
         manifest.version = SimpleFencesVersion::kVersion;
         manifest.description = L"Theme controls plus visual mode commands for live fence presentation changes.";
@@ -478,7 +478,7 @@ public:
         m_context = context;
         if (context.settingsRegistry)
         {
-            context.settingsRegistry->RegisterPage(PluginSettingsPage{L"builtin.appearance", L"appearance.theme", L"Theme", 10,
+            context.settingsRegistry->RegisterPage(PluginSettingsPage{L"community.visual_modes", L"appearance.theme", L"Theme", 10,
             {
                 SettingsFieldDescriptor{
                     L"appearance.theme.mode",
@@ -546,7 +546,7 @@ public:
             }});
 
                 PluginSettingsPage visualModes;
-                visualModes.pluginId = L"builtin.appearance";
+                visualModes.pluginId = L"community.visual_modes";
                 visualModes.pageId = L"appearance.visual_modes";
                 visualModes.title = L"Visual Modes";
                 visualModes.order = 20;
@@ -1618,3 +1618,4 @@ std::vector<std::unique_ptr<IPlugin>> CreateBuiltinPlugins()
     plugins.push_back(std::make_unique<FenceOrganizerPlugin>());
     return plugins;
 }
+

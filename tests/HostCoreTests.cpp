@@ -660,10 +660,10 @@ namespace
 
         portal->Shutdown();
 
-        auto appearance = FindBuiltinPluginById(L"builtin.appearance");
+        auto appearance = FindBuiltinPluginById(L"community.visual_modes");
         if (!appearance || !appearance->Initialize(context))
         {
-            return Fail("builtin.appearance should initialize");
+            return Fail("community.visual_modes should initialize");
         }
 
         CommandContext appearanceContext;

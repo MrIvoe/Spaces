@@ -870,7 +870,7 @@ std::wstring SettingsWindow::BuildGenericPageContent(const SettingsPageView& pag
                L"- Suggested future toggles: close-to-tray behavior, startup visibility, menu ordering profile.";
     }
 
-    if (page.pluginId == L"builtin.appearance" && page.pageId == L"appearance.theme")
+    if ((page.pluginId == L"community.visual_modes" || page.pluginId == L"builtin.appearance") && page.pageId == L"appearance.theme")
     {
         const std::wstring themeText = (m_themeMode == ThemeMode::Dark) ? L"dark" : L"light";
         const std::wstring styleText = (m_themeStyle == ThemeStyle::Win32ThemeCatalog)
@@ -2244,3 +2244,4 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
     return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
+

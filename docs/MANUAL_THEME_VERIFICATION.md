@@ -208,11 +208,11 @@ This document provides a comprehensive manual verification checklist for the Sim
 
 ### Scenario 4.1: No Conflicts with Canonical Selector
 - **Prerequisites:**
-  - App with "builtin.appearance" plugin loaded
+  - App with "community.visual_modes" plugin loaded
 
 - **Steps:**
   1. Check debug.log for plugin load messages
-  2. Verify "builtin.appearance" is active
+  2. Verify "community.visual_modes" is active
 
 - **Verification:**
   - [ ] No conflict warnings in debug.log
@@ -232,7 +232,7 @@ This document provides a comprehensive manual verification checklist for the Sim
   - [ ] Conflict detected for non-canonical plugins
   - [ ] Warning logged with plugin ID
   - [ ] Plugin disabled or warning issued
-  - [ ] Canonical selector ("builtin.appearance") remains active
+  - [ ] Canonical selector ("community.visual_modes") remains active
 
 ---
 

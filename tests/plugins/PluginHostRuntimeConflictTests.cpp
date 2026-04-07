@@ -35,17 +35,17 @@ int RunPluginHostRuntimeConflictTests()
     PluginHost host;
     host.LoadBuiltins(context);
 
-    const auto* appearance = host.GetRegistry().FindById(L"builtin.appearance");
+    const auto* appearance = host.GetRegistry().FindById(L"community.visual_modes");
     if (!appearance)
     {
         host.Shutdown();
-        return Fail("Plugin host runtime test: builtin.appearance should be present in registry");
+        return Fail("Plugin host runtime test: community.visual_modes should be present in registry");
     }
 
     if (!appearance->loaded)
     {
         host.Shutdown();
-        return Fail("Plugin host runtime test: builtin.appearance should remain loaded under selector alias compatibility");
+        return Fail("Plugin host runtime test: community.visual_modes should remain loaded under selector ownership enforcement");
     }
 
     if (!dispatcher.HasCommand(L"appearance.mode.focus") ||
