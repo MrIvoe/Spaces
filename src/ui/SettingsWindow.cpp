@@ -901,6 +901,8 @@ std::wstring SettingsWindow::BuildDiagnosticsContent(const std::vector<PluginSta
     int failed = 0;
     int disabled = 0;
     int incompatible = 0;
+    int compatible = 0;
+    int unknown = 0;
     for (const auto& plugin : plugins)
     {
         if (!plugin.enabled)
@@ -916,11 +918,50 @@ std::wstring SettingsWindow::BuildDiagnosticsContent(const std::vector<PluginSta
         {
             ++incompatible;
         }
+        else if (plugin.compatibilityStatus == L"compatible")
+        {
+            ++compatible;
+        }
+        else
+        {
+            ++unknown;
+        }
     }
 
     text += L"Plugin failures: " + std::to_wstring(failed) + L"\r\n";
-    text += L"Plugins disabled: " + std::to_wstring(disabled) + L"\r\n\r\n";
-    text += L"Compatibility issues: " + std::to_wstring(incompatible) + L"\r\n\r\n";
+    text += L"Plugins disabled: " + std::to_wstring(disabled) + L"\r\n";
+    text += L"Compatibility issues: " + std::to_wstring(incompatible) + L"\r\n";
+    text += L"Compatibility healthy: " + std::to_wstring(compatible) + L"\r\n";
+    text += L"Compatibility unknown: " + std::to_wstring(unknown) + L"\r\n\r\n";
+
+    if (plugins.empty())
+    {
+        text += L"No plugin status records available.\r\n\r\n";
+    }
+    else
+    {
+        text += L"Plugin triage summary\r\n";
+        text += L"----------------------------------------\r\n";
+        for (const auto& plugin : plugins)
+        {
+            const std::wstring state = PluginStateText(plugin);
+            const std::wstring compat = plugin.compatibilityStatus.empty() ? L"unknown" : plugin.compatibilityStatus;
+
+            text += plugin.displayName + L" (" + plugin.id + L")\r\n";
+            text += L"  State: " + state + L"\r\n";
+            text += L"  Compatibility: " + compat + L"\r\n";
+            if (!plugin.compatibilityReason.empty())
+            {
+                text += L"  Compatibility reason: " + plugin.compatibilityReason + L"\r\n";
+            }
+            if (!plugin.lastError.empty())
+            {
+                text += L"  Last error: " + plugin.lastError + L"\r\n";
+            }
+            text += L"\r\n";
+        }
+    }
+
     text += L"This shell can be expanded into a richer plugin manager with actionable controls per plugin.\r\n";
     return text;
 }

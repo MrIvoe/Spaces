@@ -10,6 +10,7 @@
 - Added plugin compatibility status/reason surfacing in host registry and diagnostics output.
 - Added read-only Plugin Manager scaffold page in settings with per-plugin compatibility visibility.
 - Added Plugin Manager scaffold filters for status and text-based plugin triage.
+- Expanded settings Diagnostics page with per-plugin triage summaries and compatibility counters.
 
 ## Notes
 
