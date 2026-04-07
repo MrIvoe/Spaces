@@ -109,7 +109,18 @@ std::wstring ThemeMigrationService::GetFallbackThemeId()
 bool ThemeMigrationService::IsMigrationMarkerSet() const
 {
     const std::wstring marker = m_settingsStore->Get(L"theme.migration_v2_complete", L"");
-    return marker == L"true";
+    if (marker != L"true")
+    {
+        return false;
+    }
+
+    // Self-heal: if required canonical keys are missing/corrupt, rerun migration
+    // even if a legacy marker was previously set.
+    const std::wstring source = m_settingsStore->Get(L"theme.source", L"");
+    const std::wstring themeId = NormalizeThemeIdToKebabCase(m_settingsStore->Get(L"theme.win32.theme_id", L""));
+    const std::wstring displayName = m_settingsStore->Get(L"theme.win32.display_name", L"");
+
+    return source == L"win32_theme_system" && IsValidThemeId(themeId) && !displayName.empty();
 }
 
 bool ThemeMigrationService::PerformMigration()

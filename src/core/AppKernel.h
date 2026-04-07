@@ -60,6 +60,7 @@ private:
     std::unique_ptr<PluginHost>              m_pluginHost;
     std::unique_ptr<KernelAppCommands>       m_appCommands;
     int                                      m_settingsObserverToken = 0;
+    bool                                     m_themeBridgeSyncInProgress = false;
     mutable std::mutex                       m_commandContextMutex;
     mutable CommandContext                   m_currentCommandContext;
 };

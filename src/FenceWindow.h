@@ -54,6 +54,8 @@ private:
     void ApplyIdleVisualState();
     void ExecuteItem(int itemIndex);
     bool InitializeImageList();
+    std::wstring NewCorrelationId(const wchar_t* action) const;
+    void TraceDebug(const std::wstring& message, const std::wstring& correlationId = L"") const;
 
     static LRESULT CALLBACK SettingsPanelWndProcStatic(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     LRESULT SettingsPanelWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -72,6 +74,12 @@ private:
     bool m_mouseInside = false;
     bool m_isRolledUp = false;
     int m_expandedHeight = 0;
+    bool m_lastLoggedTransparent = false;
+    bool m_hasLastLoggedTransparent = false;
+    unsigned int m_idleStateEvalCount = 0;
+    std::wstring m_activeCorrelationId;
+    std::wstring m_geometryCorrelationId;
+    bool m_internalIdleResize = false;
     HWND m_settingsPanel = nullptr;
     std::unordered_map<UINT, Win32Helpers::PopupMenuItemVisual> m_menuVisuals;
     std::unordered_map<UINT, std::wstring> m_menuCommands;

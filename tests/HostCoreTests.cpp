@@ -318,8 +318,10 @@ namespace
     int TestThemePlatformCustomPaletteCoverage()
     {
         SettingsStore store;
-        store.Set(L"appearance.theme.mode", L"dark");
-        store.Set(L"appearance.theme.style", L"custom");
+        store.Set(L"theme.source", L"win32_theme_system");
+        store.Set(L"theme.win32.theme_id", L"nocturne-dark");
+
+        // Legacy custom color keys should no longer drive palette output.
         store.Set(L"appearance.theme.custom.window", L"#102030");
         store.Set(L"appearance.theme.custom.surface", L"#203040");
         store.Set(L"appearance.theme.custom.nav", L"#304050");
@@ -335,19 +337,21 @@ namespace
         ThemePlatform platform(&store);
         const ThemePalette palette = platform.BuildPalette();
 
-        if (palette.windowColor != RGB(0x10, 0x20, 0x30) ||
-            palette.surfaceColor != RGB(0x20, 0x30, 0x40) ||
-            palette.navColor != RGB(0x30, 0x40, 0x50) ||
-            palette.textColor != RGB(0x40, 0x50, 0x60) ||
-            palette.subtleTextColor != RGB(0x50, 0x60, 0x70) ||
-            palette.accentColor != RGB(0x60, 0x70, 0x80) ||
-            palette.borderColor != RGB(0x70, 0x80, 0x90) ||
-            palette.fenceTitleBarColor != RGB(0x80, 0x90, 0xA0) ||
-            palette.fenceTitleTextColor != RGB(0x90, 0xA0, 0xB0) ||
-            palette.fenceItemTextColor != RGB(0xA0, 0xB0, 0xC0) ||
-            palette.fenceItemHoverColor != RGB(0xB0, 0xC0, 0xD0))
+        if (palette.windowColor != RGB(34, 39, 46) ||
+            palette.surfaceColor != RGB(44, 50, 58) ||
+            palette.navColor != RGB(28, 33, 40) ||
+            palette.textColor != RGB(173, 186, 199) ||
+            palette.subtleTextColor != RGB(118, 131, 144) ||
+            palette.accentColor != RGB(109, 96, 178))
         {
-            return Fail("custom theme palette should honor all exposed color tokens");
+            return Fail("win32 theme palette should be selected from canonical theme.win32.theme_id");
+        }
+
+        if (palette.windowColor == RGB(0x10, 0x20, 0x30) ||
+            palette.surfaceColor == RGB(0x20, 0x30, 0x40) ||
+            palette.accentColor == RGB(0x60, 0x70, 0x80))
+        {
+            return Fail("legacy custom color keys should not override win32 theme palette");
         }
 
         return 0;

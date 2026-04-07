@@ -15,6 +15,8 @@ using nlohmann::json;
 
 namespace
 {
+    constexpr const wchar_t* kDeletedFenceMarkerFile = L"_deleted.marker";
+
     std::string ToUtf8(const std::wstring& value)
     {
         if (value.empty())
@@ -142,8 +144,9 @@ std::vector<FenceItem> FenceStorage::ScanFenceItems(const std::wstring& folder) 
 
         for (const auto& entry : fs::directory_iterator(folderPath))
         {
-            // Skip the origins file itself
-            if (entry.path().filename() == L"_origins.json")
+            // Skip internal bookkeeping files.
+            if (entry.path().filename() == L"_origins.json" ||
+                entry.path().filename() == kDeletedFenceMarkerFile)
                 continue;
 
             FenceItem item;
@@ -352,7 +355,10 @@ std::map<std::wstring, std::wstring> FenceStorage::LoadItemOrigins(const std::ws
     }
 }
 
-bool FenceStorage::RestoreItemToOrigin(const std::wstring& fenceFolder, const FenceItem& item, std::wstring* failureReason)
+bool FenceStorage::RestoreItemToOrigin(const std::wstring& fenceFolder,
+                                       const FenceItem& item,
+                                       std::wstring* failureReason,
+                                       std::filesystem::path* restoredDestination)
 {
     try
     {
@@ -391,6 +397,10 @@ bool FenceStorage::RestoreItemToOrigin(const std::wstring& fenceFolder, const Fe
         fs::rename(src, dest, ec);
         if (!ec)
         {
+            if (restoredDestination)
+            {
+                *restoredDestination = dest;
+            }
             auto origins = LoadItemOrigins(fenceFolder);
             origins.erase(fs::path(item.fullPath).filename().wstring());
             SaveItemOrigins(fenceFolder, origins);
@@ -409,6 +419,10 @@ bool FenceStorage::RestoreItemToOrigin(const std::wstring& fenceFolder, const Fe
                 fs::remove_all(src, ec);
                 if (!ec)
                 {
+                    if (restoredDestination)
+                    {
+                        *restoredDestination = dest;
+                    }
                     auto origins = LoadItemOrigins(fenceFolder);
                     origins.erase(fs::path(item.fullPath).filename().wstring());
                     SaveItemOrigins(fenceFolder, origins);
@@ -440,6 +454,10 @@ bool FenceStorage::RestoreItemToOrigin(const std::wstring& fenceFolder, const Fe
                 fs::remove(src, ec);
                 if (!ec)
                 {
+                    if (restoredDestination)
+                    {
+                        *restoredDestination = dest;
+                    }
                     auto origins = LoadItemOrigins(fenceFolder);
                     origins.erase(fs::path(item.fullPath).filename().wstring());
                     SaveItemOrigins(fenceFolder, origins);
@@ -493,9 +511,14 @@ RestoreResult FenceStorage::RestoreAllItems(const std::wstring& fenceFolder)
         for (const auto& item : items)
         {
             std::wstring reason;
-            if (RestoreItemToOrigin(fenceFolder, item, &reason))
+            std::filesystem::path restoredPath;
+            if (RestoreItemToOrigin(fenceFolder, item, &reason, &restoredPath))
             {
                 ++result.restoredCount;
+                if (!restoredPath.empty())
+                {
+                    result.restoredItems.push_back(restoredPath);
+                }
             }
             else
             {
@@ -583,6 +606,85 @@ bool FenceStorage::DeleteFenceFolderIfEmpty(const std::wstring& fenceFolder)
     }
 
     return true;
+}
+
+bool FenceStorage::MarkFenceDeleted(const std::wstring& fenceFolder)
+{
+    try
+    {
+        const fs::path folderPath(fenceFolder);
+        std::error_code ec;
+        fs::create_directories(folderPath, ec);
+        if (ec)
+        {
+            Win32Helpers::LogError(L"MarkFenceDeleted create_directories failed: folder='" + fenceFolder +
+                                   L"' " + FormatErrorCode(ec));
+            return false;
+        }
+
+        const fs::path markerPath = folderPath / kDeletedFenceMarkerFile;
+        std::ofstream marker(markerPath, std::ios::binary | std::ios::trunc);
+        if (!marker.is_open())
+        {
+            Win32Helpers::LogError(L"MarkFenceDeleted failed opening marker file: " + markerPath.wstring());
+            return false;
+        }
+
+        marker << "deleted";
+        marker.flush();
+        marker.close();
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        Win32Helpers::LogError(L"MarkFenceDeleted exception for folder: " + fenceFolder +
+                               L" reason: " + NarrowToWide(ex.what()));
+        return false;
+    }
+}
+
+bool FenceStorage::IsFenceDeletedMarked(const std::wstring& fenceFolder) const
+{
+    try
+    {
+        const fs::path markerPath = fs::path(fenceFolder) / kDeletedFenceMarkerFile;
+        return fs::exists(markerPath);
+    }
+    catch (const std::exception& ex)
+    {
+        Win32Helpers::LogError(L"IsFenceDeletedMarked exception for folder: " + fenceFolder +
+                               L" reason: " + NarrowToWide(ex.what()));
+        return false;
+    }
+}
+
+bool FenceStorage::ClearFenceDeletedMarker(const std::wstring& fenceFolder)
+{
+    try
+    {
+        const fs::path markerPath = fs::path(fenceFolder) / kDeletedFenceMarkerFile;
+        std::error_code ec;
+        if (!fs::exists(markerPath))
+        {
+            return true;
+        }
+
+        fs::remove(markerPath, ec);
+        if (ec)
+        {
+            Win32Helpers::LogError(L"ClearFenceDeletedMarker failed: marker='" + markerPath.wstring() +
+                                   L"' " + FormatErrorCode(ec));
+            return false;
+        }
+
+        return true;
+    }
+    catch (const std::exception& ex)
+    {
+        Win32Helpers::LogError(L"ClearFenceDeletedMarker exception for folder: " + fenceFolder +
+                               L" reason: " + NarrowToWide(ex.what()));
+        return false;
+    }
 }
 
 int FenceStorage::GetFileIconIndex(const std::wstring& filePath)

@@ -147,36 +147,27 @@ namespace
         return RGB(red, green, blue);
     }
 
-    std::wstring NormalizeThemeName(const std::wstring& raw)
+    bool IsWin32ThemeDark(const std::wstring& themeId)
     {
-        std::wstring normalized;
-        normalized.reserve(raw.size());
-        for (wchar_t c : raw)
-        {
-            if (iswspace(c))
-            {
-                normalized.push_back(L'_');
-            }
-            else
-            {
-                normalized.push_back(static_cast<wchar_t>(towlower(c)));
-            }
-        }
-        return normalized;
+        return themeId == L"amber-terminal" ||
+               themeId == L"arctic-glass" ||
+               themeId == L"graphite-office" ||
+               themeId == L"neon-cyberpunk" ||
+               themeId == L"nocturne-dark" ||
+               themeId == L"storm-steel" ||
+               themeId == L"harbor-blue" ||
+               themeId == L"olive-terminal";
     }
 
-    ThemePalette BuildWin32ThemePalette(const std::wstring& displayName)
+    ThemePalette BuildWin32ThemePalette(const std::wstring& themeId, const std::optional<ThemeMode>& forcedMode)
     {
-        const std::wstring key = NormalizeThemeName(displayName.empty() ? L"Graphite Office" : displayName);
-        const bool dark =
-            key == L"amber_terminal" ||
-            key == L"arctic_glass" ||
-            key == L"graphite_office" ||
-            key == L"neon_cyberpunk" ||
-            key == L"nocturne_dark" ||
-            key == L"storm_steel" ||
-            key == L"harbor_blue" ||
-            key == L"olive_terminal";
+        const std::wstring key = themeId.empty() ? L"graphite-office" : themeId;
+
+        bool dark = IsWin32ThemeDark(key);
+        if (forcedMode.has_value())
+        {
+            dark = (*forcedMode == ThemeMode::Dark);
+        }
 
         ThemePalette palette;
         if (dark)
@@ -208,26 +199,26 @@ namespace
             palette.fenceItemHoverColor = RGB(230, 236, 241);
         }
 
-        if (key == L"graphite_office") palette.accentColor = RGB(90, 113, 143);
-        else if (key == L"amber_terminal") palette.accentColor = RGB(242, 163, 68);
-        else if (key == L"arctic_glass") palette.accentColor = RGB(123, 189, 221);
-        else if (key == L"aurora_light") palette.accentColor = RGB(86, 150, 243);
-        else if (key == L"brass_steampunk") palette.accentColor = RGB(166, 122, 71);
-        else if (key == L"copper_foundry") palette.accentColor = RGB(181, 104, 76);
-        else if (key == L"emerald_ledger") palette.accentColor = RGB(55, 158, 117);
-        else if (key == L"forest_organic") palette.accentColor = RGB(74, 146, 92);
-        else if (key == L"harbor_blue") palette.accentColor = RGB(52, 126, 184);
-        else if (key == L"ivory_bureau") palette.accentColor = RGB(147, 128, 94);
-        else if (key == L"mono_minimal") palette.accentColor = RGB(120, 124, 129);
-        else if (key == L"neon_cyberpunk") palette.accentColor = RGB(235, 63, 255);
-        else if (key == L"nocturne_dark") palette.accentColor = RGB(109, 96, 178);
-        else if (key == L"nova_futuristic") palette.accentColor = RGB(86, 190, 255);
-        else if (key == L"olive_terminal") palette.accentColor = RGB(146, 170, 83);
-        else if (key == L"pop_colorburst") palette.accentColor = RGB(243, 101, 139);
-        else if (key == L"rose_paper") palette.accentColor = RGB(212, 122, 148);
-        else if (key == L"storm_steel") palette.accentColor = RGB(94, 124, 152);
-        else if (key == L"sunset_retro") palette.accentColor = RGB(236, 129, 84);
-        else if (key == L"tape_lo_fi") palette.accentColor = RGB(121, 112, 137);
+        if (key == L"graphite-office") palette.accentColor = RGB(90, 113, 143);
+        else if (key == L"amber-terminal") palette.accentColor = RGB(242, 163, 68);
+        else if (key == L"arctic-glass") palette.accentColor = RGB(123, 189, 221);
+        else if (key == L"aurora-light") palette.accentColor = RGB(86, 150, 243);
+        else if (key == L"brass-steampunk") palette.accentColor = RGB(166, 122, 71);
+        else if (key == L"copper-foundry") palette.accentColor = RGB(181, 104, 76);
+        else if (key == L"emerald-ledger") palette.accentColor = RGB(55, 158, 117);
+        else if (key == L"forest-organic") palette.accentColor = RGB(74, 146, 92);
+        else if (key == L"harbor-blue") palette.accentColor = RGB(52, 126, 184);
+        else if (key == L"ivory-bureau") palette.accentColor = RGB(147, 128, 94);
+        else if (key == L"mono-minimal") palette.accentColor = RGB(120, 124, 129);
+        else if (key == L"neon-cyberpunk") palette.accentColor = RGB(235, 63, 255);
+        else if (key == L"nocturne-dark") palette.accentColor = RGB(109, 96, 178);
+        else if (key == L"nova-futuristic") palette.accentColor = RGB(86, 190, 255);
+        else if (key == L"olive-terminal") palette.accentColor = RGB(146, 170, 83);
+        else if (key == L"pop-colorburst") palette.accentColor = RGB(243, 101, 139);
+        else if (key == L"rose-paper") palette.accentColor = RGB(212, 122, 148);
+        else if (key == L"storm-steel") palette.accentColor = RGB(94, 124, 152);
+        else if (key == L"sunset-retro") palette.accentColor = RGB(236, 129, 84);
+        else if (key == L"tape-lo-fi") palette.accentColor = RGB(121, 112, 137);
 
         palette.fenceTitleBarColor = BlendColor(palette.fenceTitleBarColor, palette.accentColor, dark ? 120 : 90);
         palette.borderColor = BlendColor(palette.borderColor, palette.accentColor, 72);
@@ -269,64 +260,36 @@ ThemeMode ThemePlatform::DetectSystemMode()
 
 ThemeMode ThemePlatform::ResolveMode() const
 {
-    ThemeMode mode = DetectSystemMode();
-
     if (!m_store)
     {
-        return mode;
+        return DetectSystemMode();
     }
 
     const std::wstring modeValue = m_store->Get(L"appearance.theme.mode", L"system");
     if (modeValue == L"dark")
     {
-        mode = ThemeMode::Dark;
+        return ThemeMode::Dark;
     }
-    else if (modeValue == L"light")
+    if (modeValue == L"light")
     {
-        mode = ThemeMode::Light;
+        return ThemeMode::Light;
     }
 
-    return mode;
+    // "Follow system" in Win32ThemeSystem mode follows each preset's
+    // intended light/dark profile instead of forcing the OS preference.
+    if (m_store->Get(L"theme.source", L"") == L"win32_theme_system")
+    {
+        const std::wstring themeId = m_store->Get(L"theme.win32.theme_id", L"graphite-office");
+        return IsWin32ThemeDark(themeId) ? ThemeMode::Dark : ThemeMode::Light;
+    }
+
+    return DetectSystemMode();
 }
 
 ThemeStyle ThemePlatform::ResolveStyle() const
 {
-    if (!m_store)
-    {
-        return ThemeStyle::System;
-    }
-
-    if (m_store->Get(L"theme.source", L"") == L"win32_theme_system")
-    {
-        return ThemeStyle::Win32ThemeCatalog;
-    }
-
-    const std::wstring style = m_store->Get(L"appearance.theme.style", L"system");
-    if (style == L"discord")
-    {
-        return ThemeStyle::Discord;
-    }
-    if (style == L"fences")
-    {
-        return ThemeStyle::Fences;
-    }
-    if (style == L"github_dark")
-    {
-        return ThemeStyle::GitHubDark;
-    }
-    if (style == L"github_dark_dimmed")
-    {
-        return ThemeStyle::GitHubDarkDimmed;
-    }
-    if (style == L"github_light")
-    {
-        return ThemeStyle::GitHubLight;
-    }
-    if (style == L"custom")
-    {
-        return ThemeStyle::Custom;
-    }
-    return ThemeStyle::System;
+    (void)m_store;
+    return ThemeStyle::Win32ThemeCatalog;
 }
 
 int ThemePlatform::GetTextScalePercent() const
@@ -360,74 +323,10 @@ int ThemePlatform::GetTextScalePercent() const
 FencePolicyDefaults ThemePlatform::ResolveFencePolicyDefaults() const
 {
     FencePolicyDefaults defaults;
-
-    switch (ResolveStyle())
-    {
-    case ThemeStyle::Discord:
-        defaults.rollupWhenNotHovered = false;
-        defaults.transparentWhenNotHovered = true;
-        defaults.labelsOnHover = true;
-        defaults.iconSpacingPreset = L"comfortable";
-        break;
-    case ThemeStyle::Fences:
-        defaults.rollupWhenNotHovered = false;
-        defaults.transparentWhenNotHovered = false;
-        defaults.labelsOnHover = false;
-        defaults.iconSpacingPreset = L"compact";
-        break;
-    case ThemeStyle::GitHubDark:
-    case ThemeStyle::GitHubDarkDimmed:
-        defaults.rollupWhenNotHovered = true;
-        defaults.transparentWhenNotHovered = false;
-        defaults.labelsOnHover = true;
-        defaults.iconSpacingPreset = L"comfortable";
-        break;
-    case ThemeStyle::GitHubLight:
-        defaults.rollupWhenNotHovered = false;
-        defaults.transparentWhenNotHovered = false;
-        defaults.labelsOnHover = true;
-        defaults.iconSpacingPreset = L"spacious";
-        break;
-    case ThemeStyle::Custom:
-        defaults.rollupWhenNotHovered = false;
-        defaults.transparentWhenNotHovered = false;
-        defaults.labelsOnHover = true;
-        defaults.iconSpacingPreset = L"comfortable";
-        break;
-    case ThemeStyle::System:
-    default:
-        defaults.rollupWhenNotHovered = false;
-        defaults.transparentWhenNotHovered = false;
-        defaults.labelsOnHover = true;
-        defaults.iconSpacingPreset = L"comfortable";
-        break;
-    }
-
-    if (m_store)
-    {
-        const auto applyTogglePolicy = [&](const std::wstring& key, bool& target) {
-            const std::wstring value = m_store->Get(key, L"auto");
-            if (value == L"on")
-            {
-                target = true;
-            }
-            else if (value == L"off")
-            {
-                target = false;
-            }
-        };
-
-        applyTogglePolicy(L"appearance.theme.policy.rollup_default", defaults.rollupWhenNotHovered);
-        applyTogglePolicy(L"appearance.theme.policy.transparency_default", defaults.transparentWhenNotHovered);
-        applyTogglePolicy(L"appearance.theme.policy.labels_on_hover_default", defaults.labelsOnHover);
-
-        const std::wstring spacing = m_store->Get(L"appearance.theme.policy.spacing_preset_default", L"auto");
-        if (spacing == L"compact" || spacing == L"comfortable" || spacing == L"spacious")
-        {
-            defaults.iconSpacingPreset = spacing;
-        }
-    }
-
+    defaults.rollupWhenNotHovered = false;
+    defaults.transparentWhenNotHovered = false;
+    defaults.labelsOnHover = true;
+    defaults.iconSpacingPreset = L"comfortable";
     return defaults;
 }
 
@@ -581,43 +480,24 @@ ThemePalette ThemePlatform::BuildPaletteFor(ThemeMode mode, ThemeStyle style)
 ThemePalette ThemePlatform::BuildPalette() const
 {
     const ThemeStyle style = ResolveStyle();
-    ThemePalette palette = (style == ThemeStyle::Win32ThemeCatalog && m_store)
-        ? BuildWin32ThemePalette(m_store->Get(L"theme.win32.display_name", L"Graphite Office"))
-        : BuildPaletteFor(ResolveMode(), style);
 
-    if (style == ThemeStyle::Custom && m_store)
+    std::optional<ThemeMode> forcedMode;
+    if (m_store)
     {
-        auto apply = [&](const std::wstring& key, COLORREF& target) {
-            const auto parsed = ParseHexColor(m_store->Get(key, L""));
-            if (parsed.has_value())
-            {
-                target = *parsed;
-            }
-        };
-
-        apply(L"appearance.theme.custom.window", palette.windowColor);
-        apply(L"appearance.theme.custom.surface", palette.surfaceColor);
-        apply(L"appearance.theme.custom.nav", palette.navColor);
-        apply(L"appearance.theme.custom.text", palette.textColor);
-        apply(L"appearance.theme.custom.subtle_text", palette.subtleTextColor);
-        apply(L"appearance.theme.custom.accent", palette.accentColor);
-        apply(L"appearance.theme.custom.border", palette.borderColor);
-        apply(L"appearance.theme.custom.fence_title_bar", palette.fenceTitleBarColor);
-        apply(L"appearance.theme.custom.fence_title_text", palette.fenceTitleTextColor);
-        apply(L"appearance.theme.custom.fence_item_text", palette.fenceItemTextColor);
-        apply(L"appearance.theme.custom.fence_item_hover", palette.fenceItemHoverColor);
-    }
-
-    if (m_store && m_store->GetBool(L"appearance.theme.use_accent", false))
-    {
-        const auto accent = DetectSystemAccentColor();
-        if (accent.has_value())
+        const std::wstring modeSetting = m_store->Get(L"appearance.theme.mode", L"system");
+        if (modeSetting == L"dark")
         {
-            palette.accentColor = *accent;
-            palette.fenceTitleBarColor = BlendColor(palette.fenceTitleBarColor, *accent, 170);
-            palette.borderColor = BlendColor(palette.borderColor, *accent, 96);
+            forcedMode = ThemeMode::Dark;
+        }
+        else if (modeSetting == L"light")
+        {
+            forcedMode = ThemeMode::Light;
         }
     }
+
+    ThemePalette palette = (style == ThemeStyle::Win32ThemeCatalog && m_store)
+        ? BuildWin32ThemePalette(m_store->Get(L"theme.win32.theme_id", L"graphite-office"), forcedMode)
+        : BuildPaletteFor(ResolveMode(), style);
 
     return palette;
 }

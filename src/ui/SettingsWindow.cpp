@@ -873,33 +873,11 @@ std::wstring SettingsWindow::BuildGenericPageContent(const SettingsPageView& pag
     if (page.pluginId == L"builtin.appearance" && page.pageId == L"appearance.theme")
     {
         const std::wstring themeText = (m_themeMode == ThemeMode::Dark) ? L"dark" : L"light";
-        std::wstring styleText = L"system";
-        if (m_themeStyle == ThemeStyle::Discord)
-        {
-            styleText = L"discord";
-        }
-        else if (m_themeStyle == ThemeStyle::Fences)
-        {
-            styleText = L"fences";
-        }
-        else if (m_themeStyle == ThemeStyle::GitHubDark)
-        {
-            styleText = L"github_dark";
-        }
-        else if (m_themeStyle == ThemeStyle::GitHubDarkDimmed)
-        {
-            styleText = L"github_dark_dimmed";
-        }
-        else if (m_themeStyle == ThemeStyle::GitHubLight)
-        {
-            styleText = L"github_light";
-        }
-        else if (m_themeStyle == ThemeStyle::Custom)
-        {
-            styleText = L"custom";
-        }
+        const std::wstring styleText = (m_themeStyle == ThemeStyle::Win32ThemeCatalog)
+            ? L"win32_theme_system"
+            : L"legacy";
         return L"Theme\r\n\r\n"
-               L"- Theme engine supports mode + style profiles for future app-wide theming.\r\n"
+               L"- Theme engine is driven by Win32ThemeSystem with canonical theme IDs.\r\n"
                L"- Active theme: " + themeText + L"\r\n"
                L"- Active style: " + styleText + L"\r\n"
                L"- Palette includes window, surface, nav, text, subtle-text, and accent colors.";
@@ -1619,11 +1597,9 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
             PostMessageW(m_hwnd, kMsgApplyNavCollapsed, desiredCollapsed ? 1 : 0, 0);
         }
 
-        if (StartsWith(changedKey, L"appearance.theme."))
+        if (StartsWith(changedKey, L"appearance.theme.") || StartsWith(changedKey, L"theme.win32.") || changedKey == L"theme.source")
         {
             RefreshTheme();
-            const UINT themeMsg = ThemePlatform::GetThemeChangedMessageId();
-            SendNotifyMessageW(HWND_BROADCAST, themeMsg, 0, 0);
             ShowSelectedPluginTab();
         }
     };
@@ -2132,7 +2108,6 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     case WM_THEMECHANGED:
         RefreshTheme();
         ShowSelectedPluginTab();
-        SendNotifyMessageW(HWND_BROADCAST, ThemePlatform::GetThemeChangedMessageId(), 0, 0);
         return 0;
     case WM_TIMER:
         break;

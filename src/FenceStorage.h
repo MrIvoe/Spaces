@@ -18,10 +18,16 @@ public:
     std::wstring EnsureFenceFolder(const std::wstring& fenceId);
     std::vector<FenceItem> ScanFenceItems(const std::wstring& folder) const;
     FileMoveResult MovePathsIntoFence(const std::vector<std::wstring>& sourcePaths, const std::wstring& fenceFolder);
-    bool RestoreItemToOrigin(const std::wstring& fenceFolder, const FenceItem& item, std::wstring* failureReason = nullptr);
+    bool RestoreItemToOrigin(const std::wstring& fenceFolder,
+                             const FenceItem& item,
+                             std::wstring* failureReason = nullptr,
+                             std::filesystem::path* restoredDestination = nullptr);
     RestoreResult RestoreAllItems(const std::wstring& fenceFolder);
     bool DeleteItem(const std::wstring& fenceFolder, const FenceItem& item);
     bool DeleteFenceFolderIfEmpty(const std::wstring& fenceFolder);
+    bool MarkFenceDeleted(const std::wstring& fenceFolder);
+    bool IsFenceDeletedMarked(const std::wstring& fenceFolder) const;
+    bool ClearFenceDeletedMarker(const std::wstring& fenceFolder);
 
     // Icon utilities
     static int GetFileIconIndex(const std::wstring& filePath);

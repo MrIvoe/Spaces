@@ -494,204 +494,54 @@ public:
                     10
                 },
                 SettingsFieldDescriptor{
-                    L"appearance.theme.style",
-                    L"Theme style",
-                    L"Visual profile for app surfaces. Includes GitHub presets and a custom profile.",
+                    L"theme.source",
+                    L"Theme system",
+                    L"Active theme catalog source. Win32ThemeSystem is the single supported catalog.",
                     SettingsFieldType::Enum,
-                    L"system",
+                    L"win32_theme_system",
                     {
-                        SettingsEnumOption{L"system", L"System"},
-                        SettingsEnumOption{L"discord", L"Discord"},
-                        SettingsEnumOption{L"fences", L"Fences"},
-                        SettingsEnumOption{L"github_dark", L"GitHub Dark"},
-                        SettingsEnumOption{L"github_dark_dimmed", L"GitHub Dark Dimmed"},
-                        SettingsEnumOption{L"github_light", L"GitHub Light"},
-                        SettingsEnumOption{L"custom", L"Custom"},
+                        SettingsEnumOption{L"win32_theme_system", L"Win32 Theme System"},
                     },
                     20
                 },
                 SettingsFieldDescriptor{
-                    L"appearance.theme.use_accent",
-                    L"Use system accent colour",
-                    L"Apply the Windows accent colour to fence header bars.",
-                    SettingsFieldType::Bool,
-                    L"false",
-                    {},
-                    30
+                    L"theme.win32.theme_id",
+                    L"Theme",
+                    L"Active theme from the Win32ThemeSystem catalog.",
+                    SettingsFieldType::Enum,
+                    L"graphite-office",
+                    {
+                        SettingsEnumOption{L"amber-terminal",   L"Amber Terminal"},
+                        SettingsEnumOption{L"arctic-glass",     L"Arctic Glass"},
+                        SettingsEnumOption{L"aurora-light",     L"Aurora Light"},
+                        SettingsEnumOption{L"brass-steampunk",  L"Brass Steampunk"},
+                        SettingsEnumOption{L"copper-foundry",   L"Copper Foundry"},
+                        SettingsEnumOption{L"emerald-ledger",   L"Emerald Ledger"},
+                        SettingsEnumOption{L"forest-organic",   L"Forest Organic"},
+                        SettingsEnumOption{L"graphite-office",  L"Graphite Office"},
+                        SettingsEnumOption{L"harbor-blue",      L"Harbor Blue"},
+                        SettingsEnumOption{L"ivory-bureau",     L"Ivory Bureau"},
+                        SettingsEnumOption{L"mono-minimal",     L"Mono Minimal"},
+                        SettingsEnumOption{L"neon-cyberpunk",   L"Neon Cyberpunk"},
+                        SettingsEnumOption{L"nocturne-dark",    L"Nocturne Dark"},
+                        SettingsEnumOption{L"nova-futuristic",  L"Nova Futuristic"},
+                        SettingsEnumOption{L"olive-terminal",   L"Olive Terminal"},
+                        SettingsEnumOption{L"pop-colorburst",   L"Pop Colorburst"},
+                        SettingsEnumOption{L"rose-paper",       L"Rose Paper"},
+                        SettingsEnumOption{L"storm-steel",      L"Storm Steel"},
+                        SettingsEnumOption{L"sunset-retro",     L"Sunset Retro"},
+                        SettingsEnumOption{L"tape-lo-fi",       L"Tape Lo-Fi"},
+                    },
+                    25
                 },
                 SettingsFieldDescriptor{
                     L"appearance.theme.text_scale_percent",
                     L"Text scale (%)",
-                    L"Future full-app UI text scaling. Current settings shell baseline is already enlarged for readability.",
+                    L"UI text scaling for the host settings shell.",
                     SettingsFieldType::Int,
                     L"115",
                     {},
-                    40
-                },
-                SettingsFieldDescriptor{
-                    L"appearance.theme.custom.window",
-                    L"Custom window color (#RRGGBB)",
-                    L"Used when Theme style is set to Custom.",
-                    SettingsFieldType::String,
-                    L"#1F2530",
-                    {},
-                    50
-                },
-                SettingsFieldDescriptor{
-                    L"appearance.theme.custom.surface",
-                    L"Custom surface color (#RRGGBB)",
-                    L"Primary panel background for custom theme.",
-                    SettingsFieldType::String,
-                    L"#2A3140",
-                    {},
-                    60
-                },
-                SettingsFieldDescriptor{
-                    L"appearance.theme.custom.nav",
-                    L"Custom nav color (#RRGGBB)",
-                    L"Left sidebar background color.",
-                    SettingsFieldType::String,
-                    L"#181E29",
-                    {},
-                    70
-                },
-                SettingsFieldDescriptor{
-                    L"appearance.theme.custom.text",
-                    L"Custom text color (#RRGGBB)",
-                    L"Primary foreground text color.",
-                    SettingsFieldType::String,
-                    L"#E4ECF7",
-                    {},
-                    80
-                },
-                SettingsFieldDescriptor{
-                    L"appearance.theme.custom.subtle_text",
-                    L"Custom subtle text color (#RRGGBB)",
-                    L"Secondary and supporting text color for custom theme.",
-                    SettingsFieldType::String,
-                    L"#A8B4C7",
-                    {},
-                    85
-                },
-                SettingsFieldDescriptor{
-                    L"appearance.theme.custom.accent",
-                    L"Custom accent color (#RRGGBB)",
-                    L"Selection/highlight accent color.",
-                    SettingsFieldType::String,
-                    L"#4BA3FF",
-                    {},
-                    90
-                },
-                SettingsFieldDescriptor{
-                    L"appearance.theme.custom.border",
-                    L"Custom border color (#RRGGBB)",
-                    L"Border lines and separators for custom theme.",
-                    SettingsFieldType::String,
-                    L"#3E4A5F",
-                    {},
-                    100
-                },
-                SettingsFieldDescriptor{
-                    L"appearance.theme.custom.fence_title_bar",
-                    L"Custom fence title bar (#RRGGBB)",
-                    L"Fence title bar color when using custom theme.",
-                    SettingsFieldType::String,
-                    L"#223247",
-                    {},
-                    110
-                },
-                SettingsFieldDescriptor{
-                    L"appearance.theme.custom.fence_title_text",
-                    L"Custom fence title text (#RRGGBB)",
-                    L"Fence title bar text colour when using custom theme.",
-                    SettingsFieldType::String,
-                    L"#E6EDF6",
-                    {},
-                    115
-                },
-                SettingsFieldDescriptor{
-                    L"appearance.theme.custom.fence_item_text",
-                    L"Custom fence item text (#RRGGBB)",
-                    L"Fence item label colour when using custom theme.",
-                    SettingsFieldType::String,
-                    L"#D5E0EE",
-                    {},
-                    118
-                },
-                SettingsFieldDescriptor{
-                    L"appearance.theme.custom.fence_item_hover",
-                    L"Custom fence hover (#RRGGBB)",
-                    L"Fence item hover highlight color when using custom theme.",
-                    SettingsFieldType::String,
-                    L"#314A66",
-                    {},
-                    120
-                },
-                SettingsFieldDescriptor{
-                    L"appearance.theme.preset_action",
-                    L"Theme preset action",
-                    L"Import or export a custom theme preset as JSON.",
-                    SettingsFieldType::Enum,
-                    L"idle",
-                    {
-                        SettingsEnumOption{L"idle", L"Idle"},
-                        SettingsEnumOption{L"import", L"Import preset..."},
-                        SettingsEnumOption{L"export", L"Export preset..."},
-                    },
-                    130
-                },
-                SettingsFieldDescriptor{
-                    L"appearance.theme.policy.rollup_default",
-                    L"Fence roll-up default",
-                    L"Theme policy mapping for fence roll-up when not hovered.",
-                    SettingsFieldType::Enum,
-                    L"auto",
-                    {
-                        SettingsEnumOption{L"auto", L"Auto (from style)"},
-                        SettingsEnumOption{L"on", L"Always on"},
-                        SettingsEnumOption{L"off", L"Always off"},
-                    },
-                    140
-                },
-                SettingsFieldDescriptor{
-                    L"appearance.theme.policy.transparency_default",
-                    L"Fence transparency default",
-                    L"Theme policy mapping for fence transparency when not hovered.",
-                    SettingsFieldType::Enum,
-                    L"auto",
-                    {
-                        SettingsEnumOption{L"auto", L"Auto (from style)"},
-                        SettingsEnumOption{L"on", L"Always on"},
-                        SettingsEnumOption{L"off", L"Always off"},
-                    },
-                    150
-                },
-                SettingsFieldDescriptor{
-                    L"appearance.theme.policy.labels_on_hover_default",
-                    L"Icon labels-on-hover default",
-                    L"Theme policy mapping for showing icon labels only on hover.",
-                    SettingsFieldType::Enum,
-                    L"auto",
-                    {
-                        SettingsEnumOption{L"auto", L"Auto (from style)"},
-                        SettingsEnumOption{L"on", L"Always on"},
-                        SettingsEnumOption{L"off", L"Always off"},
-                    },
-                    160
-                },
-                SettingsFieldDescriptor{
-                    L"appearance.theme.policy.spacing_preset_default",
-                    L"Icon spacing preset default",
-                    L"Theme policy mapping for icon spacing density.",
-                    SettingsFieldType::Enum,
-                    L"auto",
-                    {
-                        SettingsEnumOption{L"auto", L"Auto (from style)"},
-                        SettingsEnumOption{L"compact", L"Compact"},
-                        SettingsEnumOption{L"comfortable", L"Comfortable"},
-                        SettingsEnumOption{L"spacious", L"Spacious"},
-                    },
-                    170
+                    30
                 },
             }});
 
@@ -708,14 +558,9 @@ public:
                     L"false",
                     {},
                     10});
-                context.settingsRegistry->RegisterPage(std::move(visualModes));
             }
 
-            if (context.menuRegistry)
             {
-                context.menuRegistry->Register(MenuContribution{MenuSurface::FenceContext, L"Focus Visual Mode", L"appearance.mode.focus", 300, true});
-                context.menuRegistry->Register(MenuContribution{MenuSurface::FenceContext, L"Gallery Visual Mode", L"appearance.mode.gallery", 310, false});
-                context.menuRegistry->Register(MenuContribution{MenuSurface::FenceContext, L"Quiet Visual Mode", L"appearance.mode.quiet", 320, false});
             }
 
             if (context.commandDispatcher)
@@ -724,7 +569,6 @@ public:
                     ApplyVisualMode(command, L"focus");
                 });
                 context.commandDispatcher->RegisterCommand(L"appearance.mode.gallery", [this](const CommandContext& command) {
-                    ApplyVisualMode(command, L"gallery");
                 });
                 context.commandDispatcher->RegisterCommand(L"appearance.mode.quiet", [this](const CommandContext& command) {
                     ApplyVisualMode(command, L"quiet");
@@ -779,8 +623,8 @@ public:
             else
             {
                 settings.textOnlyMode = true;
-                settings.rollupWhenNotHovered = true;
-                settings.transparentWhenNotHovered = true;
+                settings.rollupWhenNotHovered = false;
+                settings.transparentWhenNotHovered = false;
                 settings.labelsOnHover = true;
                 settings.iconSpacingPreset = L"compact";
             }
@@ -940,10 +784,6 @@ private:
 
         if (fence.contentSource.empty())
         {
-            if (m_context.appCommands)
-            {
-                m_context.appCommands->UpdateFenceContentState(fence.id, L"needs_source", L"Choose a source folder to activate this portal.");
-            }
             return items;
         }
 
@@ -951,10 +791,6 @@ private:
         std::error_code ec;
         if (!fs::exists(root, ec) || !fs::is_directory(root, ec))
         {
-            if (m_context.appCommands)
-            {
-                m_context.appCommands->UpdateFenceContentState(fence.id, L"disconnected", L"Source folder is unavailable.");
-            }
             return items;
         }
 
@@ -999,12 +835,6 @@ private:
                 appendEntry(entry);
             }
         }
-
-        if (m_context.appCommands)
-        {
-            m_context.appCommands->UpdateFenceContentState(fence.id, L"ready", L"Portal connected.");
-        }
-
         return items;
     }
 
@@ -1093,7 +923,7 @@ private:
         const std::wstring fenceId = m_context.appCommands->CreateFenceNearCursor(request);
         if (!fenceId.empty())
         {
-            m_context.appCommands->RefreshFence(fenceId);
+            m_context.appCommands->UpdateFenceContentState(fenceId, L"connecting", L"Connecting to source folder...");
             LogInfo(L"Created folder portal for source: " + selectedPath);
         }
     }
@@ -1112,7 +942,7 @@ private:
         }
 
         m_context.appCommands->UpdateFenceContentSource(command.fence.id, selectedPath);
-        m_context.appCommands->RefreshFence(command.fence.id);
+        m_context.appCommands->UpdateFenceContentState(command.fence.id, L"connecting", L"Connecting to source folder...");
     }
 
     void OpenPortalSource(const CommandContext& command) const
@@ -1134,7 +964,6 @@ private:
         }
 
         m_context.appCommands->UpdateFenceContentState(command.fence.id, L"connecting", L"Reconnect requested.");
-        m_context.appCommands->RefreshFence(command.fence.id);
     }
 
     void StartWatcher()
@@ -1163,16 +992,22 @@ private:
 
     void WatchLoop()
     {
+        bool firstPass = true;
         for (;;)
         {
             {
                 std::unique_lock<std::mutex> lock(m_watchMutex);
-                const int intervalSeconds = max(1, GetIntSetting(L"explorer.portal.watch_interval_seconds", L"2"));
-                if (m_watchCv.wait_for(lock, std::chrono::seconds(intervalSeconds), [this]() { return m_stopRequested; }))
+                if (!firstPass)
                 {
-                    return;
+                    const int intervalSeconds = max(1, GetIntSetting(L"explorer.portal.watch_interval_seconds", L"2"));
+                    if (m_watchCv.wait_for(lock, std::chrono::seconds(intervalSeconds), [this]() { return m_stopRequested; }))
+                    {
+                        return;
+                    }
                 }
             }
+
+            firstPass = false;
 
             if (!m_context.appCommands)
             {
@@ -1485,7 +1320,7 @@ private:
         page.fields.push_back(SettingsFieldDescriptor{
             L"organizer.actions.include_hidden",
             L"Include hidden files",
-            L"Include hidden files when organizing and flattening.",
+            L"Include hidden files during organization operations.",
             SettingsFieldType::Bool,
             L"false",
             {},

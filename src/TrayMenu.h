@@ -19,6 +19,7 @@ public:
     bool Create(HINSTANCE hInstance);
     void Destroy();
     void ShowContextMenu(POINT pt);
+    void RefreshTooltipText();
 
 private:
     static LRESULT CALLBACK WndProcStatic(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);

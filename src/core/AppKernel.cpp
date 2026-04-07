@@ -16,6 +16,7 @@
 #include "extensions/PluginSettingsRegistry.h"
 #include "Win32Helpers.h"
 
+#include <array>
 #include <cwctype>
 
 #include <windows.h>
@@ -41,26 +42,89 @@ namespace
 
     namespace Win32ThemeSystem
     {
-        void Apply(SettingsStore* store, const std::wstring& displayName)
+        std::wstring NormalizeThemeId(std::wstring themeId)
+        {
+            for (auto& ch : themeId)
+            {
+                if (ch == L'_')
+                {
+                    ch = L'-';
+                }
+                else
+                {
+                    ch = static_cast<wchar_t>(towlower(ch));
+                }
+            }
+
+            if (themeId.empty())
+            {
+                return L"graphite-office";
+            }
+
+            return themeId;
+        }
+
+        std::wstring DisplayNameFromThemeId(const std::wstring& themeId)
+        {
+            static const std::array<std::pair<const wchar_t*, const wchar_t*>, 20> kCatalog = {{
+                {L"amber-terminal", L"Amber Terminal"},
+                {L"arctic-glass", L"Arctic Glass"},
+                {L"aurora-light", L"Aurora Light"},
+                {L"brass-steampunk", L"Brass Steampunk"},
+                {L"copper-foundry", L"Copper Foundry"},
+                {L"emerald-ledger", L"Emerald Ledger"},
+                {L"forest-organic", L"Forest Organic"},
+                {L"graphite-office", L"Graphite Office"},
+                {L"harbor-blue", L"Harbor Blue"},
+                {L"ivory-bureau", L"Ivory Bureau"},
+                {L"mono-minimal", L"Mono Minimal"},
+                {L"neon-cyberpunk", L"Neon Cyberpunk"},
+                {L"nocturne-dark", L"Nocturne Dark"},
+                {L"nova-futuristic", L"Nova Futuristic"},
+                {L"olive-terminal", L"Olive Terminal"},
+                {L"pop-colorburst", L"Pop Colorburst"},
+                {L"rose-paper", L"Rose Paper"},
+                {L"storm-steel", L"Storm Steel"},
+                {L"sunset-retro", L"Sunset Retro"},
+                {L"tape-lo-fi", L"Tape Lo-Fi"},
+            }};
+
+            for (const auto& entry : kCatalog)
+            {
+                if (themeId == entry.first)
+                {
+                    return entry.second;
+                }
+            }
+
+            return L"Graphite Office";
+        }
+
+        void Apply(SettingsStore* store, const std::wstring& themeId)
         {
             if (!store)
             {
                 return;
             }
 
-            std::wstring normalized = Trim(displayName);
-            if (normalized.empty())
-            {
-                normalized = L"Graphite Office";
-            }
+            const std::wstring normalizedThemeId = NormalizeThemeId(themeId);
+            const std::wstring displayName = DisplayNameFromThemeId(normalizedThemeId);
 
             if (store->Get(L"theme.source", L"") != L"win32_theme_system")
             {
                 store->Set(L"theme.source", L"win32_theme_system");
             }
-            if (store->Get(L"theme.win32.display_name", L"") != normalized)
+            if (store->Get(L"theme.win32.theme_id", L"") != normalizedThemeId)
             {
-                store->Set(L"theme.win32.display_name", normalized);
+                store->Set(L"theme.win32.theme_id", normalizedThemeId);
+            }
+            if (store->Get(L"theme.win32.display_name", L"") != displayName)
+            {
+                store->Set(L"theme.win32.display_name", displayName);
+            }
+            if (store->Get(L"theme.win32.catalog_version", L"") != L"2026.04.06")
+            {
+                store->Set(L"theme.win32.catalog_version", L"2026.04.06");
             }
         }
     }
@@ -285,44 +349,29 @@ bool AppKernel::Initialize(App* app)
     m_settingsObserverToken = m_settingsRegistry->RegisterObserver(
         [this, app](const std::wstring& key, const std::wstring& value)
         {
+            (void)value;
+
             if (!m_settingsRegistry)
             {
                 return;
             }
 
-            if (key != L"theme.win32.display_name" && key != L"theme.source")
+            if (key != L"theme.win32.theme_id" && key != L"theme.win32.display_name" && key != L"theme.source" && key != L"theme.preset")
             {
                 return;
             }
 
-            const std::wstring source = m_settingsRegistry->GetValue(L"theme.source", L"");
-            if (source != L"win32_theme_system")
-            {
-                return;
-            }
-
-            std::wstring displayName = m_settingsRegistry->GetValue(L"theme.win32.display_name", L"Graphite Office");
-            if (displayName.empty())
-            {
-                displayName = L"Graphite Office";
-                m_settingsRegistry->SetValue(L"theme.win32.display_name", displayName);
-                return;
-            }
-
-            Win32ThemeSystem::Apply(m_settingsStore.get(), displayName);
+            const std::wstring rawThemeId = m_settingsRegistry->GetValue(L"theme.win32.theme_id", L"");
+            const std::wstring themeId = rawThemeId.empty()
+                ? Win32ThemeSystem::NormalizeThemeId(m_settingsRegistry->GetValue(L"theme.preset", L"graphite-office"))
+                : Win32ThemeSystem::NormalizeThemeId(rawThemeId);
 
             if (m_diagnostics)
             {
-                m_diagnostics->Info(L"Theme bridge apply requested: " + displayName);
-            }
-
-            if (app && app->GetFenceManager())
-            {
-                app->GetFenceManager()->RefreshAll();
+                m_diagnostics->Info(L"Theme bridge apply requested: id='" + themeId + L"'");
             }
 
             SendNotifyMessageW(HWND_BROADCAST, ThemePlatform::GetThemeChangedMessageId(), 0, 0);
-            SendNotifyMessageW(HWND_BROADCAST, WM_THEMECHANGED, 0, 0);
         });
 
     const bool createRegistered = m_commandDispatcher->RegisterCommand(L"fence.create", [commands = m_appCommands.get()]() {

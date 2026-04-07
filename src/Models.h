@@ -50,6 +50,7 @@ struct RestoreResult
 {
     int restoredCount = 0;
     int failedCount = 0;
+    std::vector<std::filesystem::path> restoredItems;
     std::vector<std::pair<std::filesystem::path, std::wstring>> failedItems;
 
     bool AllSucceeded() const { return failedCount == 0; }

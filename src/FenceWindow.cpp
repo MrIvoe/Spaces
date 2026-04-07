@@ -7,7 +7,9 @@
 #include <shlobj.h>
 #include <windowsx.h>
 #include <algorithm>
+#include <atomic>
 #include <cwctype>
+#include <sstream>
 
 #pragma comment(lib, "Comctl32.lib")
 #pragma comment(lib, "Shell32.lib")
@@ -17,6 +19,8 @@ static constexpr const wchar_t* kFenceSettingsClass = L"SimpleFences_FenceSettin
 static constexpr int kTitleBarHeight = 28;
 static constexpr int kBorderSize = 1;
 static constexpr int kIconGridSize = 32;
+static constexpr UINT_PTR kIdleStateTimerId = 1;
+static constexpr UINT kIdleStateTimerMs = 100;
 
 static constexpr int kCmdFenceSettings = 1007;
 static constexpr int kCtlInheritThemePolicy = 5001;
@@ -30,6 +34,18 @@ static constexpr int kCtlApplyAll = 5008;
 
 namespace
 {
+    std::atomic<unsigned long long> gFenceEventSequence{1};
+
+    std::wstring BoolText(bool value)
+    {
+        return value ? L"true" : L"false";
+    }
+
+    std::wstring CorrelationPrefix(const std::wstring& correlationId)
+    {
+        return correlationId.empty() ? L"" : (L"[cid=" + correlationId + L"] ");
+    }
+
     int TileSizeFromPreset(const std::wstring& preset)
     {
         if (preset == L"compact")
@@ -111,8 +127,25 @@ bool FenceWindow::Create(HWND parent)
         return false;
 
     m_expandedHeight = height;
+    SetTimer(m_hwnd, kIdleStateTimerId, kIdleStateTimerMs, nullptr);
+
+    // Seed hover state from real cursor position to prevent immediate roll-up
+    // when a fence is created under the mouse.
+    POINT cursor{};
+    RECT winRect{};
+    if (GetCursorPos(&cursor) && GetWindowRect(m_hwnd, &winRect))
+    {
+        m_mouseInside = PtInRect(&winRect, cursor) != FALSE;
+    }
+
     DragAcceptFiles(m_hwnd, TRUE);
     InitializeImageList();
+    const std::wstring createCid = NewCorrelationId(L"create");
+    TraceDebug(L"Create window: pos=(" + std::to_wstring(m_model.x) +
+               L"," + std::to_wstring(m_model.y) + L") size=(" +
+               std::to_wstring(width) + L"x" + std::to_wstring(height) +
+               L") hover=" + BoolText(m_mouseInside),
+               createCid);
     ApplyIdleVisualState();
 
     return true;
@@ -131,6 +164,9 @@ void FenceWindow::Destroy()
 {
     if (m_hwnd)
     {
+        const std::wstring destroyCid = NewCorrelationId(L"destroy");
+        TraceDebug(L"Destroy window", destroyCid);
+        KillTimer(m_hwnd, kIdleStateTimerId);
         DragAcceptFiles(m_hwnd, FALSE);
         DestroyWindow(m_hwnd);
         m_hwnd = nullptr;
@@ -240,11 +276,22 @@ LRESULT FenceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         return 0;
 
     case WM_MOUSELEAVE:
+        m_activeCorrelationId = NewCorrelationId(L"hover");
         m_mouseInside = false;
         m_selectedItem = -1;
+        TraceDebug(L"Mouse leave", m_activeCorrelationId);
         ApplyIdleVisualState();
         InvalidateRect(m_hwnd, nullptr, FALSE);
         return 0;
+
+    case WM_TIMER:
+        if (wParam == kIdleStateTimerId)
+        {
+            ApplyIdleVisualState();
+            InvalidateRect(m_hwnd, nullptr, FALSE);
+            return 0;
+        }
+        break;
 
     case WM_CONTEXTMENU:
     {
@@ -322,10 +369,42 @@ LRESULT FenceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
     case WM_SIZE:
     {
+        if (wParam == SIZE_MINIMIZED)
+        {
+            // Keep fences on desktop even when shell tries to minimize windows
+            // (e.g. Win+D / Show Desktop action).
+            ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
+            return 0;
+        }
+
         int width = (int)(short)LOWORD(lParam);
         int height = (int)(short)HIWORD(lParam);
         OnSize(width, height);
         return 0;
+    }
+
+    case WM_SYSCOMMAND:
+    {
+        const UINT command = static_cast<UINT>(wParam & 0xFFF0);
+        if (command == SC_MINIMIZE)
+        {
+            // Keep fences active overlays even when shell attempts global minimize
+            // (Win+D / Show Desktop).
+            ShowWindow(m_hwnd, SW_SHOWNOACTIVATE);
+            return 0;
+        }
+        break;
+    }
+
+    case WM_WINDOWPOSCHANGING:
+    {
+        auto* pos = reinterpret_cast<WINDOWPOS*>(lParam);
+        if (pos)
+        {
+            // Ignore shell hide requests so fences stay visible as desktop overlays.
+            pos->flags &= ~SWP_HIDEWINDOW;
+        }
+        break;
     }
 
     case WM_EXITSIZEMOVE:
@@ -334,7 +413,19 @@ LRESULT FenceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         {
             RECT rc{};
             GetWindowRect(m_hwnd, &rc);
-            m_manager->UpdateFenceGeometry(m_model.id, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top);
+            if (m_geometryCorrelationId.empty())
+            {
+                m_geometryCorrelationId = NewCorrelationId(L"resize");
+            }
+
+            m_manager->UpdateFenceGeometry(m_model.id,
+                                           rc.left,
+                                           rc.top,
+                                           rc.right - rc.left,
+                                           rc.bottom - rc.top,
+                                           m_geometryCorrelationId);
+            TraceDebug(L"Geometry committed on exit-size-move", m_geometryCorrelationId);
+            m_geometryCorrelationId.clear();
         }
         return 0;
     }
@@ -493,7 +584,9 @@ void FenceWindow::OnMouseMove(int x, int y, WPARAM flags)
 
     if (!m_mouseInside)
     {
+        m_activeCorrelationId = NewCorrelationId(L"hover");
         m_mouseInside = true;
+        TraceDebug(L"Mouse enter", m_activeCorrelationId);
         ApplyIdleVisualState();
     }
 
@@ -669,17 +762,29 @@ void FenceWindow::OnContextMenu(int x, int y)
 
     case 1005: // Roll up when not hovered
         if (m_manager)
-            m_manager->SetFenceRollupWhenNotHovered(m_model.id, !m_model.rollupWhenNotHovered);
+        {
+            const std::wstring cid = NewCorrelationId(L"rollup_setting");
+            TraceDebug(L"Toggle roll-up policy", cid);
+            m_manager->SetFenceRollupWhenNotHovered(m_model.id, !m_model.rollupWhenNotHovered, cid);
+        }
         break;
 
     case 1006: // Transparent when not hovered
         if (m_manager)
-            m_manager->SetFenceTransparentWhenNotHovered(m_model.id, !m_model.transparentWhenNotHovered);
+        {
+            const std::wstring cid = NewCorrelationId(L"transparency_setting");
+            TraceDebug(L"Toggle transparency policy", cid);
+            m_manager->SetFenceTransparentWhenNotHovered(m_model.id, !m_model.transparentWhenNotHovered, cid);
+        }
         break;
 
     case 1003: // Delete Fence
         if (m_manager)
-            m_manager->DeleteFence(m_model.id);
+        {
+            const std::wstring cid = NewCorrelationId(L"delete");
+            TraceDebug(L"Delete fence requested", cid);
+            m_manager->DeleteFence(m_model.id, cid);
+        }
         break;
 
     case 2001: // Open item
@@ -721,11 +826,25 @@ void FenceWindow::OnDropFiles(HDROP hDrop)
     DragFinish(hDrop);
 
     if (m_manager)
-        m_manager->HandleDrop(m_model.id, paths);
+    {
+        const std::wstring cid = NewCorrelationId(L"drop");
+        TraceDebug(L"Drop received count=" + std::to_wstring(paths.size()), cid);
+        m_manager->HandleDrop(m_model.id, paths, cid);
+    }
 }
 
 void FenceWindow::OnMove(int x, int y)
 {
+    if (m_geometryCorrelationId.empty())
+    {
+        m_geometryCorrelationId = NewCorrelationId(L"resize");
+    }
+
+    if (m_model.x != x || m_model.y != y)
+    {
+        TraceDebug(L"Move to (" + std::to_wstring(x) + L"," + std::to_wstring(y) + L")", m_geometryCorrelationId);
+    }
+
     // Update model position
     m_model.x = x;
     m_model.y = y;
@@ -733,6 +852,22 @@ void FenceWindow::OnMove(int x, int y)
 
 void FenceWindow::OnSize(int width, int height)
 {
+    if (m_internalIdleResize)
+    {
+        InvalidateRect(m_hwnd, nullptr, TRUE);
+        return;
+    }
+
+    if (m_geometryCorrelationId.empty())
+    {
+        m_geometryCorrelationId = NewCorrelationId(L"resize");
+    }
+
+    if (m_model.width != width || m_model.height != height)
+    {
+        TraceDebug(L"Resize to (" + std::to_wstring(width) + L"x" + std::to_wstring(height) + L")", m_geometryCorrelationId);
+    }
+
     // Update model size
     m_model.width = width;
     m_model.height = height;
@@ -806,30 +941,77 @@ void FenceWindow::ApplyIdleVisualState()
         return;
     }
 
+    const bool previousHover = m_mouseInside;
+    const bool previousRolledUp = m_isRolledUp;
+
+    // Recompute hover state from current cursor position. This avoids a stuck
+    // rolled state when a mouse move/leave event is missed by the window loop.
+    POINT cursor{};
+    RECT windowRect{};
+    if (GetCursorPos(&cursor) && GetWindowRect(m_hwnd, &windowRect))
+    {
+        m_mouseInside = (PtInRect(&windowRect, cursor) != FALSE);
+    }
+
     const EffectiveFencePolicy policy = ResolveEffectivePolicy();
     const bool shouldRollup = policy.rollupWhenNotHovered && !m_mouseInside;
+
+    // Compute a safe rolled total height that still leaves the full custom
+    // title bar client area visible after non-client frame metrics are applied.
+    RECT desiredClient{};
+    desiredClient.left = 0;
+    desiredClient.top = 0;
+    desiredClient.right = 1;
+    desiredClient.bottom = kTitleBarHeight;
+
+    const LONG_PTR style = GetWindowLongPtrW(m_hwnd, GWL_STYLE);
+    const LONG_PTR exStyleForRect = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
+    AdjustWindowRectEx(&desiredClient, static_cast<DWORD>(style), FALSE, static_cast<DWORD>(exStyleForRect));
+    const int rolledHeight = max((desiredClient.bottom - desiredClient.top), kTitleBarHeight + 16);
+
     if (shouldRollup && !m_isRolledUp)
     {
+        if (m_activeCorrelationId.empty())
+        {
+            m_activeCorrelationId = NewCorrelationId(L"rollup");
+        }
+
         RECT rc{};
         GetWindowRect(m_hwnd, &rc);
+        const int currentWidth = max(1, rc.right - rc.left);
         const int currentHeight = rc.bottom - rc.top;
-        if (currentHeight > (kTitleBarHeight + (kBorderSize * 2)))
+        if (currentHeight > rolledHeight)
         {
             m_expandedHeight = currentHeight;
         }
-        SetWindowPos(m_hwnd, nullptr, 0, 0, 0, kTitleBarHeight + (kBorderSize * 2),
+
+        m_internalIdleResize = true;
+        SetWindowPos(m_hwnd, nullptr, 0, 0, currentWidth, rolledHeight,
                      SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+        m_internalIdleResize = false;
         m_isRolledUp = true;
     }
     else if (!shouldRollup && m_isRolledUp)
     {
-        const int restoredHeight = max(m_expandedHeight, 120);
-        SetWindowPos(m_hwnd, nullptr, 0, 0, 0, restoredHeight,
+        if (m_activeCorrelationId.empty())
+        {
+            m_activeCorrelationId = NewCorrelationId(L"rollup");
+        }
+
+        RECT rc{};
+        GetWindowRect(m_hwnd, &rc);
+        const int currentWidth = max(1, rc.right - rc.left);
+        const int restoredHeight = max(m_expandedHeight, rolledHeight + 40);
+
+        m_internalIdleResize = true;
+        SetWindowPos(m_hwnd, nullptr, 0, 0, currentWidth, restoredHeight,
                      SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+        m_internalIdleResize = false;
         m_isRolledUp = false;
     }
 
-    const bool shouldBeTransparent = policy.transparentWhenNotHovered && !m_mouseInside;
+    // Keep rolled-up fences opaque so the title bar remains visible and usable.
+    const bool shouldBeTransparent = policy.transparentWhenNotHovered && !m_mouseInside && !m_isRolledUp;
     LONG_PTR exStyle = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
     if (shouldBeTransparent)
     {
@@ -846,6 +1028,40 @@ void FenceWindow::ApplyIdleVisualState()
             SetLayeredWindowAttributes(m_hwnd, 0, 255, LWA_ALPHA);
         }
     }
+
+    ++m_idleStateEvalCount;
+    const bool hoverChanged = (previousHover != m_mouseInside);
+    const bool rollChanged = (previousRolledUp != m_isRolledUp);
+    const bool transparencyChanged = !m_hasLastLoggedTransparent || (m_lastLoggedTransparent != shouldBeTransparent);
+    if (hoverChanged || rollChanged || transparencyChanged || ((m_idleStateEvalCount % 50) == 0))
+    {
+        std::wstringstream trace;
+        trace << L"Idle eval#" << m_idleStateEvalCount
+              << L" hover=" << BoolText(m_mouseInside)
+              << L" rollPolicy=" << BoolText(policy.rollupWhenNotHovered)
+              << L" shouldRollup=" << BoolText(shouldRollup)
+              << L" rolled=" << BoolText(m_isRolledUp)
+              << L" transparentPolicy=" << BoolText(policy.transparentWhenNotHovered)
+              << L" transparent=" << BoolText(shouldBeTransparent)
+              << L" rolledHeight=" << rolledHeight
+              << L" expandedHeight=" << m_expandedHeight;
+          TraceDebug(trace.str(), m_activeCorrelationId);
+    }
+
+    m_lastLoggedTransparent = shouldBeTransparent;
+    m_hasLastLoggedTransparent = true;
+}
+
+std::wstring FenceWindow::NewCorrelationId(const wchar_t* action) const
+{
+    const unsigned long long seq = gFenceEventSequence.fetch_add(1, std::memory_order_relaxed);
+    const std::wstring actionText = action ? action : L"event";
+    return actionText + L"-" + std::to_wstring(seq);
+}
+
+void FenceWindow::TraceDebug(const std::wstring& message, const std::wstring& correlationId) const
+{
+    Win32Helpers::LogInfo(L"[FenceWindow][" + m_model.id + L"] " + CorrelationPrefix(correlationId) + message);
 }
 
 EffectiveFencePolicy FenceWindow::ResolveEffectivePolicy() const
@@ -1069,14 +1285,18 @@ LRESULT FenceWindow::SettingsPanelWndProc(HWND hwnd, UINT msg, WPARAM wParam, LP
         if (id == kCtlRollup && code == BN_CLICKED)
         {
             const bool enabled = (SendMessageW(GetDlgItem(hwnd, kCtlRollup), BM_GETCHECK, 0, 0) == BST_CHECKED);
-            m_manager->SetFenceRollupWhenNotHovered(m_model.id, enabled);
+            const std::wstring cid = NewCorrelationId(L"rollup_setting");
+            TraceDebug(L"Settings panel roll-up toggle", cid);
+            m_manager->SetFenceRollupWhenNotHovered(m_model.id, enabled, cid);
             return 0;
         }
 
         if (id == kCtlTransparent && code == BN_CLICKED)
         {
             const bool enabled = (SendMessageW(GetDlgItem(hwnd, kCtlTransparent), BM_GETCHECK, 0, 0) == BST_CHECKED);
-            m_manager->SetFenceTransparentWhenNotHovered(m_model.id, enabled);
+            const std::wstring cid = NewCorrelationId(L"transparency_setting");
+            TraceDebug(L"Settings panel transparency toggle", cid);
+            m_manager->SetFenceTransparentWhenNotHovered(m_model.id, enabled, cid);
             return 0;
         }
 

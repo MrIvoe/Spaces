@@ -20,6 +20,25 @@ TrayMenu::~TrayMenu()
     Destroy();
 }
 
+void TrayMenu::RefreshTooltipText()
+{
+    if (!m_hwnd)
+    {
+        return;
+    }
+
+    std::wstring tooltip = L"SimpleFences";
+    if (m_app && m_app->GetFenceManager() && m_app->GetFenceManager()->AreAllFencesHidden())
+    {
+        tooltip = L"SimpleFences (hidden)";
+    }
+
+    lstrcpynW(m_nid.szTip, tooltip.c_str(), static_cast<int>(std::size(m_nid.szTip)));
+    m_nid.uFlags = NIF_TIP;
+    Shell_NotifyIconW(NIM_MODIFY, &m_nid);
+    m_nid.uFlags = NIF_MESSAGE | NIF_TIP | NIF_ICON;
+}
+
 bool TrayMenu::Create(HINSTANCE hInstance)
 {
     // Create message-only window
@@ -66,6 +85,8 @@ bool TrayMenu::Create(HINSTANCE hInstance)
         return false;
     }
 
+    RefreshTooltipText();
+
     return true;
 }
 
@@ -81,6 +102,8 @@ void TrayMenu::Destroy()
 
 void TrayMenu::ShowContextMenu(POINT pt)
 {
+    RefreshTooltipText();
+
     HMENU menu = CreatePopupMenu();
 
     m_commandByMenuId.clear();
@@ -94,7 +117,8 @@ void TrayMenu::ShowContextMenu(POINT pt)
     };
 
     auto appendItem = [&](const std::wstring& title, const std::wstring& commandId) {
-        AppendMenuW(menu, MF_OWNERDRAW | MF_STRING, menuId, nullptr);
+        const UINT flags = MF_OWNERDRAW | MF_STRING | MF_ENABLED;
+        AppendMenuW(menu, flags, menuId, nullptr);
         m_commandByMenuId[menuId] = commandId;
         m_menuVisuals.emplace(menuId, Win32Helpers::PopupMenuItemVisual{title, false, true});
         ++menuId;
@@ -193,6 +217,16 @@ LRESULT TrayMenu::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             POINT pt{};
             GetCursorPos(&pt);
             ShowContextMenu(pt);
+            return 0;
+        }
+
+        if (lParam == WM_LBUTTONDBLCLK)
+        {
+            if (m_app && m_app->GetFenceManager())
+            {
+                m_app->GetFenceManager()->ToggleAllFencesHidden();
+                RefreshTooltipText();
+            }
             return 0;
         }
     }
