@@ -193,6 +193,15 @@ theme/assets/readme.txt       # Optional: documentation
 [Plugin] Conflict detected: plugin.id declares appearance.command but community.visual_modes is active
 ```
 
+### External Author Diagnostics Consistency
+
+For package-author facing rejection messages, keep internal and external docs aligned with the current host diagnostics table in [PUBLIC_THEME_AUTHORING.md](PUBLIC_THEME_AUTHORING.md#diagnostic-messages-current-host).
+
+When validation logic changes in host code, update both documents in the same change set:
+
+- [docs/THEME_SYSTEM_DESIGN.md](docs/THEME_SYSTEM_DESIGN.md)
+- [docs/PUBLIC_THEME_AUTHORING.md](docs/PUBLIC_THEME_AUTHORING.md)
+
 ---
 
 ## Implementation Roadmap

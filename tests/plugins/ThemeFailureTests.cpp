@@ -438,5 +438,52 @@ int RunThemeFailureFocusedTests()
         }
     }
 
+    // Failure test 9: required token in wrong namespace is rejected under partial corruption.
+    {
+        const std::filesystem::path pkgRoot = tempDir / "mixed_wrong_namespace_required_token";
+        std::filesystem::remove_all(pkgRoot, ec);
+        std::filesystem::create_directories(pkgRoot, ec);
+
+        const std::string metadata =
+            "{\n"
+            "  \"theme_id\": \"mixed-wrong-namespace\",\n"
+            "  \"display_name\": \"Mixed Wrong Namespace\",\n"
+            "  \"version\": \"1.0.0\"\n"
+            "}\n";
+        // Required text token value exists, but under wrong namespace so win32 required coverage must fail.
+        const std::string tokens =
+            "{\n"
+            "  \"tokens\": {\n"
+            "    \"win32.base.window_color\": \"#202124\",\n"
+            "    \"theme.base.text_color\": \"#F5F7FA\",\n"
+            "    \"win32.base.accent_color\": \"#5090F6\",\n"
+            "    \"win32.base.border_color\": \"#E5E7EB\"\n"
+            "  }\n"
+            "}\n";
+
+        if (!CreatePackageFolder(pkgRoot, metadata, tokens))
+        {
+            return Fail("Theme failure test 9: failed to create wrong-namespace package");
+        }
+
+        const std::filesystem::path zip = tempDir / "mixed_wrong_namespace_required_token.zip";
+        if (!CreateZipFromDirectory(pkgRoot, zip))
+        {
+            return Fail("Theme failure test 9: failed to zip wrong-namespace package");
+        }
+
+        ThemePackageValidator validator;
+        const auto result = validator.ValidatePackage(zip.wstring());
+        if (result.isValid)
+        {
+            return Fail("Theme failure test 9: wrong-namespace required token should be rejected");
+        }
+
+        if (result.errorMessage.find(L"required base tokens") == std::wstring::npos)
+        {
+            return Fail("Theme failure test 9: rejection should indicate required token coverage failure");
+        }
+    }
+
     return 0;
 }
