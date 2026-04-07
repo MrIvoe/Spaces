@@ -1,0 +1,14 @@
+# Changelog
+
+## 0.0.013
+
+- Theme system consolidated to Win32ThemeSystem with backward-compatible migration and public theme package support.
+- Added runtime conflict prevention for appearance selector ownership (community.visual_modes canonical path).
+- Added failure-focused validation tests for malformed/invalid third-party theme packages.
+- Added rapid-switch debounce and telemetry counters for migration/apply lifecycle observability.
+- Added telemetry smoke snapshot output in HostCoreTests for release verification.
+
+## Notes
+
+- Versioning currently remains in the unstable track (0.0.xxx).
+- Future milestone transitions should follow the ecosystem versioning policy from MASTER PROMPT V3.
