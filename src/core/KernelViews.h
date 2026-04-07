@@ -12,6 +12,8 @@ struct PluginStatusView
     std::wstring version;
     bool enabled = false;
     bool loaded = false;
+    std::wstring compatibilityStatus;
+    std::wstring compatibilityReason;
     std::wstring lastError;
     std::vector<std::wstring> capabilities;
 };

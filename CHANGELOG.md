@@ -8,6 +8,7 @@
 - Added rapid-switch debounce and telemetry counters for migration/apply lifecycle observability.
 - Added telemetry smoke snapshot output in HostCoreTests for release verification.
 - Added plugin compatibility status/reason surfacing in host registry and diagnostics output.
+- Added read-only Plugin Manager scaffold page in settings with per-plugin compatibility visibility.
 
 ## Notes
 

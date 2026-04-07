@@ -13,6 +13,7 @@
 - Appearance selector ownership guardrails (community.visual_modes canonical path).
 - Registry surfaces compatibility status and compatibility reason for each plugin.
 - Diagnostics now include compatibility state on plugin load/failure messages.
+- Settings shell includes a read-only Plugin Manager scaffold page with per-plugin state and compatibility visibility.
 
 Related implementation:
 

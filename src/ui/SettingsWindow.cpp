@@ -793,8 +793,9 @@ std::wstring SettingsWindow::BuildGeneralContent(const std::vector<PluginStatusV
 std::wstring SettingsWindow::BuildPluginsContent(const std::vector<PluginStatusView>& plugins) const
 {
     std::wstring text;
-    text += L"Plugins\r\n\r\n";
+    text += L"Plugin Manager (Scaffold)\r\n\r\n";
     text += L"Use the Plugin Hub controls above to sync plugins into %LOCALAPPDATA%\\SimpleFences\\plugins.\r\n\r\n";
+    text += L"Planned actions: install, enable/disable, update, reinstall, remove, open settings, open diagnostics, rollback.\r\n\r\n";
 
     if (plugins.empty())
     {
@@ -806,7 +807,13 @@ std::wstring SettingsWindow::BuildPluginsContent(const std::vector<PluginStatusV
     {
         text += plugin.displayName + L" (" + plugin.id + L", v" + plugin.version + L")\r\n";
         text += L"State: " + PluginStateText(plugin) + L"\r\n";
+        text += L"Compatibility: " + (plugin.compatibilityStatus.empty() ? L"unknown" : plugin.compatibilityStatus) + L"\r\n";
+        if (!plugin.compatibilityReason.empty())
+        {
+            text += L"Compatibility reason: " + plugin.compatibilityReason + L"\r\n";
+        }
         text += L"Capabilities: " + JoinCapabilities(plugin.capabilities) + L"\r\n";
+        text += L"Manager actions: [scaffold-only]\r\n";
         if (!plugin.lastError.empty())
         {
             text += L"Error: " + plugin.lastError + L"\r\n";
@@ -824,6 +831,7 @@ std::wstring SettingsWindow::BuildDiagnosticsContent(const std::vector<PluginSta
 
     int failed = 0;
     int disabled = 0;
+    int incompatible = 0;
     for (const auto& plugin : plugins)
     {
         if (!plugin.enabled)
@@ -834,11 +842,17 @@ std::wstring SettingsWindow::BuildDiagnosticsContent(const std::vector<PluginSta
         {
             ++failed;
         }
+
+        if (!plugin.compatibilityStatus.empty() && plugin.compatibilityStatus != L"compatible")
+        {
+            ++incompatible;
+        }
     }
 
     text += L"Plugin failures: " + std::to_wstring(failed) + L"\r\n";
     text += L"Plugins disabled: " + std::to_wstring(disabled) + L"\r\n\r\n";
-    text += L"This shell can be expanded into a richer page host with controls per plugin page.\r\n";
+    text += L"Compatibility issues: " + std::to_wstring(incompatible) + L"\r\n\r\n";
+    text += L"This shell can be expanded into a richer plugin manager with actionable controls per plugin.\r\n";
     return text;
 }
 
@@ -928,6 +942,11 @@ std::wstring SettingsWindow::BuildPluginOverviewContent(const PluginStatusView& 
     text += L"Plugin id: " + plugin.id + L"\r\n";
     text += L"Version: " + plugin.version + L"\r\n";
     text += L"State: " + PluginStateText(plugin) + L"\r\n";
+    text += L"Compatibility: " + (plugin.compatibilityStatus.empty() ? L"unknown" : plugin.compatibilityStatus) + L"\r\n";
+    if (!plugin.compatibilityReason.empty())
+    {
+        text += L"Compatibility reason: " + plugin.compatibilityReason + L"\r\n";
+    }
     text += L"Capabilities: " + JoinCapabilities(plugin.capabilities) + L"\r\n";
 
     if (!plugin.lastError.empty())

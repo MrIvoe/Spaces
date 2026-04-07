@@ -538,6 +538,8 @@ std::vector<PluginStatusView> AppKernel::GetPluginStatuses() const
         view.version = status.manifest.version;
         view.enabled = status.enabled;
         view.loaded = status.loaded;
+        view.compatibilityStatus = status.compatibilityStatus;
+        view.compatibilityReason = status.compatibilityReason;
         view.lastError = status.lastError;
         view.capabilities = status.manifest.capabilities;
         views.push_back(std::move(view));
