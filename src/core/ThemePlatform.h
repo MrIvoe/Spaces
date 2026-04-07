@@ -15,13 +15,7 @@ enum class ThemeMode
 enum class ThemeStyle
 {
     System,
-    Discord,
-    Fences,
-    GitHubDark,
-    GitHubDarkDimmed,
-    GitHubLight,
-    Win32ThemeCatalog,
-    Custom
+    Win32ThemeCatalog
 };
 
 // Shared palette tokens for all UI surfaces.
@@ -75,3 +69,4 @@ private:
 private:
     SettingsStore* m_store = nullptr;
 };
+

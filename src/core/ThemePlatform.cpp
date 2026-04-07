@@ -365,115 +365,7 @@ ThemePalette ThemePlatform::BuildPaletteFor(ThemeMode mode, ThemeStyle style)
         palette.fenceItemHoverColor = RGB(201, 219, 235);
     }
 
-    if (style == ThemeStyle::Discord)
-    {
-        if (mode == ThemeMode::Dark)
-        {
-            palette.windowColor = RGB(47, 49, 54);
-            palette.surfaceColor = RGB(54, 57, 63);
-            palette.navColor = RGB(32, 34, 37);
-            palette.textColor = RGB(220, 221, 222);
-            palette.subtleTextColor = RGB(160, 162, 168);
-            palette.accentColor = RGB(88, 101, 242);
-            palette.borderColor = RGB(43, 45, 49);
-
-            palette.fenceTitleBarColor = RGB(40, 43, 48);
-            palette.fenceTitleTextColor = RGB(229, 230, 232);
-            palette.fenceItemTextColor = RGB(211, 214, 218);
-            palette.fenceItemHoverColor = RGB(70, 74, 82);
-        }
-        else
-        {
-            palette.windowColor = RGB(243, 245, 247);
-            palette.surfaceColor = RGB(255, 255, 255);
-            palette.navColor = RGB(232, 236, 240);
-            palette.textColor = RGB(46, 51, 56);
-            palette.subtleTextColor = RGB(106, 115, 128);
-            palette.accentColor = RGB(88, 101, 242);
-            palette.borderColor = RGB(214, 220, 226);
-
-            palette.fenceTitleBarColor = RGB(225, 232, 240);
-            palette.fenceTitleTextColor = RGB(45, 50, 56);
-            palette.fenceItemTextColor = RGB(50, 58, 66);
-            palette.fenceItemHoverColor = RGB(209, 218, 227);
-        }
-    }
-    else if (style == ThemeStyle::Fences)
-    {
-        if (mode == ThemeMode::Dark)
-        {
-            palette.windowColor = RGB(22, 27, 34);
-            palette.surfaceColor = RGB(28, 34, 42);
-            palette.navColor = RGB(20, 24, 31);
-            palette.textColor = RGB(225, 231, 238);
-            palette.subtleTextColor = RGB(167, 177, 188);
-            palette.accentColor = RGB(64, 168, 255);
-            palette.borderColor = RGB(57, 73, 88);
-
-            palette.fenceTitleBarColor = RGB(35, 50, 66);
-            palette.fenceTitleTextColor = RGB(230, 238, 246);
-            palette.fenceItemTextColor = RGB(209, 220, 232);
-            palette.fenceItemHoverColor = RGB(50, 72, 94);
-        }
-        else
-        {
-            palette.windowColor = RGB(236, 242, 248);
-            palette.surfaceColor = RGB(248, 251, 255);
-            palette.navColor = RGB(227, 236, 245);
-            palette.textColor = RGB(27, 35, 42);
-            palette.subtleTextColor = RGB(90, 104, 118);
-            palette.accentColor = RGB(49, 142, 226);
-            palette.borderColor = RGB(177, 200, 222);
-
-            palette.fenceTitleBarColor = RGB(191, 216, 238);
-            palette.fenceTitleTextColor = RGB(28, 45, 62);
-            palette.fenceItemTextColor = RGB(34, 56, 76);
-            palette.fenceItemHoverColor = RGB(209, 227, 245);
-        }
-    }
-    else if (style == ThemeStyle::GitHubDark)
-    {
-        palette.windowColor = RGB(13, 17, 23);
-        palette.surfaceColor = RGB(22, 27, 34);
-        palette.navColor = RGB(1, 4, 9);
-        palette.textColor = RGB(230, 237, 243);
-        palette.subtleTextColor = RGB(139, 148, 158);
-        palette.accentColor = RGB(47, 129, 247);
-        palette.borderColor = RGB(48, 54, 61);
-        palette.fenceTitleBarColor = RGB(22, 27, 34);
-        palette.fenceTitleTextColor = RGB(230, 237, 243);
-        palette.fenceItemTextColor = RGB(201, 209, 217);
-        palette.fenceItemHoverColor = RGB(33, 38, 45);
-    }
-    else if (style == ThemeStyle::GitHubDarkDimmed)
-    {
-        palette.windowColor = RGB(34, 39, 46);
-        palette.surfaceColor = RGB(44, 50, 58);
-        palette.navColor = RGB(28, 33, 40);
-        palette.textColor = RGB(173, 186, 199);
-        palette.subtleTextColor = RGB(118, 131, 144);
-        palette.accentColor = RGB(83, 155, 245);
-        palette.borderColor = RGB(68, 76, 86);
-        palette.fenceTitleBarColor = RGB(39, 45, 53);
-        palette.fenceTitleTextColor = RGB(199, 210, 223);
-        palette.fenceItemTextColor = RGB(173, 186, 199);
-        palette.fenceItemHoverColor = RGB(55, 63, 72);
-    }
-    else if (style == ThemeStyle::GitHubLight)
-    {
-        palette.windowColor = RGB(246, 248, 250);
-        palette.surfaceColor = RGB(255, 255, 255);
-        palette.navColor = RGB(242, 245, 248);
-        palette.textColor = RGB(31, 35, 40);
-        palette.subtleTextColor = RGB(87, 96, 106);
-        palette.accentColor = RGB(9, 105, 218);
-        palette.borderColor = RGB(208, 215, 222);
-        palette.fenceTitleBarColor = RGB(234, 238, 242);
-        palette.fenceTitleTextColor = RGB(31, 35, 40);
-        palette.fenceItemTextColor = RGB(36, 41, 47);
-        palette.fenceItemHoverColor = RGB(230, 236, 241);
-    }
-
+    (void)style;
     return palette;
 }
 
@@ -613,3 +505,4 @@ UINT ThemePlatform::GetThemeChangedMessageId()
     static const UINT kThemeChanged = RegisterWindowMessageW(L"SimpleFences.ThemeChanged");
     return kThemeChanged;
 }
+
