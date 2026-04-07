@@ -794,8 +794,6 @@ int main()
     {
         return result;
     }
-
-    std::cout << "HostCoreTests passed\n";
         if (const int result = RunThemeApplyIntegrationTests(); result != 0)
         {
             return result;
@@ -820,6 +818,8 @@ int main()
     {
         return result;
     }
+
+    std::cout << "HostCoreTests passed\n";
 
     return 0;
 }

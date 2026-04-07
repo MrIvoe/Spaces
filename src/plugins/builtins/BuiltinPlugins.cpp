@@ -569,6 +569,7 @@ public:
                     ApplyVisualMode(command, L"focus");
                 });
                 context.commandDispatcher->RegisterCommand(L"appearance.mode.gallery", [this](const CommandContext& command) {
+                    ApplyVisualMode(command, L"gallery");
                 });
                 context.commandDispatcher->RegisterCommand(L"appearance.mode.quiet", [this](const CommandContext& command) {
                     ApplyVisualMode(command, L"quiet");
