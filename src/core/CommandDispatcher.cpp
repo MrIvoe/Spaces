@@ -113,6 +113,11 @@ bool CommandDispatcher::HasCommand(const std::wstring& commandId) const
     return m_handlers.find(commandId) != m_handlers.end();
 }
 
+bool CommandDispatcher::UnregisterCommand(const std::wstring& commandId)
+{
+    return m_handlers.erase(commandId) > 0;
+}
+
 std::vector<std::wstring> CommandDispatcher::ListCommandIds() const
 {
     std::vector<std::wstring> ids;
@@ -123,3 +128,4 @@ std::vector<std::wstring> CommandDispatcher::ListCommandIds() const
     }
     return ids;
 }
+

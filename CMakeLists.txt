@@ -119,6 +119,8 @@ add_executable(HostCoreTests
     tests/plugins/PluginSecurityPolicyTests.cpp
     tests/plugins/ThemeMigrationTests.cpp
     tests/plugins/ThemeRenderingTests.cpp
+    tests/plugins/ThemeFailureTests.cpp
+    tests/plugins/PluginLoaderConflictIntegrationTests.cpp
         tests/plugins/ThemeIntegrationTests.cpp
     src/AppVersion.h
     src/core/CommandDispatcher.h

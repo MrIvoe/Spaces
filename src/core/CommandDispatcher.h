@@ -26,8 +26,10 @@ public:
     CommandDispatchResult DispatchDetailed(const std::wstring& commandId) const;
     CommandDispatchResult DispatchDetailed(const std::wstring& commandId, const CommandContext& context) const;
     bool HasCommand(const std::wstring& commandId) const;
+    bool UnregisterCommand(const std::wstring& commandId);
     std::vector<std::wstring> ListCommandIds() const;
 
 private:
     std::unordered_map<std::wstring, CommandHandler> m_handlers;
 };
+
