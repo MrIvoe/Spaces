@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -53,6 +55,9 @@ public:
 
 private:
     SettingsStore* m_settingsStore = nullptr;
+    mutable std::mutex m_applyMutex;
+    std::chrono::steady_clock::time_point m_lastApplyTime{};
+    std::wstring m_lastAppliedThemeId;
 
     /// Persist theme selection to settings store (atomic operation).
     bool PersistThemeSelection(const std::wstring& themeId);
@@ -63,3 +68,4 @@ private:
     /// Build palette for a given known theme ID.
     ThemePalette BuildKnownThemePalette(const std::wstring& themeId) const;
 };
+

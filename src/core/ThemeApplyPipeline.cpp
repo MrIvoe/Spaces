@@ -135,6 +135,8 @@ ThemeApplyPipeline::ThemeApplyPipeline(SettingsStore* settingsStore)
 
 ThemeApplyPipeline::ApplyResult ThemeApplyPipeline::ApplyTheme(const std::wstring& themeId)
 {
+    std::lock_guard<std::mutex> lock(m_applyMutex);
+
     if (!m_settingsStore)
     {
         Win32Helpers::LogError(L"ThemeApplyPipeline: apply requested without settings store.");
@@ -146,6 +148,19 @@ ThemeApplyPipeline::ApplyResult ThemeApplyPipeline::ApplyTheme(const std::wstrin
     {
         Win32Helpers::LogError(L"ThemeApplyPipeline: empty theme id requested.");
         return ApplyResult::Failure(L"Theme ID cannot be empty");
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    if (!m_lastAppliedThemeId.empty() && requestedThemeId != m_lastAppliedThemeId)
+    {
+        const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastApplyTime);
+        if (elapsed < std::chrono::milliseconds(250))
+        {
+            Win32Helpers::LogInfo(
+                L"ThemeApplyPipeline: debounced rapid switch from '" + m_lastAppliedThemeId +
+                L"' to '" + requestedThemeId + L"'.");
+            return ApplyResult::SuccessWithFallback(m_lastAppliedThemeId, L"Debounced rapid switch request");
+        }
     }
 
     const std::wstring migrationMarker = m_settingsStore->Get(L"theme.migration_v2_complete", L"false");
@@ -182,6 +197,9 @@ ThemeApplyPipeline::ApplyResult ThemeApplyPipeline::ApplyTheme(const std::wstrin
 
     if (!fallbackReason.empty())
         result.fallbackReason = fallbackReason;
+
+    m_lastApplyTime = now;
+    m_lastAppliedThemeId = effectiveThemeId;
 
     Win32Helpers::LogInfo(L"ThemeApplyPipeline: apply success id='" + effectiveThemeId + L"'.");
 

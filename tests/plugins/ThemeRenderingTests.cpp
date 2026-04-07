@@ -165,5 +165,32 @@ int RunThemePersistenceTests()
             return Fail("Persistence test: normalized bridge key should persist");
     }
 
+    // Performance test: rapid theme switch requests are debounced/coalesced.
+    {
+        const std::filesystem::path tempPath = GetUniqueTempPath();
+        TempFileGuard guard(tempPath);
+
+        SettingsStore store;
+        store.Load(tempPath);
+
+        ThemeApplyPipeline pipeline(&store);
+        const auto first = pipeline.ApplyTheme(L"aurora-light");
+        if (!first.success)
+            return Fail("Performance test: first apply should succeed");
+
+        const auto second = pipeline.ApplyTheme(L"nocturne-dark");
+        if (!second.success)
+            return Fail("Performance test: debounced second apply should still report success");
+
+        if (second.appliedThemeId != L"aurora-light")
+            return Fail("Performance test: rapid switch should be coalesced to current active theme");
+
+        if (second.fallbackReason.find(L"Debounced") == std::wstring::npos)
+            return Fail("Performance test: debounced apply should include debounce reason");
+
+        if (store.Get(L"theme.win32.theme_id", L"") != L"aurora-light")
+            return Fail("Performance test: debounced request should not overwrite persisted theme");
+    }
+
     return 0;
 }
