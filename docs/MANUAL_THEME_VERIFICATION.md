@@ -278,6 +278,54 @@ This document provides a comprehensive manual verification checklist for the Sim
 
 - **Steps:**
   1. On Machine A: Apply "Aurora Light" theme
+
+---
+
+## Phase 7: Third-Party Package Validation
+
+### Scenario 7.1: Apply a Valid Third-Party Theme Package
+- **Prerequisites:**
+  - One known-good theme package zip that matches the published authoring contract
+
+- **Steps:**
+  1. Launch SimpleFences.exe
+  2. Import the valid package
+  3. Select the imported theme from the same appearance list used by built-in themes
+  4. Apply and observe UI updates
+
+- **Verification:**
+  - [ ] Import succeeds without warnings
+  - [ ] Imported theme appears in the primary appearance selector list
+  - [ ] Theme applies successfully with host-rendered output
+  - [ ] No crash or blank/partial UI state
+
+### Scenario 7.2: Reject an Invalid Third-Party Theme Package
+- **Prerequisites:**
+  - One intentionally invalid package (malformed metadata or invalid token values)
+
+- **Steps:**
+  1. Launch SimpleFences.exe
+  2. Attempt to import the invalid package
+  3. Observe diagnostics and current UI state
+
+- **Verification:**
+  - [ ] Invalid package is rejected with actionable diagnostics
+  - [ ] Existing active theme remains stable
+  - [ ] App remains responsive and does not crash
+
+---
+
+## Phase 8: Release Smoke Telemetry Snapshot
+
+### Scenario 8.1: Counter Snapshot Output
+- **Steps:**
+  1. Build and run `HostCoreTests.exe`
+  2. Scroll to the final telemetry block output
+
+- **Verification:**
+  - [ ] Snapshot block prints `theme.migration`, `theme.apply.success`, `theme.apply.fallback`, `theme.apply.failure`
+  - [ ] Each counter is non-zero in the smoke run
+  - [ ] `HostCoreTests passed` prints after the telemetry block
   2. On Machine B: Apply "Aurora Light" theme
   3. Compare visual appearance (colors)
   4. Measure RGB values if possible
