@@ -505,7 +505,19 @@ bool AppKernel::Initialize(App* app)
                 key != L"theme.preset" &&
                 key != L"appearance.theme.mode" &&
                 key != L"appearance.theme.text_scale_percent" &&
-                key != L"appearance.text.scale_percent")
+                key != L"appearance.text.scale_percent" &&
+                key != L"appearance.ui.space_titlebar_opacity_percent" &&
+                key != L"appearance.ui.space_idle_opacity_percent" &&
+                key != L"appearance.ui.settings_window_opacity_percent" &&
+                key != L"appearance.ui.settings_window_blur_enabled" &&
+                key != L"appearance.ui.settings_row_height_px" &&
+                key != L"appearance.ui.settings_row_gap_px" &&
+                key != L"appearance.ui.settings_section_gap_px" &&
+                key != L"appearance.ui.settings_toggle_width_px" &&
+                key != L"appearance.ui.settings_toggle_height_px" &&
+                key != L"appearance.ui.tray_menu_min_width_px" &&
+                key != L"appearance.ui.tray_menu_row_height_px" &&
+                key != L"appearance.icons.pack")
             {
                 return;
             }
@@ -665,8 +677,8 @@ std::vector<TrayMenuEntry> AppKernel::GetTrayMenuEntries() const
     std::vector<TrayMenuEntry> items;
     if (!m_menuRegistry)
     {
-        items.push_back(TrayMenuEntry{L"New Space", L"space.create", false});
-        items.push_back(TrayMenuEntry{L"Exit", L"app.exit", true});
+        items.push_back(TrayMenuEntry{L"New Space", L"space.create", L"actions.space.create", false});
+        items.push_back(TrayMenuEntry{L"Exit", L"app.exit", L"actions.app.exit", true});
         return items;
     }
 
@@ -678,14 +690,15 @@ std::vector<TrayMenuEntry> AppKernel::GetTrayMenuEntries() const
         TrayMenuEntry item;
         item.title = entry.title;
         item.commandId = entry.commandId;
+        item.iconKey = L"actions." + entry.commandId;
         item.separatorBefore = entry.separatorBefore;
         items.push_back(std::move(item));
     }
 
     if (items.empty())
     {
-        items.push_back(TrayMenuEntry{L"New Space", L"space.create", false});
-        items.push_back(TrayMenuEntry{L"Exit", L"app.exit", true});
+        items.push_back(TrayMenuEntry{L"New Space", L"space.create", L"actions.space.create", false});
+        items.push_back(TrayMenuEntry{L"Exit", L"app.exit", L"actions.app.exit", true});
     }
 
     return items;

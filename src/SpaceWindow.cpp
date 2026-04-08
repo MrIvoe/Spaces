@@ -37,6 +37,116 @@ namespace
 {
     std::atomic<unsigned long long> gSpaceEventSequence{1};
 
+    COLORREF BlendColor(COLORREF from, COLORREF to, int alpha)
+    {
+        alpha = (alpha < 0) ? 0 : ((alpha > 255) ? 255 : alpha);
+        const int inv = 255 - alpha;
+        const BYTE red = static_cast<BYTE>(((GetRValue(from) * inv) + (GetRValue(to) * alpha)) / 255);
+        const BYTE green = static_cast<BYTE>(((GetGValue(from) * inv) + (GetGValue(to) * alpha)) / 255);
+        const BYTE blue = static_cast<BYTE>(((GetBValue(from) * inv) + (GetBValue(to) * alpha)) / 255);
+        return RGB(red, green, blue);
+    }
+
+    bool IsSettingsToggleControlId(int controlId)
+    {
+        switch (controlId)
+        {
+        case kCtlInheritThemePolicy:
+        case kCtlTextOnly:
+        case kCtlRollup:
+        case kCtlTransparent:
+        case kCtlLabelsOnHover:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    void DrawSettingsToggleControl(const DRAWITEMSTRUCT* drawInfo, COLORREF backgroundColor, COLORREF accentColor)
+    {
+        if (!drawInfo || !drawInfo->hwndItem)
+        {
+            return;
+        }
+
+        HDC hdc = drawInfo->hDC;
+        RECT rc = drawInfo->rcItem;
+        const bool checked = (SendMessageW(drawInfo->hwndItem, BM_GETCHECK, 0, 0) == BST_CHECKED);
+        const bool focused = (drawInfo->itemState & ODS_FOCUS) != 0;
+        const bool pressed = (drawInfo->itemState & ODS_SELECTED) != 0;
+        const bool disabled = (drawInfo->itemState & ODS_DISABLED) != 0;
+
+        HBRUSH bgBrush = CreateSolidBrush(backgroundColor);
+        FillRect(hdc, &rc, bgBrush);
+        DeleteObject(bgBrush);
+
+        wchar_t label[256]{};
+        GetWindowTextW(drawInfo->hwndItem, label, static_cast<int>(std::size(label)));
+
+        RECT textRc = rc;
+        textRc.right -= 74;
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, disabled ? RGB(145, 145, 145) : RGB(30, 30, 30));
+        DrawTextW(hdc, label, -1, &textRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+        RECT track{};
+        const int trackWidth = 50;
+        const int trackHeight = 28;
+        track.right = rc.right - 10;
+        track.left = track.right - trackWidth;
+        track.top = rc.top + ((rc.bottom - rc.top - trackHeight) / 2);
+        track.bottom = track.top + trackHeight;
+
+        COLORREF trackColor = checked ? accentColor : RGB(210, 214, 220);
+        if (pressed)
+        {
+            trackColor = checked ? RGB(80, 95, 230) : RGB(196, 202, 210);
+        }
+        if (disabled)
+        {
+            trackColor = RGB(224, 224, 224);
+        }
+
+        HPEN borderPen = CreatePen(PS_SOLID, 1, RGB(180, 186, 196));
+        HBRUSH trackBrush = CreateSolidBrush(trackColor);
+        HGDIOBJ oldPen = SelectObject(hdc, borderPen);
+        HGDIOBJ oldBrush = SelectObject(hdc, trackBrush);
+        RoundRect(hdc, track.left, track.top, track.right, track.bottom, trackHeight, trackHeight);
+        SelectObject(hdc, oldBrush);
+        SelectObject(hdc, oldPen);
+        DeleteObject(trackBrush);
+        DeleteObject(borderPen);
+
+        RECT knob{};
+        const int knobSize = 22;
+        knob.left = checked ? (track.right - knobSize - 3) : (track.left + 3);
+        if (pressed)
+        {
+            knob.left += checked ? -1 : 1;
+        }
+        knob.top = track.top + 3;
+        knob.right = knob.left + knobSize;
+        knob.bottom = knob.top + knobSize;
+
+        HBRUSH knobBrush = CreateSolidBrush(disabled ? RGB(245, 245, 245) : RGB(255, 255, 255));
+        HPEN knobPen = CreatePen(PS_SOLID, 1, RGB(188, 188, 188));
+        oldPen = SelectObject(hdc, knobPen);
+        oldBrush = SelectObject(hdc, knobBrush);
+        Ellipse(hdc, knob.left, knob.top, knob.right, knob.bottom);
+        SelectObject(hdc, oldBrush);
+        SelectObject(hdc, oldPen);
+        DeleteObject(knobBrush);
+        DeleteObject(knobPen);
+
+        if (focused)
+        {
+            RECT focusRc = rc;
+            focusRc.left = textRc.right + 4;
+            InflateRect(&focusRc, -2, -2);
+            DrawFocusRect(hdc, &focusRc);
+        }
+    }
+
     std::wstring BoolText(bool value)
     {
         return value ? L"true" : L"false";
@@ -478,9 +588,38 @@ void SpaceWindow::OnPaint()
     // Draw title bar
     RECT titleRc = rc;
     titleRc.bottom = kTitleBarHeight;
-    HBRUSH titleBrush = CreateSolidBrush(palette.spaceTitleBarColor);
+    int titleOpacityPercent = 88;
+    if (m_themePlatform)
+    {
+        titleOpacityPercent = m_themePlatform->GetSpaceTitleBarOpacityPercent();
+    }
+    const COLORREF translucentTitleColor = BlendColor(
+        palette.surfaceColor,
+        palette.spaceTitleBarColor,
+        (titleOpacityPercent * 255) / 100);
+    HBRUSH titleBrush = CreateSolidBrush(translucentTitleColor);
     FillRect(hdc, &titleRc, titleBrush);
     DeleteObject(titleBrush);
+
+    // Apply title bar opacity: at 100%, window is fully solid; below 100%, apply blending
+    if (titleOpacityPercent < 100)
+    {
+        LONG_PTR exStyle = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
+        if ((exStyle & WS_EX_LAYERED) == 0)
+        {
+            SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+        }
+    }
+    else
+    {
+        // At 100% opacity, fully remove layered window style for true solidity
+        LONG_PTR exStyle = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
+        if ((exStyle & WS_EX_LAYERED) != 0)
+        {
+            SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle & ~WS_EX_LAYERED);
+            SetWindowPos(m_hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+        }
+    }
 
     // Draw title text
     SetBkMode(hdc, TRANSPARENT);
@@ -662,13 +801,13 @@ void SpaceWindow::OnContextMenu(int x, int y)
     UINT pluginCommandId = 4000;
     auto appendSeparator = [&]() {
         AppendMenuW(menu, MF_OWNERDRAW | MF_DISABLED, decorationId, nullptr);
-        m_menuVisuals.emplace(decorationId, Win32Helpers::PopupMenuItemVisual{L"", true, false});
+        m_menuVisuals.emplace(decorationId, Win32Helpers::PopupMenuItemVisual{L"", L"", L"", true, false});
         ++decorationId;
     };
 
     auto appendItem = [&](const std::wstring& text, UINT commandId) {
         AppendMenuW(menu, MF_OWNERDRAW | MF_STRING, commandId, nullptr);
-        m_menuVisuals.emplace(commandId, Win32Helpers::PopupMenuItemVisual{text, false, true});
+        m_menuVisuals.emplace(commandId, Win32Helpers::PopupMenuItemVisual{text, L"", L"", false, true});
     };
 
     auto appendPluginItems = [&](MenuSurface surface) {
@@ -686,7 +825,7 @@ void SpaceWindow::OnContextMenu(int x, int y)
             }
 
             AppendMenuW(menu, MF_OWNERDRAW | MF_STRING, pluginCommandId, nullptr);
-            m_menuVisuals.emplace(pluginCommandId, Win32Helpers::PopupMenuItemVisual{contribution.title, false, true});
+            m_menuVisuals.emplace(pluginCommandId, Win32Helpers::PopupMenuItemVisual{contribution.title, L"", L"", false, true});
             m_menuCommands.emplace(pluginCommandId, contribution.commandId);
             ++pluginCommandId;
         }
@@ -1032,20 +1171,29 @@ void SpaceWindow::ApplyIdleVisualState()
 
     // Keep rolled-up spaces opaque so the title bar remains visible and usable.
     const bool shouldBeTransparent = policy.transparentWhenNotHovered && !m_mouseInside && !m_isRolledUp;
-    LONG_PTR exStyle = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
-    if (shouldBeTransparent)
+    int idleOpacityPercent = 84;
+    if (m_themePlatform)
     {
+        idleOpacityPercent = m_themePlatform->GetSpaceIdleOpacityPercent();
+    }
+    
+    LONG_PTR exStyle = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
+    if (shouldBeTransparent && idleOpacityPercent < 100)
+    {
+        const BYTE idleAlpha = static_cast<BYTE>((idleOpacityPercent * 255) / 100);
         if ((exStyle & WS_EX_LAYERED) == 0)
         {
             SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
         }
-        SetLayeredWindowAttributes(m_hwnd, 0, 214, LWA_ALPHA);
+        SetLayeredWindowAttributes(m_hwnd, 0, idleAlpha, LWA_ALPHA);
     }
     else
     {
+        // When not transparent or idle opacity is 100%, fully remove layered window style
         if ((exStyle & WS_EX_LAYERED) != 0)
         {
-            SetLayeredWindowAttributes(m_hwnd, 0, 255, LWA_ALPHA);
+            SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle & ~WS_EX_LAYERED);
+            SetWindowPos(m_hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
         }
     }
 
@@ -1188,31 +1336,31 @@ LRESULT SpaceWindow::SettingsPanelWndProc(HWND hwnd, UINT msg, WPARAM wParam, LP
         const EffectiveSpacePolicy effectivePolicy = ResolveEffectivePolicy();
 
         CreateWindowExW(0, L"BUTTON", L"Use theme profile defaults",
-                        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+                        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX | BS_OWNERDRAW,
                         16, 16, 220, 24, hwnd,
                         reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCtlInheritThemePolicy)),
                         GetModuleHandleW(nullptr), nullptr);
 
         CreateWindowExW(0, L"BUTTON", L"Text only mode",
-                        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+                        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX | BS_OWNERDRAW,
                         16, 44, 220, 24, hwnd,
                         reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCtlTextOnly)),
                         GetModuleHandleW(nullptr), nullptr);
 
         CreateWindowExW(0, L"BUTTON", L"Roll up when not hovered",
-                        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+                        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX | BS_OWNERDRAW,
                         16, 72, 220, 24, hwnd,
                         reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCtlRollup)),
                         GetModuleHandleW(nullptr), nullptr);
 
         CreateWindowExW(0, L"BUTTON", L"Transparent when not hovered",
-                        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+                        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX | BS_OWNERDRAW,
                         16, 100, 240, 24, hwnd,
                         reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCtlTransparent)),
                         GetModuleHandleW(nullptr), nullptr);
 
         CreateWindowExW(0, L"BUTTON", L"Show labels on hover",
-                        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+                        WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX | BS_OWNERDRAW,
                         16, 128, 220, 24, hwnd,
                         reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCtlLabelsOnHover)),
                         GetModuleHandleW(nullptr), nullptr);
@@ -1336,6 +1484,17 @@ LRESULT SpaceWindow::SettingsPanelWndProc(HWND hwnd, UINT msg, WPARAM wParam, LP
             else if (sel == 2) preset = L"spacious";
             m_manager->SetSpaceIconSpacingPreset(m_model.id, preset);
             return 0;
+        }
+        break;
+    }
+    case WM_DRAWITEM:
+    {
+        auto* drawInfo = reinterpret_cast<DRAWITEMSTRUCT*>(lParam);
+        if (drawInfo && drawInfo->CtlType == ODT_BUTTON &&
+            IsSettingsToggleControlId(static_cast<int>(drawInfo->CtlID)))
+        {
+            DrawSettingsToggleControl(drawInfo, RGB(248, 248, 248), RGB(114, 99, 255));
+            return TRUE;
         }
         break;
     }

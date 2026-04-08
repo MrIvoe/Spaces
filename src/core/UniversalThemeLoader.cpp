@@ -91,6 +91,7 @@ bool UniversalThemeLoader::LoadFromDirectory(const std::wstring& themeDirectory,
     const std::filesystem::path base(themeDirectory);
     const std::filesystem::path themePath = base / L"theme.json";
     const std::filesystem::path semanticPath = base / L"semantic.json";
+    const std::filesystem::path iconsPath = base / L"icons.json";
 
     if (!std::filesystem::exists(themePath) || !std::filesystem::exists(semanticPath))
     {
@@ -127,6 +128,47 @@ bool UniversalThemeLoader::LoadFromDirectory(const std::wstring& themeDirectory,
             FlattenObject(themeJson["tokens"], "", outTheme.tokens);
         }
         FlattenObject(semanticJson, "", outTheme.semantic);
+
+        if (std::filesystem::exists(iconsPath))
+        {
+            std::ifstream iconsStream(iconsPath);
+            if (iconsStream.good())
+            {
+                nlohmann::json iconsJson;
+                iconsStream >> iconsJson;
+
+                const auto iconIt = iconsJson.find("icon");
+                if (iconIt != iconsJson.end() && iconIt->is_object())
+                {
+                    const auto packsIt = iconIt->find("packs");
+                    if (packsIt != iconIt->end() && packsIt->is_object())
+                    {
+                        for (auto packIt = packsIt->begin(); packIt != packsIt->end(); ++packIt)
+                        {
+                            if (!packIt->is_object())
+                            {
+                                continue;
+                            }
+
+                            const auto mappingIt = packIt->find("mapping");
+                            if (mappingIt == packIt->end() || !mappingIt->is_object())
+                            {
+                                continue;
+                            }
+
+                            auto& outMap = outTheme.iconPackMappings[packIt.key()];
+                            for (auto iconMapIt = mappingIt->begin(); iconMapIt != mappingIt->end(); ++iconMapIt)
+                            {
+                                if (iconMapIt->is_string())
+                                {
+                                    outMap[iconMapIt.key()] = iconMapIt->get<std::string>();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         if (outTheme.tokens.empty())
         {

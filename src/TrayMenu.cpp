@@ -121,17 +121,25 @@ void TrayMenu::ShowContextMenu(POINT pt)
     m_menuVisuals.clear();
     UINT menuId = ID_TRAY_COMMAND_BASE;
 
+    int trayMinWidthPx = 220;
+    int trayRowHeightPx = 28;
+    if (m_app && m_app->GetThemePlatform())
+    {
+        trayMinWidthPx = m_app->GetThemePlatform()->GetTrayMenuMinWidthPx();
+        trayRowHeightPx = m_app->GetThemePlatform()->GetTrayMenuRowHeightPx();
+    }
+
     auto appendSeparator = [&]() {
         AppendMenuW(menu, MF_OWNERDRAW | MF_DISABLED, menuId, nullptr);
-        m_menuVisuals.emplace(menuId, Win32Helpers::PopupMenuItemVisual{L"", true, false});
+        m_menuVisuals.emplace(menuId, Win32Helpers::PopupMenuItemVisual{L"", L"", L"", true, false, trayMinWidthPx, trayRowHeightPx});
         ++menuId;
     };
 
-    auto appendItem = [&](const std::wstring& title, const std::wstring& commandId) {
+    auto appendItem = [&](const std::wstring& title, const std::wstring& commandId, const ThemeIconMapping& iconMapping) {
         const UINT flags = MF_OWNERDRAW | MF_STRING | MF_ENABLED;
         AppendMenuW(menu, flags, menuId, nullptr);
         m_commandByMenuId[menuId] = commandId;
-        m_menuVisuals.emplace(menuId, Win32Helpers::PopupMenuItemVisual{title, false, true});
+        m_menuVisuals.emplace(menuId, Win32Helpers::PopupMenuItemVisual{title, iconMapping.glyph, iconMapping.assetPack.empty() ? L"" : (iconMapping.assetPack + L":" + iconMapping.assetName), false, true, trayMinWidthPx, trayRowHeightPx});
         ++menuId;
     };
 
@@ -145,7 +153,14 @@ void TrayMenu::ShowContextMenu(POINT pt)
                 appendSeparator();
             }
 
-            appendItem(entry.title, entry.commandId);
+            ThemeIconMapping icon;
+            const ThemePlatform* themePlatform = m_app->GetThemePlatform();
+            if (themePlatform && !entry.iconKey.empty())
+            {
+                icon = themePlatform->ResolveIconMapping(entry.iconKey);
+            }
+
+            appendItem(entry.title, entry.commandId, icon);
         }
     }
 

@@ -46,6 +46,14 @@ struct SpacePolicyDefaults
     std::wstring iconSpacingPreset = L"comfortable";
 };
 
+struct ThemeIconMapping
+{
+    std::wstring iconKey;
+    std::wstring glyph;
+    std::wstring assetPack;
+    std::wstring assetName;
+};
+
 class ThemePlatform
 {
 public:
@@ -56,9 +64,22 @@ public:
     ThemeMode ResolveMode() const;
     ThemeStyle ResolveStyle() const;
     int GetTextScalePercent() const;
+    int GetSpaceIdleOpacityPercent() const;
+    int GetSpaceTitleBarOpacityPercent() const;
+    int GetSettingsWindowOpacityPercent() const;
+    bool IsSettingsWindowBlurEnabled() const;
+    int GetSettingsRowHeightPx() const;
+    int GetSettingsRowGapPx() const;
+    int GetSettingsSectionGapPx() const;
+    int GetSettingsToggleWidthPx() const;
+    int GetSettingsToggleHeightPx() const;
+    int GetTrayMenuMinWidthPx() const;
+    int GetTrayMenuRowHeightPx() const;
     SpacePolicyDefaults ResolveSpacePolicyDefaults() const;
 
     ThemePalette BuildPalette() const;
+    ThemeIconMapping ResolveIconMapping(const std::wstring& iconKey,
+                                        const std::wstring& fallbackGlyph = L"") const;
     bool ExportCustomPreset(const std::wstring& filePath) const;
     bool ImportCustomPreset(const std::wstring& filePath) const;
 

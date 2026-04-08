@@ -13,8 +13,12 @@ namespace Win32Helpers
     struct PopupMenuItemVisual
     {
         std::wstring text;
+        std::wstring iconGlyph;
+        std::wstring iconAsset;
         bool separator = false;
         bool enabled = true;
+        int preferredWidthPx = 0;
+        int preferredHeightPx = 0;
     };
 
     std::wstring GetAppDataPath();

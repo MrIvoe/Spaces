@@ -413,13 +413,15 @@ namespace Win32Helpers
 
         if (item.separator)
         {
-            measureInfo->itemWidth = 180;
-            measureInfo->itemHeight = 10;
+            measureInfo->itemWidth = static_cast<UINT>(item.preferredWidthPx > 0 ? item.preferredWidthPx : 180);
+            measureInfo->itemHeight = static_cast<UINT>(item.preferredHeightPx > 0 ? max(8, item.preferredHeightPx / 3) : 10);
             return;
         }
 
-        measureInfo->itemWidth = static_cast<UINT>(max(220, 36 + (static_cast<int>(item.text.size()) * 8)));
-        measureInfo->itemHeight = 28;
+        const int iconSlot = (!item.iconGlyph.empty() || !item.iconAsset.empty()) ? 24 : 0;
+        const int autoWidth = max(220, 36 + iconSlot + (static_cast<int>(item.text.size()) * 8));
+        measureInfo->itemWidth = static_cast<UINT>(item.preferredWidthPx > 0 ? max(item.preferredWidthPx, autoWidth) : autoWidth);
+        measureInfo->itemHeight = static_cast<UINT>(item.preferredHeightPx > 0 ? item.preferredHeightPx : 28);
     }
 
     void DrawThemedPopupMenuItem(const DRAWITEMSTRUCT* drawInfo, const ThemePalette& palette, const PopupMenuItemVisual& item)
@@ -461,6 +463,62 @@ namespace Win32Helpers
         RECT textRc = rc;
         textRc.left += 12;
         textRc.right -= 12;
+
+        if (!item.iconGlyph.empty() || !item.iconAsset.empty())
+        {
+            RECT iconRc = rc;
+            iconRc.left += 8;
+            iconRc.right = iconRc.left + 20;
+
+            const COLORREF iconColor = disabled ? palette.subtleTextColor : palette.accentColor;
+            SetBkMode(hdc, TRANSPARENT);
+            SetTextColor(hdc, iconColor);
+
+            if (!item.iconGlyph.empty())
+            {
+                HFONT iconFont = CreateFontW(
+                    -14,
+                    0,
+                    0,
+                    0,
+                    FW_NORMAL,
+                    FALSE,
+                    FALSE,
+                    FALSE,
+                    DEFAULT_CHARSET,
+                    OUT_DEFAULT_PRECIS,
+                    CLIP_DEFAULT_PRECIS,
+                    CLEARTYPE_QUALITY,
+                    DEFAULT_PITCH | FF_DONTCARE,
+                    L"Segoe Fluent Icons");
+                HGDIOBJ oldFont = iconFont ? SelectObject(hdc, iconFont) : nullptr;
+                DrawTextW(hdc, item.iconGlyph.c_str(), -1, &iconRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                if (oldFont)
+                {
+                    SelectObject(hdc, oldFont);
+                }
+                if (iconFont)
+                {
+                    DeleteObject(iconFont);
+                }
+            }
+            else
+            {
+                std::wstring assetChip = item.iconAsset;
+                const size_t colon = assetChip.find(L':');
+                if (colon != std::wstring::npos && colon + 1 < assetChip.size())
+                {
+                    assetChip = assetChip.substr(colon + 1);
+                }
+                if (assetChip.size() > 2)
+                {
+                    assetChip = assetChip.substr(0, 2);
+                }
+                DrawTextW(hdc, assetChip.c_str(), -1, &iconRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            }
+
+            textRc.left += 24;
+        }
 
         SetBkMode(hdc, TRANSPARENT);
         SetTextColor(hdc, disabled ? palette.subtleTextColor : palette.textColor);

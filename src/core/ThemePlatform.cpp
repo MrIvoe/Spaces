@@ -10,6 +10,7 @@
 #include <fstream>
 #include <optional>
 #include <string>
+#include <unordered_map>
 
 #include <dwmapi.h>
 #include <windows.h>
@@ -161,6 +162,55 @@ namespace
                themeId == L"olive-terminal";
     }
 
+    const std::unordered_map<std::wstring, std::wstring>& BuiltinFallbackGlyphs()
+    {
+        static const std::unordered_map<std::wstring, std::wstring> kMap = {
+            {L"settings.overview", L"\uE80F"},
+            {L"settings.general", L"\uE713"},
+            {L"settings.appearance", L"\uE790"},
+            {L"settings.plugins", L"\uE943"},
+            {L"settings.tray.behavior", L"\uEA8F"},
+            {L"plugins.builtin.settings", L"\uE713"},
+            {L"plugins.builtin.tray", L"\uEA8F"},
+            {L"plugins.builtin.widgets", L"\uE9CA"},
+            {L"plugins.builtin.explorer_portal", L"\uE8B7"},
+            {L"plugins.builtin.core_commands", L"\uE943"},
+            {L"plugins.generic", L"\uE943"},
+            {L"actions.space.create", L"\uE710"},
+            {L"actions.space.rename", L"\uE70F"},
+            {L"actions.space.delete", L"\uE74D"},
+            {L"actions.item.open", L"\uE8A7"},
+            {L"actions.item.delete", L"\uE74D"},
+            {L"actions.plugin.openSettings", L"\uE713"},
+            {L"actions.app.exit", L"\uE7E8"},
+        };
+        return kMap;
+    }
+
+    const std::unordered_map<std::wstring, std::wstring>& BuiltinTablerAssets()
+    {
+        static const std::unordered_map<std::wstring, std::wstring> kMap = {
+            {L"settings.overview", L"layout-dashboard"},
+            {L"settings.general", L"settings"},
+            {L"settings.appearance", L"palette"},
+            {L"settings.plugins", L"puzzle"},
+            {L"settings.tray.behavior", L"bell"},
+            {L"plugins.builtin.settings", L"settings"},
+            {L"plugins.builtin.tray", L"bell"},
+            {L"plugins.builtin.widgets", L"layout-cards"},
+            {L"plugins.builtin.explorer_portal", L"folder"},
+            {L"plugins.builtin.core_commands", L"command"},
+            {L"actions.space.create", L"plus"},
+            {L"actions.space.rename", L"edit"},
+            {L"actions.space.delete", L"trash"},
+            {L"actions.item.open", L"external-link"},
+            {L"actions.item.delete", L"trash-x"},
+            {L"actions.plugin.openSettings", L"settings"},
+            {L"actions.app.exit", L"power"},
+        };
+        return kMap;
+    }
+
     ThemePalette BuildWin32ThemePalette(const std::wstring& themeId, const std::optional<ThemeMode>& forcedMode)
     {
         const std::wstring key = themeId.empty() ? L"graphite-office" : themeId;
@@ -226,6 +276,29 @@ namespace
         palette.borderColor = BlendColor(palette.borderColor, palette.accentColor, 72);
         palette.spaceItemHoverColor = BlendColor(palette.spaceItemHoverColor, palette.accentColor, dark ? 55 : 40);
         return palette;
+    }
+
+    std::wstring GlyphForAssetName(const std::wstring& assetName)
+    {
+        static const std::unordered_map<std::wstring, std::wstring> kAssetGlyphs = {
+            {L"layout-dashboard", L"\uE80F"},
+            {L"settings", L"\uE713"},
+            {L"palette", L"\uE790"},
+            {L"puzzle", L"\uE943"},
+            {L"bell", L"\uEA8F"},
+            {L"layout-cards", L"\uF0E2"},
+            {L"folder", L"\uE8B7"},
+            {L"command", L"\uE943"},
+            {L"plus", L"\uE710"},
+            {L"edit", L"\uE70F"},
+            {L"trash", L"\uE74D"},
+            {L"trash-x", L"\uE74D"},
+            {L"external-link", L"\uE8A7"},
+            {L"power", L"\uE7E8"},
+        };
+
+        const auto it = kAssetGlyphs.find(assetName);
+        return (it != kAssetGlyphs.end()) ? it->second : L"";
     }
 }
 
@@ -324,6 +397,167 @@ int ThemePlatform::GetTextScalePercent() const
     }
 
     return textScale;
+}
+
+int ThemePlatform::GetSpaceIdleOpacityPercent() const
+{
+    int value = 84;
+    if (m_store)
+    {
+        try
+        {
+            value = std::stoi(m_store->Get(L"appearance.ui.space_idle_opacity_percent", L"84"));
+        }
+        catch (...)
+        {
+            value = 84;
+        }
+    }
+
+    if (value < 5) value = 5;
+    if (value > 100) value = 100;
+    return value;
+}
+
+int ThemePlatform::GetSpaceTitleBarOpacityPercent() const
+{
+    int value = 88;
+    if (m_store)
+    {
+        try
+        {
+            value = std::stoi(m_store->Get(L"appearance.ui.space_titlebar_opacity_percent", L"88"));
+        }
+        catch (...)
+        {
+            value = 88;
+        }
+    }
+
+    if (value < 5) value = 5;
+    if (value > 100) value = 100;
+    return value;
+}
+
+int ThemePlatform::GetSettingsWindowOpacityPercent() const
+{
+    int value = 94;
+    if (m_store)
+    {
+        try
+        {
+            value = std::stoi(m_store->Get(L"appearance.ui.settings_window_opacity_percent", L"94"));
+        }
+        catch (...)
+        {
+            value = 94;
+        }
+    }
+
+    if (value < 5) value = 5;
+    if (value > 100) value = 100;
+    return value;
+}
+
+bool ThemePlatform::IsSettingsWindowBlurEnabled() const
+{
+    if (!m_store)
+    {
+        return true;
+    }
+
+    return m_store->Get(L"appearance.ui.settings_window_blur_enabled", L"true") == L"true";
+}
+
+int ThemePlatform::GetSettingsRowHeightPx() const
+{
+    int value = 34;
+    if (m_store)
+    {
+        try { value = std::stoi(m_store->Get(L"appearance.ui.settings_row_height_px", L"34")); }
+        catch (...) { value = 34; }
+    }
+    if (value < 20) value = 20;
+    if (value > 72) value = 72;
+    return value;
+}
+
+int ThemePlatform::GetSettingsRowGapPx() const
+{
+    int value = 6;
+    if (m_store)
+    {
+        try { value = std::stoi(m_store->Get(L"appearance.ui.settings_row_gap_px", L"6")); }
+        catch (...) { value = 6; }
+    }
+    if (value < 0) value = 0;
+    if (value > 32) value = 32;
+    return value;
+}
+
+int ThemePlatform::GetSettingsSectionGapPx() const
+{
+    int value = 22;
+    if (m_store)
+    {
+        try { value = std::stoi(m_store->Get(L"appearance.ui.settings_section_gap_px", L"22")); }
+        catch (...) { value = 22; }
+    }
+    if (value < 0) value = 0;
+    if (value > 72) value = 72;
+    return value;
+}
+
+int ThemePlatform::GetSettingsToggleWidthPx() const
+{
+    int value = 62;
+    if (m_store)
+    {
+        try { value = std::stoi(m_store->Get(L"appearance.ui.settings_toggle_width_px", L"62")); }
+        catch (...) { value = 62; }
+    }
+    if (value < 36) value = 36;
+    if (value > 220) value = 220;
+    return value;
+}
+
+int ThemePlatform::GetSettingsToggleHeightPx() const
+{
+    int value = 28;
+    if (m_store)
+    {
+        try { value = std::stoi(m_store->Get(L"appearance.ui.settings_toggle_height_px", L"28")); }
+        catch (...) { value = 28; }
+    }
+    if (value < 14) value = 14;
+    if (value > 64) value = 64;
+    return value;
+}
+
+int ThemePlatform::GetTrayMenuMinWidthPx() const
+{
+    int value = 220;
+    if (m_store)
+    {
+        try { value = std::stoi(m_store->Get(L"appearance.ui.tray_menu_min_width_px", L"220")); }
+        catch (...) { value = 220; }
+    }
+    if (value < 140) value = 140;
+    if (value > 520) value = 520;
+    return value;
+}
+
+int ThemePlatform::GetTrayMenuRowHeightPx() const
+{
+    int value = 28;
+    if (m_store)
+    {
+        try { value = std::stoi(m_store->Get(L"appearance.ui.tray_menu_row_height_px", L"28")); }
+        catch (...) { value = 28; }
+    }
+    if (value < 18) value = 18;
+    if (value > 72) value = 72;
+    return value;
 }
 
 SpacePolicyDefaults ThemePlatform::ResolveSpacePolicyDefaults() const
@@ -485,6 +719,86 @@ ThemePalette ThemePlatform::BuildPalette() const
         : BuildPaletteFor(ResolveMode(), style);
 
     return palette;
+}
+
+ThemeIconMapping ThemePlatform::ResolveIconMapping(const std::wstring& iconKey,
+                                                   const std::wstring& fallbackGlyph) const
+{
+    ThemeIconMapping mapping;
+    mapping.iconKey = iconKey;
+
+    if (iconKey.empty())
+    {
+        mapping.glyph = fallbackGlyph;
+        return mapping;
+    }
+
+    const auto& builtinGlyphs = BuiltinFallbackGlyphs();
+    if (!fallbackGlyph.empty())
+    {
+        mapping.glyph = fallbackGlyph;
+    }
+    else
+    {
+        const auto glyphIt = builtinGlyphs.find(iconKey);
+        mapping.glyph = (glyphIt != builtinGlyphs.end()) ? glyphIt->second : L"\uE943";
+    }
+
+    std::wstring selectedPack = L"tabler";
+    if (m_store)
+    {
+        const std::wstring configuredPack = m_store->Get(L"appearance.icons.pack", L"tabler");
+        if (!configuredPack.empty())
+        {
+            selectedPack = configuredPack;
+        }
+
+        const std::wstring perIconGlyph = m_store->Get(L"appearance.icons.glyph." + iconKey, L"");
+        if (!perIconGlyph.empty())
+        {
+            mapping.glyph = perIconGlyph;
+        }
+    }
+
+    std::shared_ptr<UniversalThemeData> universalTheme;
+    if (TryLoadUniversalTheme(universalTheme))
+    {
+        const std::string packUtf8 = WStringToUtf8(selectedPack);
+        const auto packIt = universalTheme->iconPackMappings.find(packUtf8);
+        if (packIt != universalTheme->iconPackMappings.end())
+        {
+            const auto iconIt = packIt->second.find(WStringToUtf8(iconKey));
+            if (iconIt != packIt->second.end())
+            {
+                mapping.assetPack = selectedPack;
+                mapping.assetName = Utf8ToWString(iconIt->second);
+                const std::wstring assetGlyph = GlyphForAssetName(mapping.assetName);
+                if (!assetGlyph.empty())
+                {
+                    mapping.glyph = assetGlyph;
+                }
+                return mapping;
+            }
+        }
+    }
+
+    if (selectedPack == L"tabler")
+    {
+        const auto& builtinTabler = BuiltinTablerAssets();
+        const auto assetIt = builtinTabler.find(iconKey);
+        if (assetIt != builtinTabler.end())
+        {
+            mapping.assetPack = L"tabler";
+            mapping.assetName = assetIt->second;
+            const std::wstring assetGlyph = GlyphForAssetName(mapping.assetName);
+            if (!assetGlyph.empty())
+            {
+                mapping.glyph = assetGlyph;
+            }
+        }
+    }
+
+    return mapping;
 }
 
 bool ThemePlatform::ExportCustomPreset(const std::wstring& filePath) const

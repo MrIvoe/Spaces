@@ -23,6 +23,7 @@ struct TrayMenuEntry
 {
     std::wstring title;
     std::wstring commandId;
+    std::wstring iconKey;
     bool separatorBefore = false;
 };
 
