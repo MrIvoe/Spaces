@@ -4,7 +4,7 @@
 #include "Persistence.h"
 #include "Win32Helpers.h"
 #include "core/ThemePlatform.h"
-#include "extensions/FenceExtensionRegistry.h"
+#include "extensions/SpaceExtensionRegistry.h"
 #include <algorithm>
 #include <cwctype>
 #include <unordered_set>
@@ -345,8 +345,8 @@ void FenceManager::RefreshFence(const std::wstring& fenceId)
         return;
 
     std::vector<FenceItem> items;
-    const FenceContentProviderCallbacks* callbacks = m_fenceExtensionRegistry
-        ? m_fenceExtensionRegistry->ResolveCallbacks(fence->contentType, fence->contentPluginId)
+    const FenceContentProviderCallbacks* callbacks = m_spaceExtensionRegistry
+        ? m_spaceExtensionRegistry->ResolveCallbacks(fence->contentType, fence->contentPluginId)
         : nullptr;
     if (callbacks && callbacks->enumerateItems)
     {
@@ -367,8 +367,8 @@ void FenceManager::RefreshAll()
     for (auto& fence : m_fences)
     {
         std::vector<FenceItem> items;
-        const FenceContentProviderCallbacks* callbacks = m_fenceExtensionRegistry
-            ? m_fenceExtensionRegistry->ResolveCallbacks(fence.contentType, fence.contentPluginId)
+        const FenceContentProviderCallbacks* callbacks = m_spaceExtensionRegistry
+            ? m_spaceExtensionRegistry->ResolveCallbacks(fence.contentType, fence.contentPluginId)
             : nullptr;
         if (callbacks && callbacks->enumerateItems)
         {
@@ -393,8 +393,8 @@ bool FenceManager::HandleDrop(const std::wstring& fenceId,
     if (!fence)
         return false;
 
-    const FenceContentProviderCallbacks* callbacks = m_fenceExtensionRegistry
-        ? m_fenceExtensionRegistry->ResolveCallbacks(fence->contentType, fence->contentPluginId)
+    const FenceContentProviderCallbacks* callbacks = m_spaceExtensionRegistry
+        ? m_spaceExtensionRegistry->ResolveCallbacks(fence->contentType, fence->contentPluginId)
         : nullptr;
     if (callbacks && callbacks->handleDrop)
     {
@@ -469,8 +469,8 @@ bool FenceManager::DeleteItem(const std::wstring& fenceId, const FenceItem& item
         return false;
     }
 
-    const FenceContentProviderCallbacks* callbacks = m_fenceExtensionRegistry
-        ? m_fenceExtensionRegistry->ResolveCallbacks(fence->contentType, fence->contentPluginId)
+    const FenceContentProviderCallbacks* callbacks = m_spaceExtensionRegistry
+        ? m_spaceExtensionRegistry->ResolveCallbacks(fence->contentType, fence->contentPluginId)
         : nullptr;
     const bool ok = (callbacks && callbacks->deleteItem)
         ? callbacks->deleteItem(BuildFenceMetadata(*fence), item)
@@ -733,9 +733,9 @@ std::vector<std::wstring> FenceManager::GetAllFenceIds() const
     return ids;
 }
 
-void FenceManager::SetFenceExtensionRegistry(const FenceExtensionRegistry* registry)
+void FenceManager::SetSpaceExtensionRegistry(const SpaceExtensionRegistry* registry)
 {
-    m_fenceExtensionRegistry = registry;
+    m_spaceExtensionRegistry = registry;
 
     bool normalizedAny = false;
     for (auto& fence : m_fences)
@@ -918,7 +918,7 @@ bool FenceManager::NormalizeFenceContentProvider(FenceModel& fence) const
 {
     bool changed = false;
 
-    if (!m_fenceExtensionRegistry)
+    if (!m_spaceExtensionRegistry)
     {
         if (fence.contentType.empty())
         {
@@ -934,13 +934,13 @@ bool FenceManager::NormalizeFenceContentProvider(FenceModel& fence) const
         return changed;
     }
 
-    const bool supported = m_fenceExtensionRegistry->HasProvider(fence.contentType, fence.contentPluginId);
+    const bool supported = m_spaceExtensionRegistry->HasProvider(fence.contentType, fence.contentPluginId);
     if (supported)
     {
         return false;
     }
 
-    const auto fallback = m_fenceExtensionRegistry->ResolveOrDefault(fence.contentType, fence.contentPluginId);
+    const auto fallback = m_spaceExtensionRegistry->ResolveOrDefault(fence.contentType, fence.contentPluginId);
     Win32Helpers::LogError(
         L"Unsupported fence provider detected. Falling back to core provider. fenceId='" + fence.id +
         L"' contentType='" + fence.contentType + L"' pluginId='" + fence.contentPluginId + L"'");

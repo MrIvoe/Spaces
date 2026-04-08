@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(SimpleFences)
+project(Spaces)
 
 include(FetchContent)
 
@@ -14,7 +14,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Main executable
-add_executable(SimpleFences WIN32
+add_executable(Spaces WIN32
     src/main.cpp
     src/App.h
     src/App.cpp
@@ -57,8 +57,8 @@ add_executable(SimpleFences WIN32
     src/extensions/PluginSettingsRegistry.cpp
     src/extensions/MenuContributionRegistry.h
     src/extensions/MenuContributionRegistry.cpp
-    src/extensions/FenceExtensionRegistry.h
-    src/extensions/FenceExtensionRegistry.cpp
+    src/extensions/SpaceExtensionRegistry.h
+    src/extensions/SpaceExtensionRegistry.cpp
     src/plugins/builtins/BuiltinPlugins.h
     src/plugins/builtins/BuiltinPlugins.cpp
     src/FenceStorage.h
@@ -78,12 +78,12 @@ add_executable(SimpleFences WIN32
     src/Models.h
 )
 
-target_include_directories(SimpleFences PRIVATE
+target_include_directories(Spaces PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 # Link Windows libraries
-target_link_libraries(SimpleFences
+target_link_libraries(Spaces
     nlohmann_json::nlohmann_json
     comdlg32
     user32
@@ -96,17 +96,17 @@ target_link_libraries(SimpleFences
 )
 
 # Set output directory
-set_target_properties(SimpleFences PROPERTIES
+set_target_properties(Spaces PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
 # Enable Unicode
 if(MSVC)
-    target_compile_options(SimpleFences PRIVATE /W4)
-    target_compile_definitions(SimpleFences PRIVATE UNICODE _UNICODE)
+    target_compile_options(Spaces PRIVATE /W4)
+    target_compile_definitions(Spaces PRIVATE UNICODE _UNICODE)
 else()
-    target_compile_options(SimpleFences PRIVATE -Wall -Wextra)
-    target_compile_definitions(SimpleFences PRIVATE UNICODE _UNICODE)
+    target_compile_options(Spaces PRIVATE -Wall -Wextra)
+    target_compile_definitions(Spaces PRIVATE UNICODE _UNICODE)
 endif()
 
 enable_testing()
@@ -149,8 +149,8 @@ add_executable(HostCoreTests
     src/extensions/PluginRegistry.cpp
     src/extensions/PluginSettingsRegistry.h
     src/extensions/PluginSettingsRegistry.cpp
-    src/extensions/FenceExtensionRegistry.h
-    src/extensions/FenceExtensionRegistry.cpp
+    src/extensions/SpaceExtensionRegistry.h
+    src/extensions/SpaceExtensionRegistry.cpp
     src/extensions/PluginHost.h
     src/extensions/PluginHost.cpp
     src/plugins/builtins/BuiltinPlugins.h

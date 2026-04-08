@@ -3,7 +3,7 @@
 #include "AppVersion.h"
 #include "core/CommandDispatcher.h"
 #include "core/Diagnostics.h"
-#include "extensions/FenceExtensionRegistry.h"
+#include "extensions/SpaceExtensionRegistry.h"
 #include "extensions/MenuContributionRegistry.h"
 #include "extensions/PluginContracts.h"
 #include "extensions/PluginSettingsRegistry.h"
@@ -248,9 +248,9 @@ public:
 
     bool Initialize(const PluginContext& context) override
     {
-        if (context.fenceExtensionRegistry)
+        if (context.spaceExtensionRegistry)
         {
-            context.fenceExtensionRegistry->RegisterContentProvider(
+            context.spaceExtensionRegistry->RegisterContentProvider(
                 FenceContentProviderDescriptor{L"core.file_collection", L"file_collection", L"File Collection", true});
         }
 
@@ -696,7 +696,7 @@ public:
     bool Initialize(const PluginContext& context) override
     {
         m_context = context;
-        if (context.fenceExtensionRegistry)
+        if (context.spaceExtensionRegistry)
         {
             FenceContentProviderCallbacks callbacks;
             callbacks.enumerateItems = [this](const FenceMetadata& fence) {
@@ -708,7 +708,7 @@ public:
             callbacks.deleteItem = [this](const FenceMetadata& fence, const FenceItem& item) {
                 return DeletePortalItem(fence, item);
             };
-            context.fenceExtensionRegistry->RegisterContentProvider(
+            context.spaceExtensionRegistry->RegisterContentProvider(
                 FenceContentProviderDescriptor{L"builtin.explorer_portal", L"folder_portal", L"Folder Portal"},
                 callbacks);
         }
@@ -1135,9 +1135,9 @@ public:
 
     bool Initialize(const PluginContext& context) override
     {
-        if (context.fenceExtensionRegistry)
+        if (context.spaceExtensionRegistry)
         {
-            context.fenceExtensionRegistry->RegisterContentProvider(
+            context.spaceExtensionRegistry->RegisterContentProvider(
                 FenceContentProviderDescriptor{L"builtin.widgets", L"widget_panel", L"Widget Panel"});
         }
 

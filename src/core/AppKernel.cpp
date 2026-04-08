@@ -9,7 +9,7 @@
 #include "core/SettingsStore.h"
 #include "core/ThemeMigrationService.h"
 #include "core/ThemePlatform.h"
-#include "extensions/FenceExtensionRegistry.h"
+#include "extensions/SpaceExtensionRegistry.h"
 #include "extensions/PluginContracts.h"
 #include "extensions/PluginHost.h"
 #include "extensions/PluginRegistry.h"
@@ -344,7 +344,7 @@ bool AppKernel::Initialize(App* app)
     m_serviceRegistry = std::make_unique<ServiceRegistry>();
     m_menuRegistry = std::make_unique<MenuContributionRegistry>();
     m_settingsRegistry = std::make_unique<PluginSettingsRegistry>();
-    m_fenceExtensionRegistry = std::make_unique<FenceExtensionRegistry>();
+    m_spaceExtensionRegistry = std::make_unique<SpaceExtensionRegistry>();
     m_pluginHost = std::make_unique<PluginHost>();
     m_appCommands = std::make_unique<KernelAppCommands>(app, this);
 
@@ -387,7 +387,7 @@ bool AppKernel::Initialize(App* app)
                 pluginContext.diagnostics = m_diagnostics.get();
                 pluginContext.settingsRegistry = m_settingsRegistry.get();
                 pluginContext.menuRegistry = m_menuRegistry.get();
-                pluginContext.fenceExtensionRegistry = m_fenceExtensionRegistry.get();
+                pluginContext.spaceExtensionRegistry = m_spaceExtensionRegistry.get();
                 pluginContext.appCommands = m_appCommands.get();
 
                 const bool reloaded = m_pluginHost->ReloadBuiltins(pluginContext);
@@ -477,7 +477,7 @@ bool AppKernel::Initialize(App* app)
     context.diagnostics = m_diagnostics.get();
     context.settingsRegistry = m_settingsRegistry.get();
     context.menuRegistry = m_menuRegistry.get();
-    context.fenceExtensionRegistry = m_fenceExtensionRegistry.get();
+    context.spaceExtensionRegistry = m_spaceExtensionRegistry.get();
     context.appCommands = m_appCommands.get();
 
     const bool loaded = m_pluginHost->LoadBuiltins(context);
@@ -503,7 +503,7 @@ void AppKernel::Shutdown()
     }
 
     m_pluginHost.reset();
-    m_fenceExtensionRegistry.reset();
+    m_spaceExtensionRegistry.reset();
     m_themePlatform.reset();
     m_settingsStore.reset();
     m_settingsRegistry.reset();
@@ -654,9 +654,9 @@ std::vector<SettingsPageView> AppKernel::GetSettingsPages() const
     return views;
 }
 
-const FenceExtensionRegistry* AppKernel::GetFenceExtensionRegistry() const
+const SpaceExtensionRegistry* AppKernel::GetSpaceExtensionRegistry() const
 {
-    return m_fenceExtensionRegistry.get();
+    return m_spaceExtensionRegistry.get();
 }
 
 PluginSettingsRegistry* AppKernel::GetSettingsRegistry() const

@@ -3,7 +3,7 @@
 
 #include "core/CommandDispatcher.h"
 #include "core/Diagnostics.h"
-#include "extensions/FenceExtensionRegistry.h"
+#include "extensions/SpaceExtensionRegistry.h"
 #include "extensions/MenuContributionRegistry.h"
 #include "extensions/PluginHost.h"
 #include "extensions/PluginSettingsRegistry.h"
@@ -24,14 +24,14 @@ int RunPluginHostRuntimeConflictTests()
         Diagnostics diagnostics;
         PluginSettingsRegistry settingsRegistry;
         MenuContributionRegistry menuRegistry;
-        FenceExtensionRegistry fenceExtensionRegistry;
+        SpaceExtensionRegistry spaceExtensionRegistry;
 
         PluginContext context;
         context.commandDispatcher = &dispatcher;
         context.diagnostics = &diagnostics;
         context.settingsRegistry = &settingsRegistry;
         context.menuRegistry = &menuRegistry;
-        context.fenceExtensionRegistry = &fenceExtensionRegistry;
+        context.spaceExtensionRegistry = &spaceExtensionRegistry;
 
         PluginHost host;
         host.LoadBuiltins(context);
@@ -71,7 +71,7 @@ int RunPluginHostRuntimeConflictTests()
         Diagnostics diagnostics;
         PluginSettingsRegistry settingsRegistry;
         MenuContributionRegistry menuRegistry;
-        FenceExtensionRegistry fenceExtensionRegistry;
+        SpaceExtensionRegistry spaceExtensionRegistry;
 
         settingsRegistry.SetValue(L"settings.plugins.enable.community.visual_modes", L"false");
 
@@ -80,7 +80,7 @@ int RunPluginHostRuntimeConflictTests()
         context.diagnostics = &diagnostics;
         context.settingsRegistry = &settingsRegistry;
         context.menuRegistry = &menuRegistry;
-        context.fenceExtensionRegistry = &fenceExtensionRegistry;
+        context.spaceExtensionRegistry = &spaceExtensionRegistry;
 
         PluginHost host;
         host.LoadBuiltins(context);
@@ -120,14 +120,14 @@ int RunPluginHostRuntimeConflictTests()
         Diagnostics diagnostics;
         PluginSettingsRegistry settingsRegistry;
         MenuContributionRegistry menuRegistry;
-        FenceExtensionRegistry fenceExtensionRegistry;
+        SpaceExtensionRegistry spaceExtensionRegistry;
 
         PluginContext context;
         context.commandDispatcher = &dispatcher;
         context.diagnostics = &diagnostics;
         context.settingsRegistry = &settingsRegistry;
         context.menuRegistry = &menuRegistry;
-        context.fenceExtensionRegistry = &fenceExtensionRegistry;
+        context.spaceExtensionRegistry = &spaceExtensionRegistry;
 
         PluginHost host;
         host.LoadBuiltins(context);

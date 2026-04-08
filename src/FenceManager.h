@@ -13,7 +13,7 @@
 class FenceWindow;
 class FenceStorage;
 class Persistence;
-class FenceExtensionRegistry;
+class SpaceExtensionRegistry;
 class ThemePlatform;
 
 class FenceManager
@@ -58,7 +58,7 @@ public:
     const FenceWindow* FindFenceWindow(const std::wstring& fenceId) const;
     const FenceModel* FindFenceByWindow(HWND hwnd) const;
     std::vector<std::wstring> GetAllFenceIds() const;
-    void SetFenceExtensionRegistry(const FenceExtensionRegistry* registry);
+    void SetSpaceExtensionRegistry(const SpaceExtensionRegistry* registry);
     void SetMenuContributionRegistry(const MenuContributionRegistry* registry);
     void SetCommandExecutor(std::function<bool(const std::wstring&, const CommandContext&)> executor);
     void SetThemePlatform(const ThemePlatform* themePlatform);
@@ -80,7 +80,7 @@ private:
     std::unique_ptr<Persistence> m_persistence;
     std::vector<FenceModel> m_fences;
     std::unordered_map<std::wstring, std::unique_ptr<FenceWindow>> m_windows;
-    const FenceExtensionRegistry* m_fenceExtensionRegistry = nullptr;
+    const SpaceExtensionRegistry* m_spaceExtensionRegistry = nullptr;
     const MenuContributionRegistry* m_menuRegistry = nullptr;
     const ThemePlatform* m_themePlatform = nullptr;
     std::function<bool(const std::wstring&, const CommandContext&)> m_commandExecutor;

@@ -22,10 +22,10 @@ struct FenceContentProviderCallbacks
     std::function<bool(const FenceMetadata& fence, const FenceItem& item)> deleteItem;
 };
 
-class FenceExtensionRegistry
+class SpaceExtensionRegistry
 {
 public:
-    FenceExtensionRegistry();
+    SpaceExtensionRegistry();
 
     void RegisterContentProvider(const FenceContentProviderDescriptor& provider);
     void RegisterContentProvider(const FenceContentProviderDescriptor& provider, const FenceContentProviderCallbacks& callbacks);

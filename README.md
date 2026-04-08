@@ -1,20 +1,20 @@
-# IVOESimpleFences
+# Spaces
 
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#build-and-run)
 [![Language](https://img.shields.io/badge/language-C%2B%2B17-00599C.svg)](#tech-stack)
 [![Build System](https://img.shields.io/badge/build-CMake-064F8C.svg)](#build-and-run)
 [![Version](https://img.shields.io/badge/version-0.0.013-2EA043.svg)](#release-history)
 
-A lightweight Win32 desktop organizer for Windows that lets you create simple desktop fences and move files into them safely.
+A lightweight Win32 desktop organizer for Windows that lets you create simple desktop Spaces and move files into them safely.
 
-IVOESimpleFences is focused on a clear, predictable model:
+Spaces is focused on a clear, predictable model:
 
-- each fence is a real desktop window
-- each fence has a real backing folder on disk
-- dropped files are physically moved into that fence folder
+- each Space is a real desktop window
+- each Space has a real backing folder on disk
+- dropped files are physically moved into that Space folder
 - original paths are tracked so restore can be done safely later
 
-This project is meant to stay smaller and easier to reason about than the larger IVOE-Fences project while still prioritizing file safety, recoverability, and real desktop usefulness.
+This project is meant to stay smaller and easier to reason about than the larger IVOE-Spaces project while still prioritizing file safety, recoverability, and real desktop usefulness.
 
 ## Quick Start in 60 Seconds
 
@@ -28,14 +28,14 @@ If you only have a minute:
 ```powershell
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64
 cmake --build build --config Debug
-.\build\bin\Debug\SimpleFences.exe
+.\build\bin\Debug\Spaces.exe
 ```
 
 First run notes:
 
-- app data is stored under `%LOCALAPPDATA%\SimpleFences\`
-- fences are restored from saved config on startup
-- logs are written to `%LOCALAPPDATA%\SimpleFences\debug.log`
+- app data is stored under `%LOCALAPPDATA%\Spaces\`
+- Spaces are restored from saved config on startup
+- logs are written to `%LOCALAPPDATA%\Spaces\debug.log`
 
 ## Current Version
 
@@ -47,9 +47,9 @@ Current phase: `0.0.013` UI shell modernization milestone, focused on cleaner se
 
 Primary focus right now:
 
-- keep core fence create/move/resize/drag-drop/persist/restore behavior stable
+- keep core Space create/move/resize/drag-drop/persist/restore behavior stable
 - prevent duplicate app instances and improve shutdown reliability
-- keep fence create/move/resize interactions responsive and predictable
+- keep Space create/move/resize interactions responsive and predictable
 - improve drag/drop handling for duplicate and self-drop edge cases
 - recover safely from malformed persisted config files
 - improve icon fidelity and practical rename/edit flow
@@ -60,10 +60,10 @@ Primary focus right now:
 
 End-user behavior:
 
-- create draggable, resizable fence windows
-- drop files and folders into a fence
-- open items directly from a fence
-- reload saved fences on startup
+- create draggable, resizable Space windows
+- drop files and folders into a Space
+- open items directly from a Space
+- reload saved Spaces on startup
 - restore items back toward their original location
 - avoid destructive overwrite when restoring
 
@@ -76,7 +76,7 @@ Engineering goals:
 
 ## How It Works
 
-Each fence has:
+Each Space has:
 
 - a Win32 window
 - a backing folder
@@ -86,21 +86,21 @@ Each fence has:
 Example storage layout:
 
 ```text
-%LOCALAPPDATA%\SimpleFences\
+%LOCALAPPDATA%\Spaces\
     config.json
     debug.log
-    Fences\
+    Spaces\
         <FenceId>\
             _origins.json
             <items...>
 ```
 
-When you drop a file into a fence:
+When you drop a file into a Space:
 
-1. the app finds or creates the fence folder
+1. the app finds or creates the Space folder
 2. it tries to move the item into that folder
 3. it records the original path only after the move succeeds
-4. the fence refreshes to display the current contents
+4. the Space refreshes to display the current contents
 
 When you restore an item:
 
@@ -113,10 +113,10 @@ Example:
 report.txt -> report (restored 1).txt
 ```
 
-When you delete a fence:
+When you delete a Space:
 
 - the app first tries to restore everything inside it
-- if restore is only partially successful, the fence is kept so recovery is still possible
+- if restore is only partially successful, the Space is kept so recovery is still possible
 
 ## Safety and Recovery Behavior
 
@@ -124,16 +124,16 @@ Current safety rules:
 
 - restore does not overwrite existing destination files
 - failed moves do not create stale origin metadata
-- partial restore failure aborts fence deletion
+- partial restore failure aborts Space deletion
 - config and origin data are stored as structured JSON
 - metadata writes use atomic file replacement behavior on Windows
 - file operation failures are logged for troubleshooting
 
 ## Current Features
 
-- tray-based fence creation
+- tray-based Space creation
 - command-dispatched tray actions via contribution registry
-- draggable and resizable fence windows
+- draggable and resizable Space windows
 - startup reload from saved config
 - file and folder drag/drop
 - per-item open action
@@ -141,9 +141,9 @@ Current safety rules:
 - mouse and keyboard context menu support
 - logging for move, restore, delete, and persistence failures
 - built-in plugin host scaffold with capability manifests
-- plugin settings and fence-extension registries with status/page API exposure
+- plugin settings and Space-extension registries with status/page API exposure
 - settings shell command path (`plugin.openSettings`) with scaffold UI
-- fence context organization commands via plugin (`builtin.fence_organizer`)
+- Space context organization commands via plugin (`builtin.fence_organizer`)
 - plugin manifest API compatibility checks (`minHostApiVersion` / `maxHostApiVersion`)
 - safe command dispatch diagnostics (unknown/failed command logging)
 - registry validation for menu/settings contributions (invalid and duplicate guardrails)
@@ -177,7 +177,7 @@ src/
         PluginRegistry.h/.cpp
         PluginSettingsRegistry.h/.cpp
         MenuContributionRegistry.h/.cpp
-        FenceExtensionRegistry.h/.cpp
+        SpaceExtensionRegistry.h/.cpp
     plugins/
         builtins/
             BuiltinPlugins.h/.cpp
@@ -196,26 +196,26 @@ README.md
 
 ## Architecture Overview
 
-The 0.0.011 milestone reinforces the plugin platform around a protected fence kernel.
+The 0.0.011 milestone reinforces the plugin platform around a protected Space kernel.
 
 Core rule:
 
-- core fence behavior is not "just another plugin" yet
+- core Space behavior is not "just another plugin" yet
 - plugin host grows around the core
 - optional features move to plugins incrementally
 
 Kernel/platform services now include:
 
 - `AppKernel`: startup scaffolding for command routing, plugin host lifecycle, and failure diagnostics
-- `CommandDispatcher`: command registration and isolated dispatch (`fence.create`, `app.exit`)
+- `CommandDispatcher`: command registration and isolated dispatch (`Space.create`, `app.exit`)
 - `EventBus`: lightweight event pub/sub scaffold for controlled extension reactions
 - `PluginHost` + registries: built-in plugin loading, capability registration, settings/menu extension points
 
 Extension architecture details now live in [docs/EXTENSIBILITY.md](docs/EXTENSIBILITY.md).
 
-Core fence domain remains responsible for:
+Core Space domain remains responsible for:
 
-- fence create/move/resize workflow
+- Space create/move/resize workflow
 - drag/drop and file move safety
 - persistence and startup reload
 - restore/delete safety behavior
@@ -248,11 +248,11 @@ flowchart TD
 
 ### Component Responsibilities
 
-- `App`: creates stable fence services and tray shell, delegates platform-extension concerns to `AppKernel`
+- `App`: creates stable Space services and tray shell, delegates platform-extension concerns to `AppKernel`
 - `AppKernel`: owns dispatcher, event bus, plugin host, and extension registries
 - `TrayMenu`: builds tray UI from menu contributions and dispatches selected commands
-- `FenceManager`: canonical fence state and lifecycle coordination
-- `FenceWindow`: per-fence Win32 host window and fence interaction rendering
+- `FenceManager`: canonical Space state and lifecycle coordination
+- `FenceWindow`: per-Space Win32 host window and Space interaction rendering
 - `FenceStorage`: physical file move/restore/delete safety and backing-folder management
 - `Persistence`: structured JSON metadata with backward-compatible evolution
 - `Win32Helpers`: logging, paths, and atomic metadata replacement helper operations
@@ -289,24 +289,24 @@ cmake --build build --config Release
 Run Debug:
 
 ```powershell
-.\build\bin\Debug\SimpleFences.exe
+.\build\bin\Debug\Spaces.exe
 ```
 
 Run Release:
 
 ```powershell
-.\build\bin\Release\SimpleFences.exe
+.\build\bin\Release\Spaces.exe
 ```
 
 ## Manual Testing Checklist
 
 Recommended checks:
 
-- create multiple fences
-- drag files and folders into a fence
-- restart the app and verify fences reload correctly
+- create multiple Spaces
+- drag files and folders into a Space
+- restart the app and verify Spaces reload correctly
 - restore an item where the original location already contains a file with the same name
-- delete a fence that contains several items
+- delete a Space that contains several items
 - inspect `debug.log` after intentional failure scenarios
 
 ## Troubleshooting
@@ -316,7 +316,7 @@ Recommended checks:
 Check:
 
 - whether another instance is already running
-- whether `%LOCALAPPDATA%\SimpleFences\config.json` is malformed
+- whether `%LOCALAPPDATA%\Spaces\config.json` is malformed
 - whether `debug.log` contains startup or tray errors
 
 ### A file did not move or restore correctly
@@ -327,9 +327,9 @@ Check:
 - whether another process is locking the file
 - `debug.log` for move/copy/remove details
 
-### A fence did not disappear when I deleted it
+### A Space did not disappear when I deleted it
 
-This can happen intentionally if restore was only partially successful. The fence is kept so remaining items can still be recovered safely.
+This can happen intentionally if restore was only partially successful. The Space is kept so remaining items can still be recovered safely.
 
 ## Release History
 
@@ -344,8 +344,8 @@ This can happen intentionally if restore was only partially successful. The fenc
 ### 0.0.012
 
 - added single-instance startup guard with user-facing warning and clean mutex teardown
-- implemented practical fence rename workflow from the fence context menu
-- hardened drag/drop routing to deduplicate paths and skip self-drops from the same fence folder
+- implemented practical Space rename workflow from the Space context menu
+- hardened drag/drop routing to deduplicate paths and skip self-drops from the same Space folder
 - improved corrupted metadata recovery by quarantining malformed config and continuing startup
 - aligned icon list loading to large icon rendering for better icon fidelity
 - expanded host core tests with persistence corruption recovery coverage
@@ -367,15 +367,15 @@ This can happen intentionally if restore was only partially successful. The fenc
 - exposed plugin status and settings-page registration through kernel APIs
 - added plugin diagnostics logging for loaded/failed/capability reporting
 - introduced content-provider registry lookup/default resolution with core `file_collection` fallback
-- normalized persisted fence provider defaults to `core.file_collection`
-- kept existing core fence workflow as stable kernel behavior
+- normalized persisted Space provider defaults to `core.file_collection`
+- kept existing core Space workflow as stable kernel behavior
 
 ### 0.0.009
 
-- introduced `AppKernel` platform layer around stable fence core behavior
-- added command dispatcher and routed tray actions via `fence.create` and `app.exit`
+- introduced `AppKernel` platform layer around stable Space core behavior
+- added command dispatcher and routed tray actions via `Space.create` and `app.exit`
 - added plugin host, plugin contracts, and built-in plugin manifests
-- added menu contribution, settings registry, and fence-extension registry scaffolding
+- added menu contribution, settings registry, and Space-extension registry scaffolding
 - evolved persistence/model to include content-provider metadata with backward compatibility
 - documented phased migration from monolith to plugin-capable platform
 
@@ -383,7 +383,7 @@ This can happen intentionally if restore was only partially successful. The fenc
 
 - wrote origin metadata only after successful move completion
 - replaced delete-then-rename save flow with stronger atomic replacement behavior
-- prevented fence deletion when restore only partially succeeded
+- prevented Space deletion when restore only partially succeeded
 - added proper keyboard-compatible context menu handling
 - reused cached image list during painting
 - improved logging detail for file operation failures
@@ -401,27 +401,27 @@ This can happen intentionally if restore was only partially successful. The fenc
 
 ### 0.0.006 and earlier
 
-- established the base fence workflow, storage model, persistence, and desktop interaction foundation
+- established the base Space workflow, storage model, persistence, and desktop interaction foundation
 
 ## Roadmap
 
 Phase A: Platform foundation
 
 - complete kernel service registration boundaries and diagnostics surfaces
-- keep core file-collection fence flow stable and first-class
+- keep core file-collection Space flow stable and first-class
 - mature plugin status reporting and plugin failure handling UX
 - evolve settings scaffold from shell to rich multi-page window
 
 Phase B: Built-in plugin migration
 
 - move tray behavior ownership fully into tray plugin while preserving command-driven routing
-- deliver appearance plugin basics and theme hooks for fence rendering
+- deliver appearance plugin basics and theme hooks for Space rendering
 - add plugin management settings page for enable/disable and health visibility
 
 Phase C: Advanced plugin capabilities
 
 - extract file collection behavior into default provider contract
-- prototype `folder_portal` provider through Explorer fence plugin
+- prototype `folder_portal` provider through Explorer Space plugin
 - prototype `widget_panel` provider through widgets plugin
 - define desktop context integration path before any shell-extension rollout
 
@@ -459,6 +459,6 @@ Recommended workflow:
 
 ## Notes
 
-`IVOE-Fences` is the broader and more advanced project.
+`IVOE-Spaces` is the broader and more advanced project.
 
-`IVOESimpleFences` is the simpler, more direct project focused on a smaller Win32 fence implementation with strong emphasis on safe file handling and recoverable behavior.
+`Spaces` is the simpler, more direct project focused on a smaller Win32 Space implementation with strong emphasis on safe file handling and recoverable behavior.

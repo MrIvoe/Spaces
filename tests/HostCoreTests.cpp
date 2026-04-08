@@ -5,7 +5,7 @@
 #include "Persistence.h"
 #include "plugins/builtins/BuiltinPlugins.h"
 #include "extensions/PluginContracts.h"
-#include "extensions/FenceExtensionRegistry.h"
+#include "extensions/SpaceExtensionRegistry.h"
 #include "extensions/MenuContributionRegistry.h"
 #include "extensions/PluginRegistry.h"
 #include "extensions/PluginSettingsRegistry.h"
@@ -247,7 +247,7 @@ namespace
             return Fail("plugin registry clear should remove entries");
         }
 
-        FenceExtensionRegistry fenceRegistry;
+        SpaceExtensionRegistry fenceRegistry;
         fenceRegistry.RegisterContentProvider(FenceContentProviderDescriptor{L"custom.provider", L"file_collection", L"Custom"});
 
         if (!fenceRegistry.HasProvider(L"file_collection", L"custom.provider"))
@@ -616,7 +616,7 @@ namespace
         CommandDispatcher dispatcher;
         PluginSettingsRegistry settingsRegistry;
         MenuContributionRegistry menuRegistry;
-        FenceExtensionRegistry fenceRegistry;
+        SpaceExtensionRegistry fenceRegistry;
         Diagnostics diagnostics;
         FakeApplicationCommands appCommands;
 
@@ -636,7 +636,7 @@ namespace
         context.diagnostics = &diagnostics;
         context.settingsRegistry = &settingsRegistry;
         context.menuRegistry = &menuRegistry;
-        context.fenceExtensionRegistry = &fenceRegistry;
+        context.spaceExtensionRegistry = &fenceRegistry;
         context.appCommands = &appCommands;
 
         auto portal = FindBuiltinPluginById(L"builtin.explorer_portal");

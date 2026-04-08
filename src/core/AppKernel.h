@@ -17,7 +17,7 @@ class PluginHost;
 class PluginSettingsRegistry;
 class SettingsStore;
 class ThemePlatform;
-class FenceExtensionRegistry;
+class SpaceExtensionRegistry;
 
 struct TrayMenuEntry
 {
@@ -41,7 +41,7 @@ public:
     std::vector<PluginStatusView>  GetPluginStatuses() const;
     std::vector<SettingsPageView>  GetSettingsPages() const;
     const MenuContributionRegistry* GetMenuRegistry() const;
-    const FenceExtensionRegistry*  GetFenceExtensionRegistry() const;
+    const SpaceExtensionRegistry*  GetSpaceExtensionRegistry() const;
     PluginSettingsRegistry*        GetSettingsRegistry() const;
     const ThemePlatform*           GetThemePlatform() const;
 
@@ -56,7 +56,7 @@ private:
     std::unique_ptr<PluginSettingsRegistry>  m_settingsRegistry;
     std::unique_ptr<SettingsStore>           m_settingsStore;
     std::unique_ptr<ThemePlatform>           m_themePlatform;
-    std::unique_ptr<FenceExtensionRegistry>  m_fenceExtensionRegistry;
+    std::unique_ptr<SpaceExtensionRegistry>  m_spaceExtensionRegistry;
     std::unique_ptr<PluginHost>              m_pluginHost;
     std::unique_ptr<KernelAppCommands>       m_appCommands;
     int                                      m_settingsObserverToken = 0;

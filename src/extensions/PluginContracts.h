@@ -12,7 +12,7 @@ class EventBus;
 class Diagnostics;
 class PluginSettingsRegistry;
 class MenuContributionRegistry;
-class FenceExtensionRegistry;
+class SpaceExtensionRegistry;
 
 // Simple fence metadata for plugin queries
 struct FenceMetadata
@@ -105,7 +105,7 @@ struct PluginContext
     Diagnostics* diagnostics = nullptr;
     PluginSettingsRegistry* settingsRegistry = nullptr;
     MenuContributionRegistry* menuRegistry = nullptr;
-    FenceExtensionRegistry* fenceExtensionRegistry = nullptr;
+    SpaceExtensionRegistry* spaceExtensionRegistry = nullptr;
     IApplicationCommands* appCommands = nullptr;
 };
 

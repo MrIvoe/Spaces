@@ -59,7 +59,7 @@ bool App::Initialize(HINSTANCE hInstance)
 
     if (m_manager)
     {
-        m_manager->SetFenceExtensionRegistry(m_kernel->GetFenceExtensionRegistry());
+        m_manager->SetSpaceExtensionRegistry(m_kernel->GetSpaceExtensionRegistry());
         m_manager->SetMenuContributionRegistry(m_kernel->GetMenuRegistry());
         m_manager->SetCommandExecutor([this](const std::wstring& commandId, const CommandContext& context) {
             return ExecuteCommand(commandId, context);

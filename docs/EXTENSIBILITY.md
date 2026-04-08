@@ -1,26 +1,26 @@
 # Extensibility Model (Host Core)
 
-This document defines what belongs in the `IVOESimpleFences` host and what should be implemented as plugins.
+This document defines what belongs in the `Spaces` host and what should be implemented as plugins.
 
 ## Product Direction
 
-The host is a stable operating platform for fences. It should remain small, resilient, and extension-first.
+The host is a stable operating platform for Spaces. It should remain small, resilient, and extension-first.
 
 Host responsibilities:
 
 - app lifecycle and Win32 message loop integration
 - tray lifecycle and command dispatch routing
-- baseline fence behavior (create, move, resize, persistence, drag/drop)
+- baseline Space behavior (create, move, resize, persistence, drag/drop)
 - persistence safety and backward-compatible config evolution
 - plugin loading, plugin contracts, registries, and capability routing
 - diagnostics, failure isolation, and graceful degradation
-- shared rendering/layout primitives used by all fences
+- shared rendering/layout primitives used by all Spaces
 
 Plugin responsibilities:
 
 - feature-specific behavior and UX that is not required for every user
 - optional menu entries and settings pages
-- alternate content providers and fence behavior extensions
+- alternate content providers and Space behavior extensions
 - experimental workflows that should not destabilize the host
 
 ## Contract Versioning
@@ -30,7 +30,7 @@ Plugin responsibilities:
 - `minHostApiVersion`
 - `maxHostApiVersion`
 
-The host API version is defined in `src/AppVersion.h` as `SimpleFencesVersion::kPluginApiVersion`.
+The host API version is defined in `src/AppVersion.h` as `SpacesVersion::kPluginApiVersion`.
 
 Plugin load behavior:
 
@@ -58,7 +58,7 @@ The host validates extension contributions before accepting them:
 : rejects empty title/command IDs and duplicate entries
 - `PluginSettingsRegistry`
 : rejects invalid pages, removes invalid fields, normalizes enum defaults, and replaces duplicate page IDs deterministically
-- `FenceExtensionRegistry`
+- `SpaceExtensionRegistry`
 : keeps core fallback provider (`core.file_collection`) for graceful behavior when optional providers are unavailable
 
 These checks keep plugin surfaces deterministic and easier to test.
@@ -67,7 +67,7 @@ These checks keep plugin surfaces deterministic and easier to test.
 
 The host exposes generic app operations to plugins through `IApplicationCommands`.
 
-As of plugin API `2`, plugins can query and refresh fence state without direct access to host internals:
+As of plugin API `2`, plugins can query and refresh Space state without direct access to host internals:
 
 - `GetActiveFenceMetadata()`
 - `GetAllFenceIds()`
@@ -83,7 +83,7 @@ These APIs are intentionally general-purpose so multiple plugins can reuse them 
 - command registration collision rules and dispatch exception safety
 - menu contribution validation and deterministic ordering
 - settings page normalization and duplicate handling
-- plugin/fence registry lookup and fallback behavior
+- plugin/Space registry lookup and fallback behavior
 
 This test suite is intended to stay fast and focused so host contract regressions are caught early.
 
@@ -91,7 +91,7 @@ This test suite is intended to stay fast and focused so host contract regression
 
 Future work that should stay outside host core:
 
-- advanced fence visual modes and custom layout packs
+- advanced Space visual modes and custom layout packs
 - specialized content providers (portals, widgets, feeds)
 - premium interaction packs and policy presets
 - custom menu workflows that are not baseline app behavior
