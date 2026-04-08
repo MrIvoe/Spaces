@@ -6,6 +6,7 @@
 [![Version](https://img.shields.io/badge/version-0.0.013-2EA043.svg)](#release-history)
 
 A lightweight Win32 desktop organizer for Windows that lets you create simple desktop Spaces and move files into them safely.
+**🎉 Release Version 1.01.001 - Now installable like a normal Windows app!**
 
 Theme architecture note:
 
@@ -13,6 +14,7 @@ Theme architecture note:
 - Spaces consumes exported tokens and semantic mappings from Themes.
 - Direct palette literals are only used for app-specific fallback/override behavior.
 - Cross-repo contract is documented in `docs/THEME_CONTRACT.md`.
+- Plugin marketplace migration architecture is documented in `docs/PLUGIN_MARKETPLACE_ARCHITECTURE.md`.
 
 Spaces is focused on a clear, predictable model:
 
@@ -47,6 +49,7 @@ First run notes:
 ## Current Version
 
 Current version: `0.0.013`
+Current release version: `1.01.001`
 
 ## Current Status
 
@@ -101,14 +104,99 @@ Example storage layout:
             _origins.json
             <items...>
 ```
-
-When you drop a file into a Space:
-
 1. the app finds or creates the Space folder
 2. it tries to move the item into that folder
 3. it records the original path only after the move succeeds
 4. the Space refreshes to display the current contents
 
+
+## Installation for End Users
+
+### Option 1: Install from Release (Recommended)
+
+Download the latest **Spaces-Setup-1.01.001.exe** from [Releases](https://github.com/MrIvoe/Spaces/releases) and run it.
+
+The installer will:
+
+- Install Spaces to **Program Files**
+- Create a **Start Menu shortcut**
+- Optionally create a **Desktop shortcut**
+- Set up **user data folders** in `%LOCALAPPDATA%\SimpleSpaces\`
+- Register the app for **uninstall** support
+
+After installation, launch Spaces from Start Menu or Desktop and start creating Spaces!
+
+### Option 2: Build from Source (Developers)
+
+```powershell
+# Clone the repository
+git clone https://github.com/MrIvoe/Spaces.git
+cd Spaces
+
+# Configure project
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+
+# Build (choose Debug or Release)
+cmake --build build --config Release
+
+# Run the app
+.\build\bin\Release\Spaces.exe
+```
+
+## Installing Plugins
+
+### From Within Spaces
+
+1. Open Spaces
+2. Right-click tray icon → **Settings**
+3. Navigate to **Plugins Manager**
+4. Click **+ Install** next to any available plugin
+5. Download completes and plugin is ready to use
+6. Restart Spaces to activate the plugin
+
+**No Git required!** Plugins are downloaded as ZIP packages directly from secure servers.
+
+### Available Plugins
+
+Spaces supports extensible plugins for:
+
+- Theme customization
+- Visual modes and layouts
+- Context actions
+- Custom integrations
+
+Visit the [Spaces-Plugins](https://github.com/MrIvoe/Spaces-Plugins) repository for plugin source code and documentation.
+
+## Build Instructions (for Developers)
+
+### Prerequisites
+
+- Windows 10 or later
+- Visual Studio 2022 or Visual Studio 2022 Build Tools
+- CMake 3.20+
+- Git
+
+### Building the Installer
+
+To build a professional Windows installer:
+
+1. **Build the Release app:**
+    ```powershell
+    cmake -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build --config Release
+    ```
+
+2. **Install Inno Setup** from https://jrsoftware.org/isdl.php
+
+3. **Build installer:**
+    ```powershell
+    $env:BUILD_OUTPUT_DIR = "build\bin\Release"
+    iscc.exe installer\Spaces.iss
+    ```
+
+4. Installer appears in `output/Spaces-Setup-1.01.001.exe`
+
+See [installer/README.md](installer/README.md) for detailed instructions.
 When you restore an item:
 
 - the app tries to send it back to its original location
