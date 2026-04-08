@@ -14,8 +14,8 @@ class PluginSettingsRegistry;
 class MenuContributionRegistry;
 class SpaceExtensionRegistry;
 
-// Simple fence metadata for plugin queries
-struct FenceMetadata
+// Simple space metadata for plugin queries
+struct SpaceMetadata
 {
     std::wstring id;
     std::wstring title;
@@ -27,7 +27,7 @@ struct FenceMetadata
     std::wstring contentStateDetail;
 };
 
-struct FenceItemMetadata
+struct SpaceItemMetadata
 {
     std::wstring name;
     std::wstring fullPath;
@@ -39,11 +39,11 @@ struct CommandContext
 {
     std::wstring commandId;
     std::wstring invocationSource;
-    FenceMetadata fence;
-    std::optional<FenceItemMetadata> item;
+    SpaceMetadata space;
+    std::optional<SpaceItemMetadata> item;
 };
 
-struct FenceCreateRequest
+struct SpaceCreateRequest
 {
     std::wstring title;
     std::wstring contentType = L"file_collection";
@@ -51,7 +51,7 @@ struct FenceCreateRequest
     std::wstring contentSource;
 };
 
-struct FencePresentationSettings
+struct SpacePresentationSettings
 {
     std::optional<bool> textOnlyMode;
     std::optional<bool> rollupWhenNotHovered;
@@ -66,24 +66,24 @@ class IApplicationCommands
 public:
     virtual ~IApplicationCommands() = default;
 
-    virtual std::wstring CreateFenceNearCursor() = 0;
-    virtual std::wstring CreateFenceNearCursor(const FenceCreateRequest& request) = 0;
+    virtual std::wstring CreateSpaceNearCursor() = 0;
+    virtual std::wstring CreateSpaceNearCursor(const SpaceCreateRequest& request) = 0;
     virtual void ExitApplication() = 0;
     virtual void OpenSettings() = 0;
 
-    // Fence query APIs (v0.0.010+)
-    // Enables plugins to discover active fence and query backing folder paths
+    // Space query APIs (v0.0.010+)
+    // Enables plugins to discover active space and query backing folder paths
     virtual CommandContext GetCurrentCommandContext() const = 0;
-    virtual FenceMetadata GetActiveFenceMetadata() const = 0;
-    virtual std::vector<std::wstring> GetAllFenceIds() const = 0;
-    virtual FenceMetadata GetFenceMetadata(const std::wstring& fenceId) const = 0;
-    virtual void RefreshFence(const std::wstring& fenceId) = 0;
-    virtual void UpdateFenceContentSource(const std::wstring& fenceId, const std::wstring& contentSource) = 0;
-    virtual void UpdateFenceContentState(const std::wstring& fenceId,
+    virtual SpaceMetadata GetActiveSpaceMetadata() const = 0;
+    virtual std::vector<std::wstring> GetAllSpaceIds() const = 0;
+    virtual SpaceMetadata GetSpaceMetadata(const std::wstring& spaceId) const = 0;
+    virtual void RefreshSpace(const std::wstring& spaceId) = 0;
+    virtual void UpdateSpaceContentSource(const std::wstring& spaceId, const std::wstring& contentSource) = 0;
+    virtual void UpdateSpaceContentState(const std::wstring& spaceId,
                                          const std::wstring& state,
                                          const std::wstring& detail) = 0;
-    virtual void UpdateFencePresentation(const std::wstring& fenceId,
-                                         const FencePresentationSettings& settings) = 0;
+    virtual void UpdateSpacePresentation(const std::wstring& spaceId,
+                                         const SpacePresentationSettings& settings) = 0;
 };
 
 struct PluginManifest
@@ -92,8 +92,8 @@ struct PluginManifest
     std::wstring displayName;
     std::wstring version;
     std::wstring description;
-    int minHostApiVersion = SimpleFencesVersion::kPluginApiVersion;
-    int maxHostApiVersion = SimpleFencesVersion::kPluginApiVersion;
+    int minHostApiVersion = SimpleSpacesVersion::kPluginApiVersion;
+    int maxHostApiVersion = SimpleSpacesVersion::kPluginApiVersion;
     bool enabledByDefault = true;
     std::vector<std::wstring> capabilities;
 };

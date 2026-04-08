@@ -1,5 +1,0 @@
-<Solution>
-  <Project Path="src\IVOEFences.Core\IVOEFences.Core.csproj" />
-  <Project Path="src\IVOEFences.Shell\IVOEFences.Shell.csproj" />
-  <Project Path="src\IVOEFences.Tests\IVOEFences.Tests.csproj" />
-</Solution>

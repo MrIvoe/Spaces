@@ -4,16 +4,23 @@
 #include "core/Diagnostics.h"
 #include "core/CommandDispatcher.h"
 #include "core/PluginAppearanceConflictGuard.h"
+#include "extensions/SpaceExtensionRegistry.h"
 #include "extensions/PluginSettingsRegistry.h"
 #include "plugins/builtins/BuiltinPlugins.h"
+#include "Win32Helpers.h"
 
 #include <algorithm>
+#include <filesystem>
+#include <functional>
 #include <set>
 
 #include <windows.h>
 
 namespace
 {
+    using CreatePluginFn = IPlugin* (__cdecl*)();
+    using DestroyPluginFn = void (__cdecl*)(IPlugin*);
+
     std::wstring Utf8ToWString(const std::string& text)
     {
         if (text.empty())
@@ -58,7 +65,7 @@ namespace
             return false;
         }
 
-        const int hostApi = SimpleFencesVersion::kPluginApiVersion;
+        const int hostApi = SimpleSpacesVersion::kPluginApiVersion;
         if (hostApi < manifest.minHostApiVersion || hostApi > manifest.maxHostApiVersion)
         {
             reason = L"Plugin API range is incompatible with host API version " + std::to_wstring(hostApi) + L".";
@@ -67,7 +74,84 @@ namespace
 
         return true;
     }
+
+    std::wstring JoinCommandIds(const std::vector<std::wstring>& commandIds)
+    {
+        if (commandIds.empty())
+        {
+            return L"(none)";
+        }
+
+        std::wstring result;
+        for (size_t index = 0; index < commandIds.size(); ++index)
+        {
+            if (index > 0)
+            {
+                result += L", ";
+            }
+            result += commandIds[index];
+        }
+
+        return result;
+    }
+
+    std::vector<std::filesystem::path> DiscoverExternalPluginDlls()
+    {
+        wchar_t modulePath[MAX_PATH]{};
+        if (GetModuleFileNameW(nullptr, modulePath, MAX_PATH) > 0)
+        {
+            const std::filesystem::path exePath(modulePath);
+            if (_wcsicmp(exePath.filename().c_str(), L"HostCoreTests.exe") == 0)
+            {
+                return {};
+            }
+        }
+
+        std::vector<std::filesystem::path> dllPaths;
+        const auto pluginRoot = Win32Helpers::GetAppDataRoot() / L"plugins";
+
+        std::error_code ec;
+        if (!std::filesystem::exists(pluginRoot, ec) || !std::filesystem::is_directory(pluginRoot, ec))
+        {
+            return dllPaths;
+        }
+
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(pluginRoot, std::filesystem::directory_options::skip_permission_denied, ec))
+        {
+            if (ec)
+            {
+                ec.clear();
+                continue;
+            }
+
+            if (!entry.is_regular_file(ec))
+            {
+                ec.clear();
+                continue;
+            }
+
+            if (_wcsicmp(entry.path().extension().c_str(), L".dll") == 0)
+            {
+                dllPaths.push_back(entry.path());
+            }
+        }
+
+        std::sort(dllPaths.begin(), dllPaths.end());
+        return dllPaths;
+    }
 }
+
+struct PluginHost::LoadedPlugin
+{
+    using PluginDeleter = std::function<void(IPlugin*)>;
+
+    std::unique_ptr<IPlugin, PluginDeleter> instance{nullptr, [](IPlugin* plugin) {
+        delete plugin;
+    }};
+    HMODULE module = nullptr;
+    std::wstring sourcePath;
+    bool external = false;
+};
 
 PluginHost::PluginHost() = default;
 
@@ -83,9 +167,21 @@ bool PluginHost::LoadBuiltins(const PluginContext& context)
     m_plugins.clear();
     m_registeredPluginCommands.clear();
 
+    std::vector<std::unique_ptr<LoadedPlugin>> discoveredPlugins;
+
     try
     {
-        m_plugins = CreateBuiltinPlugins();
+        auto builtinPlugins = CreateBuiltinPlugins();
+        discoveredPlugins.reserve(builtinPlugins.size());
+        for (auto& plugin : builtinPlugins)
+        {
+            auto loadedPlugin = std::make_unique<LoadedPlugin>();
+            loadedPlugin->instance = std::unique_ptr<IPlugin, LoadedPlugin::PluginDeleter>(plugin.release(), [](IPlugin* instance) {
+                delete instance;
+            });
+            loadedPlugin->sourcePath = L"builtin";
+            discoveredPlugins.push_back(std::move(loadedPlugin));
+        }
     }
     catch (const std::exception& ex)
     {
@@ -104,10 +200,65 @@ bool PluginHost::LoadBuiltins(const PluginContext& context)
         return false;
     }
 
+    for (const auto& dllPath : DiscoverExternalPluginDlls())
+    {
+        HMODULE module = LoadLibraryW(dllPath.c_str());
+        if (!module)
+        {
+            if (context.diagnostics)
+            {
+                context.diagnostics->Warn(L"External plugin load failed: path='" + dllPath.wstring() + L"'");
+            }
+            continue;
+        }
+
+        auto createPlugin = reinterpret_cast<CreatePluginFn>(GetProcAddress(module, "CreatePlugin"));
+        auto destroyPlugin = reinterpret_cast<DestroyPluginFn>(GetProcAddress(module, "DestroyPlugin"));
+        if (!createPlugin || !destroyPlugin)
+        {
+            if (context.diagnostics)
+            {
+                context.diagnostics->Warn(L"External plugin missing factory exports: path='" + dllPath.wstring() + L"'");
+            }
+            FreeLibrary(module);
+            continue;
+        }
+
+        IPlugin* instance = nullptr;
+        try
+        {
+            instance = createPlugin();
+        }
+        catch (...)
+        {
+            instance = nullptr;
+        }
+
+        if (!instance)
+        {
+            if (context.diagnostics)
+            {
+                context.diagnostics->Warn(L"External plugin factory returned null: path='" + dllPath.wstring() + L"'");
+            }
+            FreeLibrary(module);
+            continue;
+        }
+
+        auto loadedPlugin = std::make_unique<LoadedPlugin>();
+        loadedPlugin->module = module;
+        loadedPlugin->external = true;
+        loadedPlugin->sourcePath = dllPath.wstring();
+        loadedPlugin->instance = std::unique_ptr<IPlugin, LoadedPlugin::PluginDeleter>(instance, [destroyPlugin](IPlugin* plugin) {
+            destroyPlugin(plugin);
+        });
+        discoveredPlugins.push_back(std::move(loadedPlugin));
+    }
+
     bool allLoaded = true;
     std::set<std::wstring> seenPluginIds;
-    for (auto& plugin : m_plugins)
+    for (auto& pluginSlot : discoveredPlugins)
     {
+        IPlugin* plugin = pluginSlot->instance.get();
         PluginStatus status;
         try
         {
@@ -203,6 +354,8 @@ bool PluginHost::LoadBuiltins(const PluginContext& context)
 
         bool loaded = false;
         std::vector<std::wstring> commandIdsBeforeInit;
+        size_t providerCount = 0;
+        size_t settingsPageCount = 0;
         if (context.commandDispatcher)
         {
             commandIdsBeforeInit = context.commandDispatcher->ListCommandIds();
@@ -268,6 +421,22 @@ bool PluginHost::LoadBuiltins(const PluginContext& context)
             {
                 m_registeredPluginCommands[status.manifest.id] = pluginCommandIds;
             }
+
+            if (loaded && context.spaceExtensionRegistry)
+            {
+                const auto providers = context.spaceExtensionRegistry->GetContentProviders();
+                providerCount = static_cast<size_t>(std::count_if(providers.begin(), providers.end(), [&status](const SpaceContentProviderDescriptor& descriptor) {
+                    return descriptor.providerId == status.manifest.id;
+                }));
+            }
+
+            if (loaded && context.settingsRegistry)
+            {
+                const auto pages = context.settingsRegistry->GetAllPages();
+                settingsPageCount = static_cast<size_t>(std::count_if(pages.begin(), pages.end(), [&status](const PluginSettingsPage& page) {
+                    return page.pluginId == status.manifest.id;
+                }));
+            }
         }
 
         m_registry.Upsert(status);
@@ -288,19 +457,28 @@ bool PluginHost::LoadBuiltins(const PluginContext& context)
             {
                 context.diagnostics->Info(
                     L"Plugin loaded: id='" + status.manifest.id +
+                    L"' source='" + (pluginSlot->external ? L"external" : L"builtin") +
+                    L"' path='" + pluginSlot->sourcePath +
                     L"' compatibility='" + status.compatibilityStatus +
-                    L"' capabilities='" + capabilities + L"'");
+                    L"' capabilities='" + capabilities +
+                    L"' commands='" + JoinCommandIds(m_registeredPluginCommands[status.manifest.id]) +
+                    L"' settingsPages=" + std::to_wstring(settingsPageCount) +
+                    L" providers=" + std::to_wstring(providerCount));
             }
             else
             {
                 context.diagnostics->Error(
                     L"Plugin failed: id='" + status.manifest.id +
+                    L"' source='" + (pluginSlot->external ? L"external" : L"builtin") +
+                    L"' path='" + pluginSlot->sourcePath +
                     L"' compatibility='" + status.compatibilityStatus +
                     L"' reason='" + status.compatibilityReason +
                     L"' error='" + status.lastError + L"'");
             }
         }
     }
+
+    m_plugins = std::move(discoveredPlugins);
 
     return allLoaded;
 }
@@ -327,15 +505,22 @@ void PluginHost::Shutdown()
 
     for (auto it = m_plugins.rbegin(); it != m_plugins.rend(); ++it)
     {
-        if (*it)
+        if ((*it) && (*it)->instance)
         {
             try
             {
-                (*it)->Shutdown();
+                (*it)->instance->Shutdown();
             }
             catch (...)
             {
                 // Keep shutdown resilient even if a plugin misbehaves.
+            }
+
+            (*it)->instance.reset();
+            if ((*it)->module)
+            {
+                FreeLibrary((*it)->module);
+                (*it)->module = nullptr;
             }
         }
     }

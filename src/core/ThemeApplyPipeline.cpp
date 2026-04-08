@@ -84,10 +84,10 @@ namespace
                 RGB(100, 100, 100),  // subtleTextColor
                 RGB(0, 102, 204),    // accentColor - professional blue
                 RGB(200, 200, 200),  // borderColor
-                RGB(70, 70, 70),     // fenceTitleBarColor
-                RGB(245, 245, 245),  // fenceTitleTextColor
-                RGB(100, 100, 100),  // fenceItemTextColor
-                RGB(80, 80, 80)      // fenceItemHoverColor
+                RGB(70, 70, 70),     // spaceTitleBarColor
+                RGB(245, 245, 245),  // spaceTitleTextColor
+                RGB(100, 100, 100),  // spaceItemTextColor
+                RGB(80, 80, 80)      // spaceItemHoverColor
             };
         }
         else if (themeId == L"aurora-light")
@@ -100,10 +100,10 @@ namespace
                 RGB(110, 110, 110),  // subtleTextColor
                 RGB(0, 150, 150),    // accentColor - teal
                 RGB(220, 220, 220),  // borderColor
-                RGB(100, 140, 140),  // fenceTitleBarColor - teal tint
-                RGB(255, 255, 255),  // fenceTitleTextColor
-                RGB(80, 80, 80),     // fenceItemTextColor
-                RGB(200, 220, 220)   // fenceItemHoverColor - light teal
+                RGB(100, 140, 140),  // spaceTitleBarColor - teal tint
+                RGB(255, 255, 255),  // spaceTitleTextColor
+                RGB(80, 80, 80),     // spaceItemTextColor
+                RGB(200, 220, 220)   // spaceItemHoverColor - light teal
             };
         }
         else if (themeId == L"nocturne-dark")
@@ -116,10 +116,10 @@ namespace
                 RGB(180, 180, 180),  // subtleTextColor
                 RGB(100, 180, 255),  // accentColor - bright blue
                 RGB(60, 60, 70),     // borderColor
-                RGB(20, 20, 25),     // fenceTitleBarColor
-                RGB(230, 230, 240),  // fenceTitleTextColor
-                RGB(200, 200, 210),  // fenceItemTextColor
-                RGB(50, 50, 60)      // fenceItemHoverColor
+                RGB(20, 20, 25),     // spaceTitleBarColor
+                RGB(230, 230, 240),  // spaceTitleTextColor
+                RGB(200, 200, 210),  // spaceItemTextColor
+                RGB(50, 50, 60)      // spaceItemHoverColor
             };
         }
 

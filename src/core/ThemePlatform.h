@@ -3,8 +3,10 @@
 #include <windows.h>
 
 #include <string>
+#include <memory>
 
 class SettingsStore;
+struct UniversalThemeData;
 
 enum class ThemeMode
 {
@@ -29,14 +31,14 @@ struct ThemePalette
     COLORREF accentColor = RGB(70, 120, 220);
     COLORREF borderColor = RGB(192, 192, 192);
 
-    // Fence-specific tokens
-    COLORREF fenceTitleBarColor = RGB(65, 65, 65);
-    COLORREF fenceTitleTextColor = RGB(240, 240, 240);
-    COLORREF fenceItemTextColor = RGB(200, 200, 200);
-    COLORREF fenceItemHoverColor = RGB(85, 85, 85);
+    // Space-specific tokens
+    COLORREF spaceTitleBarColor = RGB(65, 65, 65);
+    COLORREF spaceTitleTextColor = RGB(240, 240, 240);
+    COLORREF spaceItemTextColor = RGB(200, 200, 200);
+    COLORREF spaceItemHoverColor = RGB(85, 85, 85);
 };
 
-struct FencePolicyDefaults
+struct SpacePolicyDefaults
 {
     bool rollupWhenNotHovered = false;
     bool transparentWhenNotHovered = false;
@@ -54,7 +56,7 @@ public:
     ThemeMode ResolveMode() const;
     ThemeStyle ResolveStyle() const;
     int GetTextScalePercent() const;
-    FencePolicyDefaults ResolveFencePolicyDefaults() const;
+    SpacePolicyDefaults ResolveSpacePolicyDefaults() const;
 
     ThemePalette BuildPalette() const;
     bool ExportCustomPreset(const std::wstring& filePath) const;
@@ -65,8 +67,10 @@ public:
 private:
     static ThemeMode DetectSystemMode();
     static ThemePalette BuildPaletteFor(ThemeMode mode, ThemeStyle style);
+    bool TryLoadUniversalTheme(std::shared_ptr<UniversalThemeData>& outTheme) const;
 
 private:
     SettingsStore* m_store = nullptr;
+    mutable std::shared_ptr<UniversalThemeData> m_cachedTheme;
 };
 

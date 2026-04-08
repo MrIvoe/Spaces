@@ -6,7 +6,7 @@
 
 ## Overview
 
-The SimpleFences theme system implements a single-source-of-truth architecture where:
+The Spaces theme system implements a single-source-of-truth architecture where:
 - **Win32ThemeSystem** is the canonical theme system at runtime
 - **community.visual_modes** is the single allowed appearance selector plugin
 - **Public theme packages** enable third-party theme authoring without host code changes
@@ -84,7 +84,7 @@ Run **before first render**, idempotent:
 
 **Theme Package Structure** (.zip archive):
 ```
-plugin.json                    # Manifest (as per IVOEFences host contracts)
+plugin.json                    # Manifest (as per IVOESpaces host contracts)
 theme-metadata.json           # Theme-specific contract
 theme/tokens/default.json     # Token map (required)
 theme/tokens/override.*.json  # Optional: override sets

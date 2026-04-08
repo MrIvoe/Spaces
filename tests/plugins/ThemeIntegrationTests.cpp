@@ -224,7 +224,7 @@ int RunThemeTokenResolverIntegrationTests()
         std::unordered_map<std::wstring, std::wstring> tokens;
         tokens[L"win32.base.window_color"] = L"#FFFFFF";
         tokens[L"win32.base.text_color"] = L"#000000";
-        tokens[L"win32.fence.title_bar_color"] = L"#FF0000";
+        tokens[L"win32.space.title_bar_color"] = L"#FF0000";
 
         ThemePalette palette = resolver.BuildPaletteFromTokens(tokens);
 
@@ -234,8 +234,8 @@ int RunThemeTokenResolverIntegrationTests()
         if (palette.textColor != RGB(0, 0, 0))
             return Fail("Test TokenResolver 3: Should resolve text_color token");
 
-        if (palette.fenceTitleBarColor != RGB(255, 0, 0))
-            return Fail("Test TokenResolver 3: Should resolve fence title_bar_color token");
+        if (palette.spaceTitleBarColor != RGB(255, 0, 0))
+            return Fail("Test TokenResolver 3: Should resolve space title_bar_color token");
     }
 
     return 0;
@@ -295,7 +295,7 @@ int RunThemePackageValidationIntegrationTests()
         return Fail("Theme package tests: fixture folder missing");
     }
 
-    const std::filesystem::path tempDir = std::filesystem::temp_directory_path() / "SimpleFencesThemeFixtureZips";
+    const std::filesystem::path tempDir = std::filesystem::temp_directory_path() / "SimpleSpacesThemeFixtureZips";
     std::filesystem::create_directories(tempDir);
 
     // Test 1: valid package accepted by validator and loader

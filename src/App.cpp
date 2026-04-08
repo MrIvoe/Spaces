@@ -1,8 +1,8 @@
 #include "App.h"
 #include "AppVersion.h"
-#include "FenceStorage.h"
+#include "SpaceStorage.h"
 #include "Persistence.h"
-#include "FenceManager.h"
+#include "SpaceManager.h"
 #include "TrayMenu.h"
 #include "Win32Helpers.h"
 #include "core/AppKernel.h"
@@ -20,17 +20,17 @@ App::~App()
 
 bool App::Initialize(HINSTANCE hInstance)
 {
-    Win32Helpers::LogInfo(L"App::Initialize starting (version=" + std::wstring(SimpleFencesVersion::kVersion) + L")");
+    Win32Helpers::LogInfo(L"App::Initialize starting (version=" + std::wstring(SimpleSpacesVersion::kVersion) + L")");
     m_hInstance = hInstance;
 
-    m_singleInstanceMutex = CreateMutexW(nullptr, TRUE, L"Local\\SimpleFences.MainInstance");
+    m_singleInstanceMutex = CreateMutexW(nullptr, TRUE, L"Local\\SimpleSpaces.MainInstance");
     if (!m_singleInstanceMutex)
     {
         Win32Helpers::LogError(L"CreateMutexW failed for single-instance guard: " + std::to_wstring(GetLastError()));
     }
     else if (GetLastError() == ERROR_ALREADY_EXISTS)
     {
-        Win32Helpers::ShowUserWarning(nullptr, L"SimpleFences", L"SimpleFences is already running.");
+        Win32Helpers::ShowUserWarning(nullptr, L"SimpleSpaces", L"SimpleSpaces is already running.");
         Win32Helpers::LogError(L"Second instance prevented by single-instance guard.");
         CloseHandle(m_singleInstanceMutex);
         m_singleInstanceMutex = nullptr;
@@ -41,14 +41,14 @@ bool App::Initialize(HINSTANCE hInstance)
     InitCommonControls();
     Win32Helpers::LogInfo(L"InitCommonControls done");
 
-    Win32Helpers::LogInfo(L"Creating FenceStorage");
+    Win32Helpers::LogInfo(L"Creating SpaceStorage");
     // Create storage and persistence
-    m_storage = std::make_unique<FenceStorage>();
+    m_storage = std::make_unique<SpaceStorage>();
     m_persistence = std::make_unique<Persistence>(m_storage->GetMetadataPath());
 
-    Win32Helpers::LogInfo(L"Creating FenceManager");
+    Win32Helpers::LogInfo(L"Creating SpaceManager");
     // Create manager
-    m_manager = std::make_unique<FenceManager>(std::move(m_storage), std::move(m_persistence));
+    m_manager = std::make_unique<SpaceManager>(std::move(m_storage), std::move(m_persistence));
 
     Win32Helpers::LogInfo(L"Creating TrayMenu");
     m_kernel = std::make_unique<AppKernel>();
@@ -75,8 +75,8 @@ bool App::Initialize(HINSTANCE hInstance)
         return false;
     }
 
-    Win32Helpers::LogInfo(L"Loading persisted fences");
-    // Load persisted fences
+    Win32Helpers::LogInfo(L"Loading persisted spaces");
+    // Load persisted spaces
     if (!m_manager->LoadAll())
     {
         Win32Helpers::LogError(L"LoadAll failed");
@@ -105,23 +105,23 @@ void App::Exit()
     PostQuitMessage(0);
 }
 
-std::wstring App::CreateFenceNearCursor()
+std::wstring App::CreateSpaceNearCursor()
 {
-    FenceCreateRequest request;
-    return CreateFenceNearCursor(request);
+    SpaceCreateRequest request;
+    return CreateSpaceNearCursor(request);
 }
 
-std::wstring App::CreateFenceNearCursor(const FenceCreateRequest& request)
+std::wstring App::CreateSpaceNearCursor(const SpaceCreateRequest& request)
 {
     if (!m_manager)
         return L"";
 
     POINT pt{};
     GetCursorPos(&pt);
-    return m_manager->CreateFenceAt(pt.x, pt.y, request);
+    return m_manager->CreateSpaceAt(pt.x, pt.y, request);
 }
 
-FenceManager* App::GetFenceManager() const
+SpaceManager* App::GetSpaceManager() const
 {
     return m_manager.get();
 }

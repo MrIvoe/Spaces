@@ -153,7 +153,7 @@ namespace
     {
         nlohmann::json root;
         root["version"] = 1;
-        root["type"] = "simplefences.theme-preset";
+        root["type"] = "simplespaces.theme-preset";
         root["mode"] = "system";
         root["style"] = "custom";
         root["textScalePercent"] = 100;
@@ -166,10 +166,10 @@ namespace
         AddColorTokenIfPresent(colors, tokenMap, L"win32.base.subtle_text_color", "subtleText");
         AddColorTokenIfPresent(colors, tokenMap, L"win32.base.accent_color", "accent");
         AddColorTokenIfPresent(colors, tokenMap, L"win32.base.border_color", "border");
-        AddColorTokenIfPresent(colors, tokenMap, L"win32.fence.title_bar_color", "fenceTitleBar");
-        AddColorTokenIfPresent(colors, tokenMap, L"win32.fence.title_text_color", "fenceTitleText");
-        AddColorTokenIfPresent(colors, tokenMap, L"win32.fence.item_text_color", "fenceItemText");
-        AddColorTokenIfPresent(colors, tokenMap, L"win32.fence.item_hover_color", "fenceItemHover");
+        AddColorTokenIfPresent(colors, tokenMap, L"win32.space.title_bar_color", "spaceTitleBar");
+        AddColorTokenIfPresent(colors, tokenMap, L"win32.space.title_text_color", "spaceTitleText");
+        AddColorTokenIfPresent(colors, tokenMap, L"win32.space.item_text_color", "spaceItemText");
+        AddColorTokenIfPresent(colors, tokenMap, L"win32.space.item_hover_color", "spaceItemHover");
 
         if (colors.empty())
         {
@@ -229,8 +229,8 @@ bool SettingsWindow::EnsureWindow()
         return true;
     }
 
-    static const wchar_t* kClassName = L"SimpleFences_SettingsWindow";
-    static const wchar_t* kScrollPanelClass = L"SimpleFences_SettingsRightPane";
+    static const wchar_t* kClassName = L"SimpleSpaces_SettingsWindow";
+    static const wchar_t* kScrollPanelClass = L"SimpleSpaces_SettingsRightPane";
 
     WNDCLASSW wc{};
     wc.lpfnWndProc = SettingsWindow::WndProcStatic;
@@ -268,7 +268,7 @@ bool SettingsWindow::EnsureWindow()
     m_hwnd = CreateWindowExW(
         0,
         kClassName,
-        L"SimpleFences Settings",
+        L"SimpleSpaces Settings",
         WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
@@ -463,7 +463,7 @@ std::wstring SettingsWindow::ResolvePluginIcon(const PluginStatusView& plugin) c
         {
             return L"\uE9CA";
         }
-        if (capability == L"fence_content_provider")
+        if (capability == L"space_content_provider")
         {
             return L"\uE8B7";
         }
@@ -814,7 +814,7 @@ std::wstring SettingsWindow::BuildGeneralContent(const std::vector<PluginStatusV
     std::wstring text;
     text += L"General\r\n\r\n";
     text += L"Phase 0.0.013 settings shell is active.\r\n";
-    text += L"Core fences remain first-class and stable while plugins extend behavior.\r\n\r\n";
+    text += L"Core spaces remain first-class and stable while plugins extend behavior.\r\n\r\n";
     text += L"Loaded plugin count: ";
 
     int loaded = 0;
@@ -837,7 +837,7 @@ std::wstring SettingsWindow::BuildPluginsContent(const std::vector<PluginStatusV
 {
     std::wstring text;
     text += L"Plugin Manager (Scaffold)\r\n\r\n";
-    text += L"Use the Plugin Hub controls above to sync plugins into %LOCALAPPDATA%\\SimpleFences\\plugins.\r\n\r\n";
+    text += L"Use the Plugin Hub controls above to sync plugins into %LOCALAPPDATA%\\SimpleSpaces\\plugins.\r\n\r\n";
     text += L"Planned actions: install, enable/disable, update, reinstall, remove, open settings, open diagnostics, rollback.\r\n\r\n";
 
     const std::wstring statusFilter = m_settingsRegistry
@@ -1002,8 +1002,8 @@ std::wstring SettingsWindow::BuildGenericPageContent(const SettingsPageView& pag
         if (page.pageId == L"core.behavior")
         {
             return L"Behavior\r\n\r\n"
-                   L"- New fence command is routed through kernel command id 'fence.create'.\r\n"
-                   L"- Fence creation remains core-owned for stability.\r\n"
+                   L"- New space command is routed through kernel command id 'space.create'.\r\n"
+                   L"- Space creation remains core-owned for stability.\r\n"
                    L"- Suggested future toggles: default size, default title template, auto-focus on create.";
         }
         if (page.pageId == L"core.provider")
@@ -1019,7 +1019,7 @@ std::wstring SettingsWindow::BuildGenericPageContent(const SettingsPageView& pag
     {
         return L"Tray Behavior\r\n\r\n"
                L"- Tray menu contributions are command-driven.\r\n"
-               L"- Current entries: New Fence, Settings, Exit.\r\n"
+               L"- Current entries: New Space, Settings, Exit.\r\n"
                L"- Suggested future toggles: close-to-tray behavior, startup visibility, menu ordering profile.";
     }
 
@@ -1063,7 +1063,7 @@ std::wstring SettingsWindow::BuildGenericPageContent(const SettingsPageView& pag
     {
         return L"Context Actions\r\n\r\n"
                L"- Desktop context integration is scaffolded.\r\n"
-               L"- Suggested future toggles: show fence quick actions, advanced context entries, safety confirmations.";
+               L"- Suggested future toggles: show space quick actions, advanced context entries, safety confirmations.";
     }
 
     std::wstring text;
@@ -1781,7 +1781,7 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
             {
                 const std::wstring repoUrl = m_settingsRegistry->GetValue(
                     L"settings.plugins.hub_repo_url",
-                    L"https://github.com/MrIvoe/Simple-Fences-Plugins.git");
+                    L"https://github.com/MrIvoe/Simple-Spaces-Plugins.git");
                 const std::wstring branch = m_settingsRegistry->GetValue(
                     L"settings.plugins.hub_branch",
                     L"main");
@@ -1898,7 +1898,7 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
                                 }
                                 else
                                 {
-                                    const auto tempPresetPath = (std::filesystem::temp_directory_path() / L"simplefences-imported-theme-preset.json").wstring();
+                                    const auto tempPresetPath = (std::filesystem::temp_directory_path() / L"simplespaces-imported-theme-preset.json").wstring();
                                     if (!BuildPresetJsonFromTokenMap(loadResult.tokenMap, tempPresetPath))
                                     {
                                         Win32Helpers::ShowUserWarning(
@@ -1950,7 +1950,7 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
                 }
                 else if (selectedValue == L"export")
                 {
-                    selectedPath = L"SimpleFences-theme.json";
+                    selectedPath = L"SimpleSpaces-theme.json";
                     if (Win32Helpers::PromptSaveJsonFile(m_hwnd, L"Export Theme Preset", selectedPath))
                     {
                         completed = true;
@@ -2096,7 +2096,7 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         m_rightScrollPanel = CreateWindowExW(
             WS_EX_COMPOSITED,
-            L"SimpleFences_SettingsRightPane",
+            L"SimpleSpaces_SettingsRightPane",
             nullptr,
             WS_CHILD | WS_CLIPCHILDREN | WS_VSCROLL,
             0,

@@ -75,11 +75,11 @@ bool Persistence::EnsureDirectory()
     }
 }
 
-bool Persistence::LoadFences(std::vector<FenceModel>& fences)
+bool Persistence::LoadSpaces(std::vector<SpaceModel>& spaces)
 {
     try
     {
-        fences.clear();
+        spaces.clear();
 
         if (!fs::exists(m_metadataPath))
             return true;
@@ -100,104 +100,104 @@ bool Persistence::LoadFences(std::vector<FenceModel>& fences)
             return true;
         }
 
-        if (!root.contains("fences") || !root["fences"].is_array())
+        if (!root.contains("spaces") || !root["spaces"].is_array())
         {
             return true;
         }
 
-        for (const auto& item : root["fences"])
+        for (const auto& item : root["spaces"])
         {
             if (!item.is_object())
             {
                 continue;
             }
 
-            FenceModel fence;
-            fence.id = FromUtf8(item.value("id", std::string{}));
-            if (fence.id.empty())
+            SpaceModel space;
+            space.id = FromUtf8(item.value("id", std::string{}));
+            if (space.id.empty())
             {
                 continue;
             }
 
-            fence.title = FromUtf8(item.value("title", std::string{"Fence"}));
-            fence.x = item.value("x", 100);
-            fence.y = item.value("y", 100);
-            fence.width = item.value("width", 320);
-            fence.height = item.value("height", 240);
-            fence.backingFolder = FromUtf8(item.value("backingFolder", std::string{}));
-            fence.contentType = FromUtf8(item.value("contentType", std::string{"file_collection"}));
-            fence.contentPluginId = FromUtf8(item.value("contentPluginId", std::string{"core.file_collection"}));
-            fence.contentSource = FromUtf8(item.value("contentSource", std::string{}));
-            fence.contentState = FromUtf8(item.value("contentState", std::string{"ready"}));
-            fence.contentStateDetail = FromUtf8(item.value("contentStateDetail", std::string{}));
-            fence.appearanceProfileId = FromUtf8(item.value("appearanceProfileId", std::string{}));
-            fence.widgetLayoutId = FromUtf8(item.value("widgetLayoutId", std::string{}));
-            fence.textOnlyMode = item.value("textOnlyMode", false);
-            fence.rollupWhenNotHovered = item.value("rollupWhenNotHovered", false);
-            fence.transparentWhenNotHovered = item.value("transparentWhenNotHovered", false);
-            fence.labelsOnHover = item.value("labelsOnHover", true);
-            fence.iconSpacingPreset = FromUtf8(item.value("iconSpacingPreset", std::string{"comfortable"}));
-            fence.inheritThemePolicy = item.value("inheritThemePolicy", true);
+            space.title = FromUtf8(item.value("title", std::string{"Space"}));
+            space.x = item.value("x", 100);
+            space.y = item.value("y", 100);
+            space.width = item.value("width", 320);
+            space.height = item.value("height", 240);
+            space.backingFolder = FromUtf8(item.value("backingFolder", std::string{}));
+            space.contentType = FromUtf8(item.value("contentType", std::string{"file_collection"}));
+            space.contentPluginId = FromUtf8(item.value("contentPluginId", std::string{"core.file_collection"}));
+            space.contentSource = FromUtf8(item.value("contentSource", std::string{}));
+            space.contentState = FromUtf8(item.value("contentState", std::string{"ready"}));
+            space.contentStateDetail = FromUtf8(item.value("contentStateDetail", std::string{}));
+            space.appearanceProfileId = FromUtf8(item.value("appearanceProfileId", std::string{}));
+            space.widgetLayoutId = FromUtf8(item.value("widgetLayoutId", std::string{}));
+            space.textOnlyMode = item.value("textOnlyMode", false);
+            space.rollupWhenNotHovered = item.value("rollupWhenNotHovered", false);
+            space.transparentWhenNotHovered = item.value("transparentWhenNotHovered", false);
+            space.labelsOnHover = item.value("labelsOnHover", true);
+            space.iconSpacingPreset = FromUtf8(item.value("iconSpacingPreset", std::string{"comfortable"}));
+            space.inheritThemePolicy = item.value("inheritThemePolicy", true);
 
-            if (fence.contentType.empty())
+            if (space.contentType.empty())
             {
-                fence.contentType = L"file_collection";
+                space.contentType = L"file_collection";
             }
 
-            if (fence.contentPluginId.empty())
+            if (space.contentPluginId.empty())
             {
-                fence.contentPluginId = L"core.file_collection";
+                space.contentPluginId = L"core.file_collection";
             }
 
-            if (fence.contentState.empty())
+            if (space.contentState.empty())
             {
-                fence.contentState = L"ready";
+                space.contentState = L"ready";
             }
-            fences.push_back(std::move(fence));
+            spaces.push_back(std::move(space));
         }
 
         return true;
     }
     catch (const std::exception& ex)
     {
-        Win32Helpers::LogError(L"LoadFences exception. Quarantining metadata path: " + m_metadataPath + L" reason: " + NarrowToWide(ex.what()));
+        Win32Helpers::LogError(L"LoadSpaces exception. Quarantining metadata path: " + m_metadataPath + L" reason: " + NarrowToWide(ex.what()));
         QuarantineCorruptMetadata(L"Exception during load");
-        fences.clear();
+        spaces.clear();
         return true;
     }
 }
 
-bool Persistence::SaveFences(const std::vector<FenceModel>& fences)
+bool Persistence::SaveSpaces(const std::vector<SpaceModel>& spaces)
 {
     try
     {
         json root;
         root["version"] = "0.0.009";
-        root["fences"] = json::array();
+        root["spaces"] = json::array();
 
-        for (const auto& fence : fences)
+        for (const auto& space : spaces)
         {
-            root["fences"].push_back({
-                {"id", ToUtf8(fence.id)},
-                {"title", ToUtf8(fence.title)},
-                {"x", fence.x},
-                {"y", fence.y},
-                {"width", fence.width},
-                {"height", fence.height},
-                {"backingFolder", ToUtf8(fence.backingFolder)},
-                {"contentType", ToUtf8(fence.contentType)},
-                {"contentPluginId", ToUtf8(fence.contentPluginId)},
-                {"contentSource", ToUtf8(fence.contentSource)},
-                {"contentState", ToUtf8(fence.contentState)},
-                {"contentStateDetail", ToUtf8(fence.contentStateDetail)},
-                {"appearanceProfileId", ToUtf8(fence.appearanceProfileId)},
-                {"widgetLayoutId", ToUtf8(fence.widgetLayoutId)},
-                {"textOnlyMode", fence.textOnlyMode},
-                {"rollupWhenNotHovered", fence.rollupWhenNotHovered},
-                {"transparentWhenNotHovered", fence.transparentWhenNotHovered},
-                {"labelsOnHover", fence.labelsOnHover},
-                {"iconSpacingPreset", ToUtf8(fence.iconSpacingPreset)},
-                {"inheritThemePolicy", fence.inheritThemePolicy}
+            root["spaces"].push_back({
+                {"id", ToUtf8(space.id)},
+                {"title", ToUtf8(space.title)},
+                {"x", space.x},
+                {"y", space.y},
+                {"width", space.width},
+                {"height", space.height},
+                {"backingFolder", ToUtf8(space.backingFolder)},
+                {"contentType", ToUtf8(space.contentType)},
+                {"contentPluginId", ToUtf8(space.contentPluginId)},
+                {"contentSource", ToUtf8(space.contentSource)},
+                {"contentState", ToUtf8(space.contentState)},
+                {"contentStateDetail", ToUtf8(space.contentStateDetail)},
+                {"appearanceProfileId", ToUtf8(space.appearanceProfileId)},
+                {"widgetLayoutId", ToUtf8(space.widgetLayoutId)},
+                {"textOnlyMode", space.textOnlyMode},
+                {"rollupWhenNotHovered", space.rollupWhenNotHovered},
+                {"transparentWhenNotHovered", space.transparentWhenNotHovered},
+                {"labelsOnHover", space.labelsOnHover},
+                {"iconSpacingPreset", ToUtf8(space.iconSpacingPreset)},
+                {"inheritThemePolicy", space.inheritThemePolicy}
             });
         }
 
@@ -205,25 +205,25 @@ bool Persistence::SaveFences(const std::vector<FenceModel>& fences)
     }
     catch (const std::exception& ex)
     {
-        Win32Helpers::LogError(L"SaveFences exception for metadata path: " + m_metadataPath + L" reason: " + NarrowToWide(ex.what()));
+        Win32Helpers::LogError(L"SaveSpaces exception for metadata path: " + m_metadataPath + L" reason: " + NarrowToWide(ex.what()));
         return false;
     }
 }
 
-bool Persistence::SaveFence(const FenceModel& fence)
+bool Persistence::SaveSpace(const SpaceModel& space)
 {
-    std::vector<FenceModel> fences;
-    if (!LoadFences(fences))
+    std::vector<SpaceModel> spaces;
+    if (!LoadSpaces(spaces))
     {
         return false;
     }
 
     bool updated = false;
-    for (auto& existing : fences)
+    for (auto& existing : spaces)
     {
-        if (existing.id == fence.id)
+        if (existing.id == space.id)
         {
-            existing = fence;
+            existing = space;
             updated = true;
             break;
         }
@@ -231,10 +231,10 @@ bool Persistence::SaveFence(const FenceModel& fence)
 
     if (!updated)
     {
-        fences.push_back(fence);
+        spaces.push_back(space);
     }
 
-    return SaveFences(fences);
+    return SaveSpaces(spaces);
 }
 
 bool Persistence::SaveTextAtomic(const std::string& text)

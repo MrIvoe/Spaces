@@ -181,12 +181,12 @@ namespace Win32Helpers
 
     std::filesystem::path GetAppDataRoot()
     {
-        return std::filesystem::path(GetLocalAppDataPath()) / L"SimpleFences";
+        return std::filesystem::path(GetLocalAppDataPath()) / L"SimpleSpaces";
     }
 
-    std::filesystem::path GetFencesRoot()
+    std::filesystem::path GetSpacesRoot()
     {
-        return GetAppDataRoot() / L"Fences";
+        return GetAppDataRoot() / L"Spaces";
     }
 
     std::filesystem::path GetConfigPath()
@@ -228,7 +228,7 @@ namespace Win32Helpers
                          const std::wstring& initialValue,
                          std::wstring& resultValue)
     {
-        static const wchar_t* kClassName = L"SimpleFences_TextPrompt";
+        static const wchar_t* kClassName = L"SimpleSpaces_TextPrompt";
         static bool registered = false;
 
         if (!registered)

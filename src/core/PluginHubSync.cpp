@@ -124,9 +124,9 @@ namespace PluginHubSync
         std::vector<std::wstring> candidateUrls;
         candidateUrls.push_back(normalizedRepoUrl);
         {
-            // Friendly fallback for common typo: .../Simple-Fences-Plugin vs .../Simple-Fences-Plugins
-            const std::wstring singular = L"Simple-Fences-Plugin.git";
-            const std::wstring plural = L"Simple-Fences-Plugins.git";
+            // Friendly fallback for common typo: .../Simple-Spaces-Plugin vs .../Simple-Spaces-Plugins
+            const std::wstring singular = L"Simple-Spaces-Plugin.git";
+            const std::wstring plural = L"Simple-Spaces-Plugins.git";
             std::wstring retryUrl = normalizedRepoUrl;
             if (retryUrl.size() >= singular.size() && retryUrl.substr(retryUrl.size() - singular.size()) == singular)
             {

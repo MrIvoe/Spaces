@@ -7,7 +7,7 @@
 #include "Models.h"
 #include "extensions/PluginContracts.h"
 
-struct FenceContentProviderDescriptor
+struct SpaceContentProviderDescriptor
 {
     std::wstring providerId;
     std::wstring contentType;
@@ -15,11 +15,11 @@ struct FenceContentProviderDescriptor
     bool isCoreDefault = false;
 };
 
-struct FenceContentProviderCallbacks
+struct SpaceContentProviderCallbacks
 {
-    std::function<std::vector<FenceItem>(const FenceMetadata& fence)> enumerateItems;
-    std::function<bool(const FenceMetadata& fence, const std::vector<std::wstring>& paths)> handleDrop;
-    std::function<bool(const FenceMetadata& fence, const FenceItem& item)> deleteItem;
+    std::function<std::vector<SpaceItem>(const SpaceMetadata& space)> enumerateItems;
+    std::function<bool(const SpaceMetadata& space, const std::vector<std::wstring>& paths)> handleDrop;
+    std::function<bool(const SpaceMetadata& space, const SpaceItem& item)> deleteItem;
 };
 
 class SpaceExtensionRegistry
@@ -27,20 +27,20 @@ class SpaceExtensionRegistry
 public:
     SpaceExtensionRegistry();
 
-    void RegisterContentProvider(const FenceContentProviderDescriptor& provider);
-    void RegisterContentProvider(const FenceContentProviderDescriptor& provider, const FenceContentProviderCallbacks& callbacks);
-    std::vector<FenceContentProviderDescriptor> GetContentProviders() const;
+    void RegisterContentProvider(const SpaceContentProviderDescriptor& provider);
+    void RegisterContentProvider(const SpaceContentProviderDescriptor& provider, const SpaceContentProviderCallbacks& callbacks);
+    std::vector<SpaceContentProviderDescriptor> GetContentProviders() const;
     bool HasProvider(const std::wstring& contentType, const std::wstring& providerId) const;
-    FenceContentProviderDescriptor ResolveOrDefault(const std::wstring& contentType, const std::wstring& providerId) const;
-    const FenceContentProviderCallbacks* ResolveCallbacks(const std::wstring& contentType, const std::wstring& providerId) const;
+    SpaceContentProviderDescriptor ResolveOrDefault(const std::wstring& contentType, const std::wstring& providerId) const;
+    const SpaceContentProviderCallbacks* ResolveCallbacks(const std::wstring& contentType, const std::wstring& providerId) const;
 
 private:
-    FenceContentProviderDescriptor DefaultFileCollectionProvider() const;
+    SpaceContentProviderDescriptor DefaultFileCollectionProvider() const;
 
     struct RegisteredProvider
     {
-        FenceContentProviderDescriptor descriptor;
-        FenceContentProviderCallbacks callbacks;
+        SpaceContentProviderDescriptor descriptor;
+        SpaceContentProviderCallbacks callbacks;
     };
 
     std::vector<RegisteredProvider> m_contentProviders;

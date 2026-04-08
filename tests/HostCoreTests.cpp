@@ -73,7 +73,7 @@ namespace
         CommandContext context;
         context.commandId = L"host.command";
         context.invocationSource = L"test";
-        context.fence.id = L"fence.context";
+        context.space.id = L"space.context";
         if (!dispatcher.Dispatch(L"host.command", context) || hitCount != 10)
         {
             return Fail("replaced command should dispatch");
@@ -91,7 +91,7 @@ namespace
             return Fail("context-aware command should dispatch");
         }
 
-        if (receivedContext.fence.id != L"fence.context" || receivedContext.invocationSource != L"test")
+        if (receivedContext.space.id != L"space.context" || receivedContext.invocationSource != L"test")
         {
             return Fail("command context should flow through dispatch");
         }
@@ -226,7 +226,7 @@ namespace
         return 0;
     }
 
-    int TestPluginAndFenceRegistries()
+    int TestPluginAndSpaceRegistries()
     {
         PluginRegistry pluginRegistry;
         PluginStatus status;
@@ -247,15 +247,15 @@ namespace
             return Fail("plugin registry clear should remove entries");
         }
 
-        SpaceExtensionRegistry fenceRegistry;
-        fenceRegistry.RegisterContentProvider(FenceContentProviderDescriptor{L"custom.provider", L"file_collection", L"Custom"});
+        SpaceExtensionRegistry spaceRegistry;
+        spaceRegistry.RegisterContentProvider(SpaceContentProviderDescriptor{L"custom.provider", L"file_collection", L"Custom"});
 
-        if (!fenceRegistry.HasProvider(L"file_collection", L"custom.provider"))
+        if (!spaceRegistry.HasProvider(L"file_collection", L"custom.provider"))
         {
-            return Fail("custom fence provider should be registered");
+            return Fail("custom space provider should be registered");
         }
 
-        const auto fallback = fenceRegistry.ResolveOrDefault(L"missing_type", L"missing.provider");
+        const auto fallback = spaceRegistry.ResolveOrDefault(L"missing_type", L"missing.provider");
         if (fallback.providerId != L"core.file_collection")
         {
             return Fail("unknown provider should resolve to core fallback");
@@ -269,7 +269,7 @@ namespace
         namespace fs = std::filesystem;
 
         std::error_code ec;
-        const fs::path tempRoot = fs::temp_directory_path(ec) / L"SimpleFencesTests" / L"PersistenceCorruptRecovery";
+        const fs::path tempRoot = fs::temp_directory_path(ec) / L"SimpleSpacesTests" / L"PersistenceCorruptRecovery";
         fs::remove_all(tempRoot, ec);
         fs::create_directories(tempRoot, ec);
         if (ec)
@@ -284,15 +284,15 @@ namespace
         }
 
         Persistence persistence(metadataPath.wstring());
-        std::vector<FenceModel> fences;
-        if (!persistence.LoadFences(fences))
+        std::vector<SpaceModel> spaces;
+        if (!persistence.LoadSpaces(spaces))
         {
-            return Fail("LoadFences should recover from malformed metadata");
+            return Fail("LoadSpaces should recover from malformed metadata");
         }
 
-        if (!fences.empty())
+        if (!spaces.empty())
         {
-            return Fail("recovered malformed metadata should yield empty fences");
+            return Fail("recovered malformed metadata should yield empty spaces");
         }
 
         if (fs::exists(metadataPath))
@@ -333,10 +333,10 @@ namespace
         store.Set(L"appearance.theme.custom.subtle_text", L"#506070");
         store.Set(L"appearance.theme.custom.accent", L"#607080");
         store.Set(L"appearance.theme.custom.border", L"#708090");
-        store.Set(L"appearance.theme.custom.fence_title_bar", L"#8090A0");
-        store.Set(L"appearance.theme.custom.fence_title_text", L"#90A0B0");
-        store.Set(L"appearance.theme.custom.fence_item_text", L"#A0B0C0");
-        store.Set(L"appearance.theme.custom.fence_item_hover", L"#B0C0D0");
+        store.Set(L"appearance.theme.custom.space_title_bar", L"#8090A0");
+        store.Set(L"appearance.theme.custom.space_title_text", L"#90A0B0");
+        store.Set(L"appearance.theme.custom.space_item_text", L"#A0B0C0");
+        store.Set(L"appearance.theme.custom.space_item_hover", L"#B0C0D0");
 
         ThemePlatform platform(&store);
         const ThemePalette palette = platform.BuildPalette();
@@ -364,16 +364,16 @@ namespace
     class FakeApplicationCommands final : public IApplicationCommands
     {
     public:
-        std::wstring CreateFenceNearCursor() override
+        std::wstring CreateSpaceNearCursor() override
         {
-            lastCreateRequest = FenceCreateRequest{};
-            return createdFenceId;
+            lastCreateRequest = SpaceCreateRequest{};
+            return createdSpaceId;
         }
 
-        std::wstring CreateFenceNearCursor(const FenceCreateRequest& request) override
+        std::wstring CreateSpaceNearCursor(const SpaceCreateRequest& request) override
         {
             lastCreateRequest = request;
-            return createdFenceId;
+            return createdSpaceId;
         }
         void ExitApplication() override {}
         void OpenSettings() override {}
@@ -383,21 +383,21 @@ namespace
             return currentCommandContext;
         }
 
-        FenceMetadata GetActiveFenceMetadata() const override
+        SpaceMetadata GetActiveSpaceMetadata() const override
         {
             return active;
         }
 
-        std::vector<std::wstring> GetAllFenceIds() const override
+        std::vector<std::wstring> GetAllSpaceIds() const override
         {
-            return allFenceIds;
+            return allSpaceIds;
         }
 
-        FenceMetadata GetFenceMetadata(const std::wstring& fenceId) const override
+        SpaceMetadata GetSpaceMetadata(const std::wstring& spaceId) const override
         {
-            for (const auto& meta : knownFences)
+            for (const auto& meta : knownSpaces)
             {
-                if (meta.id == fenceId)
+                if (meta.id == spaceId)
                 {
                     return meta;
                 }
@@ -405,49 +405,49 @@ namespace
             return {};
         }
 
-        void RefreshFence(const std::wstring& fenceId) override
+        void RefreshSpace(const std::wstring& spaceId) override
         {
             ++refreshCalls;
-            lastRefreshedFence = fenceId;
+            lastRefreshedSpace = spaceId;
         }
 
-        void UpdateFenceContentSource(const std::wstring& fenceId, const std::wstring& contentSource) override
+        void UpdateSpaceContentSource(const std::wstring& spaceId, const std::wstring& contentSource) override
         {
-            lastUpdatedFenceSourceFenceId = fenceId;
-            lastUpdatedFenceSource = contentSource;
+            lastUpdatedSpaceSourceSpaceId = spaceId;
+            lastUpdatedSpaceSource = contentSource;
         }
 
-        void UpdateFenceContentState(const std::wstring& fenceId,
+        void UpdateSpaceContentState(const std::wstring& spaceId,
                                      const std::wstring& state,
                                      const std::wstring& detail) override
         {
-            lastUpdatedFenceStateFenceId = fenceId;
-            lastUpdatedFenceState = state;
-            lastUpdatedFenceStateDetail = detail;
+            lastUpdatedSpaceStateSpaceId = spaceId;
+            lastUpdatedSpaceState = state;
+            lastUpdatedSpaceStateDetail = detail;
         }
 
-        void UpdateFencePresentation(const std::wstring& fenceId,
-                                     const FencePresentationSettings& settings) override
+        void UpdateSpacePresentation(const std::wstring& spaceId,
+                                     const SpacePresentationSettings& settings) override
         {
-            lastPresentationFenceId = fenceId;
+            lastPresentationSpaceId = spaceId;
             lastPresentationSettings = settings;
         }
 
-        FenceCreateRequest lastCreateRequest;
-        std::wstring createdFenceId = L"created.fence";
-        FenceMetadata active;
-        std::vector<FenceMetadata> knownFences;
-        std::vector<std::wstring> allFenceIds;
+        SpaceCreateRequest lastCreateRequest;
+        std::wstring createdSpaceId = L"created.space";
+        SpaceMetadata active;
+        std::vector<SpaceMetadata> knownSpaces;
+        std::vector<std::wstring> allSpaceIds;
         CommandContext currentCommandContext;
         int refreshCalls = 0;
-        std::wstring lastRefreshedFence;
-        std::wstring lastUpdatedFenceSourceFenceId;
-        std::wstring lastUpdatedFenceSource;
-        std::wstring lastUpdatedFenceStateFenceId;
-        std::wstring lastUpdatedFenceState;
-        std::wstring lastUpdatedFenceStateDetail;
-        std::wstring lastPresentationFenceId;
-        FencePresentationSettings lastPresentationSettings;
+        std::wstring lastRefreshedSpace;
+        std::wstring lastUpdatedSpaceSourceSpaceId;
+        std::wstring lastUpdatedSpaceSource;
+        std::wstring lastUpdatedSpaceStateSpaceId;
+        std::wstring lastUpdatedSpaceState;
+        std::wstring lastUpdatedSpaceStateDetail;
+        std::wstring lastPresentationSpaceId;
+        SpacePresentationSettings lastPresentationSettings;
     };
 
     std::unique_ptr<IPlugin> FindBuiltinPluginById(const std::wstring& pluginId)
@@ -463,17 +463,17 @@ namespace
         return nullptr;
     }
 
-    int TestFenceMetadataRefreshContract()
+    int TestSpaceMetadataRefreshContract()
     {
         namespace fs = std::filesystem;
 
         std::error_code ec;
-        const fs::path tempRoot = fs::temp_directory_path(ec) / L"SimpleFencesTests" / L"FenceMetadataRefreshContract";
+        const fs::path tempRoot = fs::temp_directory_path(ec) / L"SimpleSpacesTests" / L"SpaceMetadataRefreshContract";
         fs::remove_all(tempRoot, ec);
         fs::create_directories(tempRoot, ec);
         if (ec)
         {
-            return Fail("failed to create fence metadata contract test directory");
+            return Fail("failed to create space metadata contract test directory");
         }
 
         const fs::path fileTxt = tempRoot / L"alpha.txt";
@@ -493,14 +493,14 @@ namespace
         Diagnostics diagnostics;
         FakeApplicationCommands appCommands;
 
-        appCommands.active = FenceMetadata{L"fence.contract", L"Contract Fence", tempRoot.wstring()};
-        appCommands.knownFences.push_back(appCommands.active);
-        appCommands.allFenceIds.push_back(appCommands.active.id);
+        appCommands.active = SpaceMetadata{L"space.contract", L"Contract Space", tempRoot.wstring()};
+        appCommands.knownSpaces.push_back(appCommands.active);
+        appCommands.allSpaceIds.push_back(appCommands.active.id);
 
-        auto organizer = FindBuiltinPluginById(L"builtin.fence_organizer");
+        auto organizer = FindBuiltinPluginById(L"builtin.space_organizer");
         if (!organizer)
         {
-            return Fail("builtin.fence_organizer should exist");
+            return Fail("builtin.space_organizer should exist");
         }
 
         PluginContext context;
@@ -512,21 +512,21 @@ namespace
 
         if (!organizer->Initialize(context))
         {
-            return Fail("fence organizer plugin should initialize");
+            return Fail("space organizer plugin should initialize");
         }
 
         if (!dispatcher.HasCommand(L"organizer.by_type") ||
             !dispatcher.HasCommand(L"organizer.flatten") ||
             !dispatcher.HasCommand(L"organizer.cleanup_empty"))
         {
-            return Fail("fence organizer commands should be registered");
+            return Fail("space organizer commands should be registered");
         }
 
-        const auto fenceMenu = menuRegistry.GetBySurface(MenuSurface::FenceContext);
+        const auto spaceMenu = menuRegistry.GetBySurface(MenuSurface::SpaceContext);
         bool foundByType = false;
         bool foundFlatten = false;
         bool foundCleanup = false;
-        for (const auto& item : fenceMenu)
+        for (const auto& item : spaceMenu)
         {
             foundByType = foundByType || item.commandId == L"organizer.by_type";
             foundFlatten = foundFlatten || item.commandId == L"organizer.flatten";
@@ -534,7 +534,7 @@ namespace
         }
         if (!foundByType || !foundFlatten || !foundCleanup)
         {
-            return Fail("fence organizer menu contributions should be registered");
+            return Fail("space organizer menu contributions should be registered");
         }
 
         if (!dispatcher.Dispatch(L"organizer.by_type"))
@@ -548,9 +548,9 @@ namespace
         {
             return Fail("organizer.by_type should move files into type folders");
         }
-        if (appCommands.refreshCalls != 1 || appCommands.lastRefreshedFence != L"fence.contract")
+        if (appCommands.refreshCalls != 1 || appCommands.lastRefreshedSpace != L"space.contract")
         {
-            return Fail("organizer.by_type should call RefreshFence for active fence");
+            return Fail("organizer.by_type should call RefreshSpace for active space");
         }
 
         if (!dispatcher.Dispatch(L"organizer.flatten"))
@@ -559,11 +559,11 @@ namespace
         }
         if (!fs::exists(tempRoot / L"alpha.txt") || !fs::exists(tempRoot / L"image.png"))
         {
-            return Fail("organizer.flatten should move files back to fence root");
+            return Fail("organizer.flatten should move files back to space root");
         }
         if (appCommands.refreshCalls != 2)
         {
-            return Fail("organizer.flatten should call RefreshFence");
+            return Fail("organizer.flatten should call RefreshSpace");
         }
 
         if (!dispatcher.Dispatch(L"organizer.cleanup_empty"))
@@ -576,19 +576,19 @@ namespace
         }
         if (appCommands.refreshCalls != 3)
         {
-            return Fail("organizer.cleanup_empty should call RefreshFence");
+            return Fail("organizer.cleanup_empty should call RefreshSpace");
         }
 
-        // No active fence should fail gracefully and avoid refresh side effects.
+        // No active space should fail gracefully and avoid refresh side effects.
         appCommands.active = {};
         const int refreshBefore = appCommands.refreshCalls;
         if (!dispatcher.Dispatch(L"organizer.by_type"))
         {
-            return Fail("organizer.by_type command dispatch should remain handled without active fence");
+            return Fail("organizer.by_type command dispatch should remain handled without active space");
         }
         if (appCommands.refreshCalls != refreshBefore)
         {
-            return Fail("organizer.by_type should not refresh when active fence metadata is missing");
+            return Fail("organizer.by_type should not refresh when active space metadata is missing");
         }
 
         organizer->Shutdown();
@@ -600,7 +600,7 @@ namespace
         namespace fs = std::filesystem;
 
         std::error_code ec;
-        const fs::path tempRoot = fs::temp_directory_path(ec) / L"SimpleFencesTests" / L"FolderPortalProvider";
+        const fs::path tempRoot = fs::temp_directory_path(ec) / L"SimpleSpacesTests" / L"FolderPortalProvider";
         fs::remove_all(tempRoot, ec);
         fs::create_directories(tempRoot, ec);
         if (ec)
@@ -616,27 +616,27 @@ namespace
         CommandDispatcher dispatcher;
         PluginSettingsRegistry settingsRegistry;
         MenuContributionRegistry menuRegistry;
-        SpaceExtensionRegistry fenceRegistry;
+        SpaceExtensionRegistry spaceRegistry;
         Diagnostics diagnostics;
         FakeApplicationCommands appCommands;
 
-        FenceMetadata portalFence;
-        portalFence.id = L"fence.portal";
-        portalFence.title = L"Portal Fence";
-        portalFence.backingFolderPath = tempRoot.wstring();
-        portalFence.contentType = L"folder_portal";
-        portalFence.contentPluginId = L"builtin.explorer_portal";
-        portalFence.contentSource = tempRoot.wstring();
-        appCommands.active = portalFence;
-        appCommands.knownFences.push_back(portalFence);
-        appCommands.allFenceIds.push_back(portalFence.id);
+        SpaceMetadata portalSpace;
+        portalSpace.id = L"space.portal";
+        portalSpace.title = L"Portal Space";
+        portalSpace.backingFolderPath = tempRoot.wstring();
+        portalSpace.contentType = L"folder_portal";
+        portalSpace.contentPluginId = L"builtin.explorer_portal";
+        portalSpace.contentSource = tempRoot.wstring();
+        appCommands.active = portalSpace;
+        appCommands.knownSpaces.push_back(portalSpace);
+        appCommands.allSpaceIds.push_back(portalSpace.id);
 
         PluginContext context;
         context.commandDispatcher = &dispatcher;
         context.diagnostics = &diagnostics;
         context.settingsRegistry = &settingsRegistry;
         context.menuRegistry = &menuRegistry;
-        context.spaceExtensionRegistry = &fenceRegistry;
+        context.spaceExtensionRegistry = &spaceRegistry;
         context.appCommands = &appCommands;
 
         auto portal = FindBuiltinPluginById(L"builtin.explorer_portal");
@@ -645,14 +645,14 @@ namespace
             return Fail("builtin.explorer_portal should initialize");
         }
 
-        const auto* callbacks = fenceRegistry.ResolveCallbacks(L"folder_portal", L"builtin.explorer_portal");
+        const auto* callbacks = spaceRegistry.ResolveCallbacks(L"folder_portal", L"builtin.explorer_portal");
         if (!callbacks || !callbacks->enumerateItems)
         {
             portal->Shutdown();
             return Fail("folder portal provider callbacks should be registered");
         }
 
-        const auto items = callbacks->enumerateItems(portalFence);
+        const auto items = callbacks->enumerateItems(portalSpace);
         if (items.size() != 1 || items[0].name != L"beta.txt")
         {
             portal->Shutdown();
@@ -669,8 +669,8 @@ namespace
 
         CommandContext appearanceContext;
         appearanceContext.commandId = L"appearance.mode.focus";
-        appearanceContext.invocationSource = L"fence_context";
-        appearanceContext.fence.id = portalFence.id;
+        appearanceContext.invocationSource = L"space_context";
+        appearanceContext.space.id = portalSpace.id;
 
         if (!dispatcher.Dispatch(L"appearance.mode.focus", appearanceContext))
         {
@@ -678,10 +678,10 @@ namespace
             return Fail("appearance.mode.focus should dispatch");
         }
 
-        if (appCommands.lastPresentationFenceId != portalFence.id)
+        if (appCommands.lastPresentationSpaceId != portalSpace.id)
         {
             appearance->Shutdown();
-            return Fail("appearance mode should target routed fence context");
+            return Fail("appearance mode should target routed space context");
         }
 
         if (!appCommands.lastPresentationSettings.textOnlyMode.has_value() ||
@@ -715,7 +715,7 @@ int main()
         return result;
     }
 
-    if (const int result = TestPluginAndFenceRegistries(); result != 0)
+    if (const int result = TestPluginAndSpaceRegistries(); result != 0)
     {
         return result;
     }
@@ -730,7 +730,7 @@ int main()
         return result;
     }
 
-    if (const int result = TestFenceMetadataRefreshContract(); result != 0)
+    if (const int result = TestSpaceMetadataRefreshContract(); result != 0)
     {
         return result;
     }

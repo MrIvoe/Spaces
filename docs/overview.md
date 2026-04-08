@@ -1,11 +1,11 @@
 # Overview
 
-IVOESimpleFences is the stable host shell for the ecosystem.
+Spaces is the stable host shell for the ecosystem.
 
 Host responsibilities:
 
 - startup and shutdown safety
-- fence lifecycle and rendering shell
+- Space lifecycle and rendering shell
 - persistence, restore, and migration
 - settings hosting and validation
 - plugin discovery/loading/isolation

@@ -144,7 +144,7 @@ int RunThemeFailureFocusedTests()
         return Fail("Theme failure tests: fixture folder missing");
     }
 
-    const std::filesystem::path tempDir = std::filesystem::temp_directory_path() / "SimpleFencesThemeFailureZips";
+    const std::filesystem::path tempDir = std::filesystem::temp_directory_path() / "SimpleSpacesThemeFailureZips";
     std::error_code ec;
     std::filesystem::create_directories(tempDir, ec);
 

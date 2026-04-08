@@ -1,10 +1,10 @@
 @echo off
-REM SimpleFences Icon Test Script
-REM This script tests if SimpleFences is working with icon implementation
+REM SimpleSpaces Icon Test Script
+REM This script tests if SimpleSpaces is working with icon implementation
 
 setlocal enabledelayedexpansion
 
-set EXE_PATH=c:\Users\MrIvo\Github\IVOESimpleFences\IVOESimpleFences\build\bin\Debug\SimpleFences.exe
+set EXE_PATH=c:\Users\MrIvo\Github\IVOESimpleSpaces\IVOESimpleSpaces\build\bin\Debug\SimpleSpaces.exe
 set TEST_FILE=%TEMP%\test_file.txt
 set TEST_FOLDER=%TEMP%\test_folder
 
@@ -14,23 +14,23 @@ if not exist "%TEST_FOLDER%" mkdir "%TEST_FOLDER%"
 
 echo.
 echo ========================================
-echo SimpleFences Icon Implementation Test
+echo SimpleSpaces Icon Implementation Test
 echo ========================================
 echo.
-echo Test 1: Verify SimpleFences.exe exists
+echo Test 1: Verify SimpleSpaces.exe exists
 if exist "%EXE_PATH%" (
-    echo [OK] SimpleFences.exe found
+    echo [OK] SimpleSpaces.exe found
     for %%A in ("%EXE_PATH%") do (
         echo      File size: %%~zA bytes
         echo      Last modified: %%~TA
     )
 ) else (
-    echo [FAIL] SimpleFences.exe not found at %EXE_PATH%
+    echo [FAIL] SimpleSpaces.exe not found at %EXE_PATH%
     exit /b 1
 )
 
 echo.
-echo Test 2: Starting SimpleFences...
+echo Test 2: Starting SimpleSpaces...
 start "" "%EXE_PATH%"
 timeout /t 3 /nobreak
 
@@ -38,9 +38,9 @@ echo.
 echo Test 3: Application should now be running
 echo.
 echo Instructions for manual testing:
-echo 1. Look for gray window(s) with SimpleFences title
+echo 1. Look for gray window(s) with SimpleSpaces title
 echo 2. Open File Explorer
-echo 3. Drag "%TEST_FILE%" into the fence window
+echo 3. Drag "%TEST_FILE%" into the space window
 echo 4. You should see an icon before the filename
 echo 5. Try dragging "%TEST_FOLDER%" for folder icon
 echo.

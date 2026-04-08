@@ -5,7 +5,7 @@ Scope: Restart stability evidence for legacy-state and canonical migrated-state 
 
 ## Pass A: Legacy-State Double Restart
 
-Settings path: `%LOCALAPPDATA%/SimpleFences/settings.json`
+Settings path: `%LOCALAPPDATA%/Spaces/settings.json`
 
 ### Snapshot: Before
 

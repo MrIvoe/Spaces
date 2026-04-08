@@ -8,7 +8,7 @@ class SettingsStore;
 struct ThemePalette;
 
 /// Resolves theme tokens to COLORREF values.
-/// Maps token names (e.g., "win32.fence.border_color") to actual RGB colors.
+/// Maps token names (e.g., "win32.space.border_color") to actual RGB colors.
 class ThemeTokenResolver
 {
 public:

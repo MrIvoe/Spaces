@@ -9,9 +9,9 @@ public:
     explicit Persistence(const std::wstring& metadataPath);
     ~Persistence() = default;
 
-    bool LoadFences(std::vector<FenceModel>& fences);
-    bool SaveFences(const std::vector<FenceModel>& fences);
-    bool SaveFence(const FenceModel& fence);
+    bool LoadSpaces(std::vector<SpaceModel>& spaces);
+    bool SaveSpaces(const std::vector<SpaceModel>& spaces);
+    bool SaveSpace(const SpaceModel& space);
 
 private:
     bool EnsureDirectory();

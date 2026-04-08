@@ -1,7 +1,7 @@
 #include "core/AppKernel.h"
 
 #include "App.h"
-#include "FenceManager.h"
+#include "SpaceManager.h"
 #include "core/CommandDispatcher.h"
 #include "core/Diagnostics.h"
 #include "core/EventBus.h"
@@ -147,17 +147,17 @@ namespace
         }
     }
 
-    FenceMetadata ToFenceMetadata(const FenceModel& fence)
+    SpaceMetadata ToSpaceMetadata(const SpaceModel& space)
     {
-        FenceMetadata meta;
-        meta.id = fence.id;
-        meta.title = fence.title;
-        meta.backingFolderPath = fence.backingFolder;
-        meta.contentType = fence.contentType;
-        meta.contentPluginId = fence.contentPluginId;
-        meta.contentSource = fence.contentSource;
-        meta.contentState = fence.contentState;
-        meta.contentStateDetail = fence.contentStateDetail;
+        SpaceMetadata meta;
+        meta.id = space.id;
+        meta.title = space.title;
+        meta.backingFolderPath = space.backingFolder;
+        meta.contentType = space.contentType;
+        meta.contentPluginId = space.contentPluginId;
+        meta.contentSource = space.contentSource;
+        meta.contentState = space.contentState;
+        meta.contentStateDetail = space.contentStateDetail;
         return meta;
     }
 }
@@ -169,17 +169,17 @@ public:
     {
     }
 
-    std::wstring CreateFenceNearCursor() override
+    std::wstring CreateSpaceNearCursor() override
     {
-        FenceCreateRequest request;
-        return CreateFenceNearCursor(request);
+        SpaceCreateRequest request;
+        return CreateSpaceNearCursor(request);
     }
 
-    std::wstring CreateFenceNearCursor(const FenceCreateRequest& request) override
+    std::wstring CreateSpaceNearCursor(const SpaceCreateRequest& request) override
     {
         if (m_app)
         {
-            return m_app->CreateFenceNearCursor(request);
+            return m_app->CreateSpaceNearCursor(request);
         }
 
         return L"";
@@ -212,15 +212,15 @@ public:
         return m_kernel->m_currentCommandContext;
     }
 
-    FenceMetadata GetActiveFenceMetadata() const override
+    SpaceMetadata GetActiveSpaceMetadata() const override
     {
-        FenceMetadata meta;
+        SpaceMetadata meta;
         if (!m_app)
         {
             return meta;
         }
 
-        FenceManager* manager = m_app->GetFenceManager();
+        SpaceManager* manager = m_app->GetSpaceManager();
         if (!manager)
         {
             return meta;
@@ -239,88 +239,88 @@ public:
         }
 
         HWND root = GetAncestor(hovered, GA_ROOT);
-        const FenceModel* fence = manager->FindFenceByWindow(root ? root : hovered);
-        if (!fence)
+        const SpaceModel* space = manager->FindSpaceByWindow(root ? root : hovered);
+        if (!space)
         {
             return meta;
         }
 
-        return ToFenceMetadata(*fence);
+        return ToSpaceMetadata(*space);
     }
 
-    std::vector<std::wstring> GetAllFenceIds() const override
+    std::vector<std::wstring> GetAllSpaceIds() const override
     {
-        if (!m_app || !m_app->GetFenceManager())
+        if (!m_app || !m_app->GetSpaceManager())
         {
             return {};
         }
 
-        return m_app->GetFenceManager()->GetAllFenceIds();
+        return m_app->GetSpaceManager()->GetAllSpaceIds();
     }
 
-    FenceMetadata GetFenceMetadata(const std::wstring& fenceId) const override
+    SpaceMetadata GetSpaceMetadata(const std::wstring& spaceId) const override
     {
-        FenceMetadata meta;
+        SpaceMetadata meta;
         if (!m_app)
         {
             return meta;
         }
 
-        FenceManager* manager = m_app->GetFenceManager();
+        SpaceManager* manager = m_app->GetSpaceManager();
         if (!manager)
         {
             return meta;
         }
 
-        const FenceModel* fence = manager->FindFence(fenceId);
-        if (!fence)
+        const SpaceModel* space = manager->FindSpace(spaceId);
+        if (!space)
         {
             return meta;
         }
 
-        return ToFenceMetadata(*fence);
+        return ToSpaceMetadata(*space);
     }
 
-    void RefreshFence(const std::wstring& fenceId) override
+    void RefreshSpace(const std::wstring& spaceId) override
     {
         if (!m_app)
         {
             return;
         }
 
-        FenceManager* manager = m_app->GetFenceManager();
+        SpaceManager* manager = m_app->GetSpaceManager();
         if (!manager)
         {
             return;
         }
 
-        manager->RefreshFence(fenceId);
+        manager->RefreshSpace(spaceId);
     }
 
-    void UpdateFenceContentSource(const std::wstring& fenceId, const std::wstring& contentSource) override
+    void UpdateSpaceContentSource(const std::wstring& spaceId, const std::wstring& contentSource) override
     {
-        if (m_app && m_app->GetFenceManager())
+        if (m_app && m_app->GetSpaceManager())
         {
-            m_app->GetFenceManager()->SetFenceContentSource(fenceId, contentSource);
+            m_app->GetSpaceManager()->SetSpaceContentSource(spaceId, contentSource);
         }
     }
 
-    void UpdateFenceContentState(const std::wstring& fenceId,
+    void UpdateSpaceContentState(const std::wstring& spaceId,
                                  const std::wstring& state,
                                  const std::wstring& detail) override
     {
-        if (m_app && m_app->GetFenceManager())
+        if (m_app && m_app->GetSpaceManager())
         {
-            m_app->GetFenceManager()->SetFenceContentState(fenceId, state, detail);
+            m_app->GetSpaceManager()->SetSpaceContentState(spaceId, state, detail);
         }
     }
 
-    void UpdateFencePresentation(const std::wstring& fenceId,
-                                 const FencePresentationSettings& settings) override
+    void UpdateSpacePresentation(const std::wstring& spaceId,
+                                 const SpacePresentationSettings& settings) override
     {
-        if (m_app && m_app->GetFenceManager())
+        if (m_app && m_app->GetSpaceManager())
         {
-            m_app->GetFenceManager()->ApplyFencePresentation(fenceId, settings);
+            m_app->GetSpaceManager()->ApplySpacePresentation(spaceId, settings);
         }
     }
 
@@ -350,7 +350,7 @@ bool AppKernel::Initialize(App* app)
 
     // Create and load persistent settings store
     m_settingsStore = std::make_unique<SettingsStore>();
-    const auto settingsPath = Win32Helpers::GetFencesRoot() / L"settings.json";
+    const auto settingsPath = Win32Helpers::GetSpacesRoot() / L"settings.json";
     m_settingsStore->Load(settingsPath);
 
     // Run idempotent theme migration before any theme rendering.
@@ -456,8 +456,8 @@ bool AppKernel::Initialize(App* app)
             SendNotifyMessageW(HWND_BROADCAST, ThemePlatform::GetThemeChangedMessageId(), 0, 0);
         });
 
-    const bool createRegistered = m_commandDispatcher->RegisterCommand(L"fence.create", [commands = m_appCommands.get()]() {
-        commands->CreateFenceNearCursor();
+    const bool createRegistered = m_commandDispatcher->RegisterCommand(L"space.create", [commands = m_appCommands.get()]() {
+        commands->CreateSpaceNearCursor();
     });
     const bool exitRegistered = m_commandDispatcher->RegisterCommand(L"app.exit", [commands = m_appCommands.get()]() {
         commands->ExitApplication();
@@ -576,7 +576,7 @@ std::vector<TrayMenuEntry> AppKernel::GetTrayMenuEntries() const
     std::vector<TrayMenuEntry> items;
     if (!m_menuRegistry)
     {
-        items.push_back(TrayMenuEntry{L"New Fence", L"fence.create", false});
+        items.push_back(TrayMenuEntry{L"New Space", L"space.create", false});
         items.push_back(TrayMenuEntry{L"Exit", L"app.exit", true});
         return items;
     }
@@ -595,7 +595,7 @@ std::vector<TrayMenuEntry> AppKernel::GetTrayMenuEntries() const
 
     if (items.empty())
     {
-        items.push_back(TrayMenuEntry{L"New Fence", L"fence.create", false});
+        items.push_back(TrayMenuEntry{L"New Space", L"space.create", false});
         items.push_back(TrayMenuEntry{L"Exit", L"app.exit", true});
     }
 

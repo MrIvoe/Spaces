@@ -5,12 +5,12 @@ SpaceExtensionRegistry::SpaceExtensionRegistry()
     RegisterContentProvider(DefaultFileCollectionProvider());
 }
 
-void SpaceExtensionRegistry::RegisterContentProvider(const FenceContentProviderDescriptor& provider)
+void SpaceExtensionRegistry::RegisterContentProvider(const SpaceContentProviderDescriptor& provider)
 {
     RegisterContentProvider(provider, {});
 }
 
-void SpaceExtensionRegistry::RegisterContentProvider(const FenceContentProviderDescriptor& provider, const FenceContentProviderCallbacks& callbacks)
+void SpaceExtensionRegistry::RegisterContentProvider(const SpaceContentProviderDescriptor& provider, const SpaceContentProviderCallbacks& callbacks)
 {
     for (auto& existing : m_contentProviders)
     {
@@ -24,9 +24,9 @@ void SpaceExtensionRegistry::RegisterContentProvider(const FenceContentProviderD
     m_contentProviders.push_back(RegisteredProvider{provider, callbacks});
 }
 
-std::vector<FenceContentProviderDescriptor> SpaceExtensionRegistry::GetContentProviders() const
+std::vector<SpaceContentProviderDescriptor> SpaceExtensionRegistry::GetContentProviders() const
 {
-    std::vector<FenceContentProviderDescriptor> items;
+    std::vector<SpaceContentProviderDescriptor> items;
     items.reserve(m_contentProviders.size());
     for (const auto& provider : m_contentProviders)
     {
@@ -48,7 +48,7 @@ bool SpaceExtensionRegistry::HasProvider(const std::wstring& contentType, const 
     return false;
 }
 
-FenceContentProviderDescriptor SpaceExtensionRegistry::ResolveOrDefault(const std::wstring& contentType, const std::wstring& providerId) const
+SpaceContentProviderDescriptor SpaceExtensionRegistry::ResolveOrDefault(const std::wstring& contentType, const std::wstring& providerId) const
 {
     for (const auto& provider : m_contentProviders)
     {
@@ -61,7 +61,7 @@ FenceContentProviderDescriptor SpaceExtensionRegistry::ResolveOrDefault(const st
     return DefaultFileCollectionProvider();
 }
 
-const FenceContentProviderCallbacks* SpaceExtensionRegistry::ResolveCallbacks(const std::wstring& contentType, const std::wstring& providerId) const
+const SpaceContentProviderCallbacks* SpaceExtensionRegistry::ResolveCallbacks(const std::wstring& contentType, const std::wstring& providerId) const
 {
     for (const auto& provider : m_contentProviders)
     {
@@ -74,7 +74,7 @@ const FenceContentProviderCallbacks* SpaceExtensionRegistry::ResolveCallbacks(co
     return nullptr;
 }
 
-FenceContentProviderDescriptor SpaceExtensionRegistry::DefaultFileCollectionProvider() const
+SpaceContentProviderDescriptor SpaceExtensionRegistry::DefaultFileCollectionProvider() const
 {
-    return FenceContentProviderDescriptor{L"core.file_collection", L"file_collection", L"File Collection", true};
+    return SpaceContentProviderDescriptor{L"core.file_collection", L"file_collection", L"File Collection", true};
 }

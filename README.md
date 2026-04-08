@@ -7,6 +7,12 @@
 
 A lightweight Win32 desktop organizer for Windows that lets you create simple desktop Spaces and move files into them safely.
 
+Theme architecture note:
+
+- Themes repo is the source of truth for universal design tokens.
+- Spaces consumes exported tokens and semantic mappings from Themes.
+- Direct palette literals are only used for app-specific fallback/override behavior.
+
 Spaces is focused on a clear, predictable model:
 
 - each Space is a real desktop window
@@ -90,7 +96,7 @@ Example storage layout:
     config.json
     debug.log
     Spaces\
-        <FenceId>\
+        <SpaceId>\
             _origins.json
             <items...>
 ```
@@ -143,7 +149,7 @@ Current safety rules:
 - built-in plugin host scaffold with capability manifests
 - plugin settings and Space-extension registries with status/page API exposure
 - settings shell command path (`plugin.openSettings`) with scaffold UI
-- Space context organization commands via plugin (`builtin.fence_organizer`)
+- Space context organization commands via plugin (`builtin.space_organizer`)
 - plugin manifest API compatibility checks (`minHostApiVersion` / `maxHostApiVersion`)
 - safe command dispatch diagnostics (unknown/failed command logging)
 - registry validation for menu/settings contributions (invalid and duplicate guardrails)
@@ -182,9 +188,9 @@ src/
         builtins/
             BuiltinPlugins.h/.cpp
     App.cpp / App.h
-    FenceManager.cpp / FenceManager.h
-    FenceStorage.cpp / FenceStorage.h
-    FenceWindow.cpp / FenceWindow.h
+    SpaceManager.cpp / SpaceManager.h
+    SpaceStorage.cpp / SpaceStorage.h
+    SpaceWindow.cpp / SpaceWindow.h
     Models.h
     Persistence.cpp / Persistence.h
     TrayMenu.cpp / TrayMenu.h
@@ -228,8 +234,8 @@ flowchart TD
     B --> E[EventBus]
     B --> F[PluginHost]
 
-    C --> G[FenceManager]
-    C --> H[FenceStorage]
+    C --> G[SpaceManager]
+    C --> H[SpaceStorage]
     C --> I[Persistence]
     C --> J[Win32Helpers]
 
@@ -237,12 +243,12 @@ flowchart TD
     F --> L[TrayPlugin]
     F --> M[SettingsPlugin]
     F --> N[AppearancePlugin]
-    F --> O[ExplorerFencePlugin]
+    F --> O[ExplorerSpacePlugin]
     F --> P[WidgetsPlugin]
     F --> Q[DesktopContextPlugin]
-    F --> S[FenceOrganizerPlugin]
+    F --> S[SpaceOrganizerPlugin]
 
-    G --> R[FenceWindow]
+    G --> R[SpaceWindow]
     L --> D
 ```
 
@@ -251,9 +257,9 @@ flowchart TD
 - `App`: creates stable Space services and tray shell, delegates platform-extension concerns to `AppKernel`
 - `AppKernel`: owns dispatcher, event bus, plugin host, and extension registries
 - `TrayMenu`: builds tray UI from menu contributions and dispatches selected commands
-- `FenceManager`: canonical Space state and lifecycle coordination
-- `FenceWindow`: per-Space Win32 host window and Space interaction rendering
-- `FenceStorage`: physical file move/restore/delete safety and backing-folder management
+- `SpaceManager`: canonical Space state and lifecycle coordination
+- `SpaceWindow`: per-Space Win32 host window and Space interaction rendering
+- `SpaceStorage`: physical file move/restore/delete safety and backing-folder management
 - `Persistence`: structured JSON metadata with backward-compatible evolution
 - `Win32Helpers`: logging, paths, and atomic metadata replacement helper operations
 

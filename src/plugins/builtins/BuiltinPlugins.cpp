@@ -240,9 +240,9 @@ public:
         PluginManifest manifest;
         manifest.id = L"builtin.core_commands";
         manifest.displayName = L"Core Commands";
-        manifest.version = SimpleFencesVersion::kVersion;
+        manifest.version = SimpleSpacesVersion::kVersion;
         manifest.description = L"Registers stable core command routes and core file_collection provider.";
-        manifest.capabilities = {L"commands", L"fence_content_provider"};
+        manifest.capabilities = {L"commands", L"space_content_provider"};
         return manifest;
     }
 
@@ -251,7 +251,7 @@ public:
         if (context.spaceExtensionRegistry)
         {
             context.spaceExtensionRegistry->RegisterContentProvider(
-                FenceContentProviderDescriptor{L"core.file_collection", L"file_collection", L"File Collection", true});
+                SpaceContentProviderDescriptor{L"core.file_collection", L"file_collection", L"File Collection", true});
         }
 
         if (context.settingsRegistry)
@@ -265,8 +265,8 @@ public:
 
             SettingsFieldDescriptor autoFocus;
             autoFocus.key          = L"core.behavior.auto_focus_on_create";
-            autoFocus.label        = L"Auto-focus new fence";
-            autoFocus.description  = L"Show and focus the fence window immediately after creation.";
+            autoFocus.label        = L"Auto-focus new space";
+            autoFocus.description  = L"Show and focus the space window immediately after creation.";
             autoFocus.type         = SettingsFieldType::Bool;
             autoFocus.defaultValue = L"true";
             autoFocus.order        = 10;
@@ -274,10 +274,10 @@ public:
 
             SettingsFieldDescriptor defaultTitle;
             defaultTitle.key          = L"core.behavior.default_title";
-            defaultTitle.label        = L"Default fence title";
-            defaultTitle.description  = L"Title template applied to newly created fences.";
+            defaultTitle.label        = L"Default space title";
+            defaultTitle.description  = L"Title template applied to newly created spaces.";
             defaultTitle.type         = SettingsFieldType::String;
-            defaultTitle.defaultValue = L"New Fence";
+            defaultTitle.defaultValue = L"New Space";
             defaultTitle.order        = 20;
             behavior.fields.push_back(std::move(defaultTitle));
 
@@ -318,7 +318,7 @@ public:
         PluginManifest manifest;
         manifest.id = L"builtin.tray";
         manifest.displayName = L"Tray Plugin";
-        manifest.version = SimpleFencesVersion::kVersion;
+        manifest.version = SimpleSpacesVersion::kVersion;
         manifest.description = L"Contributes tray menu items routed through commands.";
         manifest.capabilities = {L"tray_contributions", L"commands"};
         return manifest;
@@ -360,7 +360,7 @@ public:
             context.settingsRegistry->RegisterPage(std::move(trayPage));
         }
 
-        context.menuRegistry->Register(MenuContribution{MenuSurface::Tray, L"New Fence", L"fence.create", 10, false});
+        context.menuRegistry->Register(MenuContribution{MenuSurface::Tray, L"New Space", L"space.create", 10, false});
         context.menuRegistry->Register(MenuContribution{MenuSurface::Tray, L"Exit", L"app.exit", 1000, true});
         return true;
     }
@@ -378,7 +378,7 @@ public:
         PluginManifest manifest;
         manifest.id = L"builtin.settings";
         manifest.displayName = L"Settings Plugin";
-        manifest.version = SimpleFencesVersion::kVersion;
+        manifest.version = SimpleSpacesVersion::kVersion;
         manifest.description = L"Registers settings-page scaffolding.";
         manifest.capabilities = {L"settings_pages", L"menu_contributions"};
         return manifest;
@@ -419,7 +419,7 @@ public:
                 L"Plugin hub repository URL",
                 L"Git repository used to download plugin folders.",
                 SettingsFieldType::String,
-                L"https://github.com/MrIvoe/Simple-Fences-Plugins.git",
+                L"https://github.com/MrIvoe/Simple-Spaces-Plugins.git",
                 {},
                 10},
             SettingsFieldDescriptor{
@@ -510,8 +510,8 @@ public:
         PluginManifest manifest;
         manifest.id = L"community.visual_modes";
         manifest.displayName = L"Appearance Plugin";
-        manifest.version = SimpleFencesVersion::kVersion;
-        manifest.description = L"Theme controls plus visual mode commands for live fence presentation changes.";
+        manifest.version = SimpleSpacesVersion::kVersion;
+        manifest.description = L"Theme controls plus visual mode commands for live space presentation changes.";
         manifest.capabilities = {L"appearance", L"settings_pages", L"commands", L"menu_contributions"};
         return manifest;
     }
@@ -595,8 +595,8 @@ public:
                 visualModes.order = 20;
                 visualModes.fields.push_back(SettingsFieldDescriptor{
                     L"appearance.visual_modes.apply_to_all_default",
-                    L"Apply visual mode to all fences",
-                    L"When enabled, visual mode commands update every fence instead of just the targeted one.",
+                    L"Apply visual mode to all spaces",
+                    L"When enabled, visual mode commands update every space instead of just the targeted one.",
                     SettingsFieldType::Bool,
                     L"false",
                     {},
@@ -634,17 +634,17 @@ public:
                 return;
             }
 
-            std::wstring fenceId = command.fence.id;
-            if (fenceId.empty())
+            std::wstring spaceId = command.space.id;
+            if (spaceId.empty())
             {
-                fenceId = m_context.appCommands->GetCurrentCommandContext().fence.id;
+                spaceId = m_context.appCommands->GetCurrentCommandContext().space.id;
             }
-            if (fenceId.empty())
+            if (spaceId.empty())
             {
                 return;
             }
 
-            FencePresentationSettings settings;
+            SpacePresentationSettings settings;
             settings.applyToAll = m_context.settingsRegistry &&
                 m_context.settingsRegistry->GetValue(L"appearance.visual_modes.apply_to_all_default", L"false") == L"true";
 
@@ -673,23 +673,23 @@ public:
                 settings.iconSpacingPreset = L"compact";
             }
 
-            m_context.appCommands->UpdateFencePresentation(fenceId, settings);
+            m_context.appCommands->UpdateSpacePresentation(spaceId, settings);
         }
 
         PluginContext m_context{};
 };
 
-class ExplorerFencePlugin final : public IPlugin
+class ExplorerSpacePlugin final : public IPlugin
 {
 public:
     PluginManifest GetManifest() const override
     {
         PluginManifest manifest;
         manifest.id = L"builtin.explorer_portal";
-        manifest.displayName = L"Explorer Fence Plugin";
-        manifest.version = SimpleFencesVersion::kVersion;
+        manifest.displayName = L"Explorer Space Plugin";
+        manifest.version = SimpleSpacesVersion::kVersion;
         manifest.description = L"Folder portal provider with source picking, health tracking, and live refresh polling.";
-        manifest.capabilities = {L"fence_content_provider", L"settings_pages", L"commands", L"menu_contributions"};
+        manifest.capabilities = {L"space_content_provider", L"settings_pages", L"commands", L"menu_contributions"};
         return manifest;
     }
 
@@ -698,18 +698,18 @@ public:
         m_context = context;
         if (context.spaceExtensionRegistry)
         {
-            FenceContentProviderCallbacks callbacks;
-            callbacks.enumerateItems = [this](const FenceMetadata& fence) {
-                return EnumeratePortalItems(fence);
+            SpaceContentProviderCallbacks callbacks;
+            callbacks.enumerateItems = [this](const SpaceMetadata& space) {
+                return EnumeratePortalItems(space);
             };
-            callbacks.handleDrop = [this](const FenceMetadata& fence, const std::vector<std::wstring>& paths) {
-                return HandlePortalDrop(fence, paths);
+            callbacks.handleDrop = [this](const SpaceMetadata& space, const std::vector<std::wstring>& paths) {
+                return HandlePortalDrop(space, paths);
             };
-            callbacks.deleteItem = [this](const FenceMetadata& fence, const FenceItem& item) {
-                return DeletePortalItem(fence, item);
+            callbacks.deleteItem = [this](const SpaceMetadata& space, const SpaceItem& item) {
+                return DeletePortalItem(space, item);
             };
             context.spaceExtensionRegistry->RegisterContentProvider(
-                FenceContentProviderDescriptor{L"builtin.explorer_portal", L"folder_portal", L"Folder Portal"},
+                SpaceContentProviderDescriptor{L"builtin.explorer_portal", L"folder_portal", L"Folder Portal"},
                 callbacks);
         }
 
@@ -724,7 +724,7 @@ public:
             portalPage.fields.push_back(SettingsFieldDescriptor{
                 L"explorer.portal.recurse_subfolders",
                 L"Include subfolders",
-                L"Show items from subdirectories in the folder portal fence.",
+                L"Show items from subdirectories in the folder portal space.",
                 SettingsFieldType::Bool, L"false", {}, 10});
             portalPage.fields.push_back(SettingsFieldDescriptor{
                 L"explorer.portal.show_hidden",
@@ -743,15 +743,15 @@ public:
         if (context.menuRegistry)
         {
             context.menuRegistry->Register(MenuContribution{MenuSurface::Tray, L"New Folder Portal", L"portal.create", 40, false});
-            context.menuRegistry->Register(MenuContribution{MenuSurface::FenceContext, L"Change Portal Source...", L"portal.change_source", 200, true});
-            context.menuRegistry->Register(MenuContribution{MenuSurface::FenceContext, L"Open Portal Source", L"portal.open_source", 210, false});
-            context.menuRegistry->Register(MenuContribution{MenuSurface::FenceContext, L"Reconnect Portal", L"portal.reconnect", 220, false});
+            context.menuRegistry->Register(MenuContribution{MenuSurface::SpaceContext, L"Change Portal Source...", L"portal.change_source", 200, true});
+            context.menuRegistry->Register(MenuContribution{MenuSurface::SpaceContext, L"Open Portal Source", L"portal.open_source", 210, false});
+            context.menuRegistry->Register(MenuContribution{MenuSurface::SpaceContext, L"Reconnect Portal", L"portal.reconnect", 220, false});
         }
 
         if (context.commandDispatcher)
         {
             context.commandDispatcher->RegisterCommand(L"portal.create", [this](const CommandContext&) {
-                CreatePortalFence();
+                CreatePortalSpace();
             });
             context.commandDispatcher->RegisterCommand(L"portal.change_source", [this](const CommandContext& command) {
                 ChangePortalSource(command);
@@ -813,25 +813,25 @@ private:
         }
     }
 
-    bool IsPortalFence(const FenceMetadata& fence) const
+    bool IsPortalSpace(const SpaceMetadata& space) const
     {
-        return fence.contentType == L"folder_portal" && fence.contentPluginId == L"builtin.explorer_portal";
+        return space.contentType == L"folder_portal" && space.contentPluginId == L"builtin.explorer_portal";
     }
 
-    std::vector<FenceItem> EnumeratePortalItems(const FenceMetadata& fence)
+    std::vector<SpaceItem> EnumeratePortalItems(const SpaceMetadata& space)
     {
-        std::vector<FenceItem> items;
-        if (!IsPortalFence(fence))
+        std::vector<SpaceItem> items;
+        if (!IsPortalSpace(space))
         {
             return items;
         }
 
-        if (fence.contentSource.empty())
+        if (space.contentSource.empty())
         {
             return items;
         }
 
-        const fs::path root(fence.contentSource);
+        const fs::path root(space.contentSource);
         std::error_code ec;
         if (!fs::exists(root, ec) || !fs::is_directory(root, ec))
         {
@@ -847,7 +847,7 @@ private:
                 return;
             }
 
-            FenceItem item;
+            SpaceItem item;
             item.name = path.filename().wstring();
             item.fullPath = path.wstring();
             item.isDirectory = entry.is_directory();
@@ -882,20 +882,20 @@ private:
         return items;
     }
 
-    bool HandlePortalDrop(const FenceMetadata& fence, const std::vector<std::wstring>& paths)
+    bool HandlePortalDrop(const SpaceMetadata& space, const std::vector<std::wstring>& paths)
     {
-        if (!IsPortalFence(fence) || fence.contentSource.empty())
+        if (!IsPortalSpace(space) || space.contentSource.empty())
         {
             return false;
         }
 
-        const fs::path targetFolder(fence.contentSource);
+        const fs::path targetFolder(space.contentSource);
         std::error_code ec;
         if (!fs::exists(targetFolder, ec) || !fs::is_directory(targetFolder, ec))
         {
             if (m_context.appCommands)
             {
-                m_context.appCommands->UpdateFenceContentState(fence.id, L"disconnected", L"Cannot drop into an unavailable source folder.");
+                m_context.appCommands->UpdateSpaceContentState(space.id, L"disconnected", L"Cannot drop into an unavailable source folder.");
             }
             return false;
         }
@@ -916,15 +916,15 @@ private:
 
         if (movedAny && m_context.appCommands)
         {
-            m_context.appCommands->UpdateFenceContentState(fence.id, L"ready", L"Portal connected.");
+            m_context.appCommands->UpdateSpaceContentState(space.id, L"ready", L"Portal connected.");
         }
 
         return movedAny;
     }
 
-    bool DeletePortalItem(const FenceMetadata& fence, const FenceItem& item)
+    bool DeletePortalItem(const SpaceMetadata& space, const SpaceItem& item)
     {
-        if (!IsPortalFence(fence) || item.fullPath.empty())
+        if (!IsPortalSpace(space) || item.fullPath.empty())
         {
             return false;
         }
@@ -941,7 +941,7 @@ private:
         return fs::remove(path, ec);
     }
 
-    void CreatePortalFence()
+    void CreatePortalSpace()
     {
         if (!m_context.appCommands)
         {
@@ -954,7 +954,7 @@ private:
             return;
         }
 
-        FenceCreateRequest request;
+        SpaceCreateRequest request;
         request.title = fs::path(selectedPath).filename().wstring();
         if (request.title.empty())
         {
@@ -964,17 +964,17 @@ private:
         request.contentPluginId = L"builtin.explorer_portal";
         request.contentSource = selectedPath;
 
-        const std::wstring fenceId = m_context.appCommands->CreateFenceNearCursor(request);
-        if (!fenceId.empty())
+        const std::wstring spaceId = m_context.appCommands->CreateSpaceNearCursor(request);
+        if (!spaceId.empty())
         {
-            m_context.appCommands->UpdateFenceContentState(fenceId, L"connecting", L"Connecting to source folder...");
+            m_context.appCommands->UpdateSpaceContentState(spaceId, L"connecting", L"Connecting to source folder...");
             LogInfo(L"Created folder portal for source: " + selectedPath);
         }
     }
 
     void ChangePortalSource(const CommandContext& command)
     {
-        if (!m_context.appCommands || command.fence.id.empty())
+        if (!m_context.appCommands || command.space.id.empty())
         {
             return;
         }
@@ -985,13 +985,13 @@ private:
             return;
         }
 
-        m_context.appCommands->UpdateFenceContentSource(command.fence.id, selectedPath);
-        m_context.appCommands->UpdateFenceContentState(command.fence.id, L"connecting", L"Connecting to source folder...");
+        m_context.appCommands->UpdateSpaceContentSource(command.space.id, selectedPath);
+        m_context.appCommands->UpdateSpaceContentState(command.space.id, L"connecting", L"Connecting to source folder...");
     }
 
     void OpenPortalSource(const CommandContext& command) const
     {
-        const std::wstring sourcePath = command.fence.contentSource;
+        const std::wstring sourcePath = command.space.contentSource;
         if (sourcePath.empty())
         {
             return;
@@ -1002,12 +1002,12 @@ private:
 
     void ReconnectPortal(const CommandContext& command)
     {
-        if (!m_context.appCommands || command.fence.id.empty())
+        if (!m_context.appCommands || command.space.id.empty())
         {
             return;
         }
 
-        m_context.appCommands->UpdateFenceContentState(command.fence.id, L"connecting", L"Reconnect requested.");
+        m_context.appCommands->UpdateSpaceContentState(command.space.id, L"connecting", L"Reconnect requested.");
     }
 
     void StartWatcher()
@@ -1060,28 +1060,28 @@ private:
 
             const bool recurse = GetBoolSetting(L"explorer.portal.recurse_subfolders", L"false");
             std::unordered_map<std::wstring, PortalSnapshot> nextSnapshots;
-            for (const auto& fenceId : m_context.appCommands->GetAllFenceIds())
+            for (const auto& spaceId : m_context.appCommands->GetAllSpaceIds())
             {
-                const FenceMetadata fence = m_context.appCommands->GetFenceMetadata(fenceId);
-                if (!IsPortalFence(fence))
+                const SpaceMetadata space = m_context.appCommands->GetSpaceMetadata(spaceId);
+                if (!IsPortalSpace(space))
                 {
                     continue;
                 }
 
                 PortalSnapshot snapshot;
-                snapshot.sourcePath = fence.contentSource;
+                snapshot.sourcePath = space.contentSource;
 
                 std::error_code ec;
-                const fs::path sourcePath(fence.contentSource);
-                snapshot.reachable = !fence.contentSource.empty() && fs::exists(sourcePath, ec) && fs::is_directory(sourcePath, ec);
+                const fs::path sourcePath(space.contentSource);
+                snapshot.reachable = !space.contentSource.empty() && fs::exists(sourcePath, ec) && fs::is_directory(sourcePath, ec);
                 snapshot.fingerprint = snapshot.reachable ? ComputeFolderFingerprint(sourcePath, recurse) : 0;
-                nextSnapshots.emplace(fenceId, snapshot);
+                nextSnapshots.emplace(spaceId, snapshot);
 
                 PortalSnapshot previous;
                 bool hadPrevious = false;
                 {
                     std::lock_guard<std::mutex> lock(m_watchMutex);
-                    const auto it = m_snapshots.find(fenceId);
+                    const auto it = m_snapshots.find(spaceId);
                     if (it != m_snapshots.end())
                     {
                         previous = it->second;
@@ -1091,18 +1091,18 @@ private:
 
                 if (!snapshot.reachable)
                 {
-                    m_context.appCommands->UpdateFenceContentState(fenceId, fence.contentSource.empty() ? L"needs_source" : L"disconnected", L"Source folder is unavailable.");
+                    m_context.appCommands->UpdateSpaceContentState(spaceId, space.contentSource.empty() ? L"needs_source" : L"disconnected", L"Source folder is unavailable.");
                     if (!hadPrevious || previous.reachable)
                     {
-                        m_context.appCommands->RefreshFence(fenceId);
+                        m_context.appCommands->RefreshSpace(spaceId);
                     }
                     continue;
                 }
 
                 if (!hadPrevious || !previous.reachable || previous.sourcePath != snapshot.sourcePath || previous.fingerprint != snapshot.fingerprint)
                 {
-                    m_context.appCommands->UpdateFenceContentState(fenceId, L"ready", L"Portal connected.");
-                    m_context.appCommands->RefreshFence(fenceId);
+                    m_context.appCommands->UpdateSpaceContentState(spaceId, L"ready", L"Portal connected.");
+                    m_context.appCommands->RefreshSpace(spaceId);
                 }
             }
 
@@ -1127,9 +1127,9 @@ public:
         PluginManifest manifest;
         manifest.id = L"builtin.widgets";
         manifest.displayName = L"Widgets Plugin";
-        manifest.version = SimpleFencesVersion::kVersion;
-        manifest.description = L"Placeholder for widget panel fences.";
-        manifest.capabilities = {L"widgets", L"fence_content_provider"};
+        manifest.version = SimpleSpacesVersion::kVersion;
+        manifest.description = L"Placeholder for widget panel spaces.";
+        manifest.capabilities = {L"widgets", L"space_content_provider"};
         return manifest;
     }
 
@@ -1138,7 +1138,7 @@ public:
         if (context.spaceExtensionRegistry)
         {
             context.spaceExtensionRegistry->RegisterContentProvider(
-                FenceContentProviderDescriptor{L"builtin.widgets", L"widget_panel", L"Widget Panel"});
+                SpaceContentProviderDescriptor{L"builtin.widgets", L"widget_panel", L"Widget Panel"});
         }
 
         if (context.settingsRegistry)
@@ -1205,8 +1205,8 @@ public:
         PluginManifest manifest;
         manifest.id = L"builtin.desktop_context";
         manifest.displayName = L"Desktop Context Plugin";
-        manifest.version = SimpleFencesVersion::kVersion;
-        manifest.description = L"Context-aware fence and item actions that receive routed payload metadata.";
+        manifest.version = SimpleSpacesVersion::kVersion;
+        manifest.description = L"Context-aware space and item actions that receive routed payload metadata.";
         manifest.capabilities = {L"desktop_context", L"settings_pages", L"commands", L"menu_contributions"};
         return manifest;
     }
@@ -1224,13 +1224,13 @@ public:
 
             ctxPage.fields.push_back(SettingsFieldDescriptor{
                 L"desktop.context.show_quick_actions",
-                L"Show fence quick actions",
-                L"Display context-menu quick actions when right-clicking a fence.",
+                L"Show space quick actions",
+                L"Display context-menu quick actions when right-clicking a space.",
                 SettingsFieldType::Bool, L"true", {}, 10});
             ctxPage.fields.push_back(SettingsFieldDescriptor{
                 L"desktop.context.safety_confirmations",
                 L"Confirm destructive actions",
-                L"Ask for confirmation before deleting or clearing a fence.",
+                L"Ask for confirmation before deleting or clearing a space.",
                 SettingsFieldType::Bool, L"true", {}, 20});
 
             context.settingsRegistry->RegisterPage(std::move(ctxPage));
@@ -1240,7 +1240,7 @@ public:
         {
             context.menuRegistry->Register(MenuContribution{MenuSurface::ItemContext, L"Copy Item Path", L"context.copy_item_path", 100, true});
             context.menuRegistry->Register(MenuContribution{MenuSurface::ItemContext, L"Open Item Parent Folder", L"context.open_item_parent", 110, false});
-            context.menuRegistry->Register(MenuContribution{MenuSurface::FenceContext, L"Copy Fence Source", L"context.copy_fence_source", 120, true});
+            context.menuRegistry->Register(MenuContribution{MenuSurface::SpaceContext, L"Copy Space Source", L"context.copy_space_source", 120, true});
         }
 
         if (context.commandDispatcher)
@@ -1251,8 +1251,8 @@ public:
             context.commandDispatcher->RegisterCommand(L"context.open_item_parent", [this](const CommandContext& command) {
                 OpenItemParent(command);
             });
-            context.commandDispatcher->RegisterCommand(L"context.copy_fence_source", [this](const CommandContext& command) {
-                CopyFenceSource(command);
+            context.commandDispatcher->RegisterCommand(L"context.copy_space_source", [this](const CommandContext& command) {
+                CopySpaceSource(command);
             });
         }
 
@@ -1299,30 +1299,30 @@ private:
         }
     }
 
-    void CopyFenceSource(const CommandContext& command) const
+    void CopySpaceSource(const CommandContext& command) const
     {
-        std::wstring text = command.fence.contentSource.empty()
-            ? command.fence.backingFolderPath
-            : command.fence.contentSource;
+        std::wstring text = command.space.contentSource.empty()
+            ? command.space.backingFolderPath
+            : command.space.contentSource;
         if (!text.empty() && CopyTextToClipboard(text))
         {
-            LogInfo(L"Copied fence source for '" + command.fence.title + L"'.");
+            LogInfo(L"Copied space source for '" + command.space.title + L"'.");
         }
     }
 
     PluginContext m_context{};
 };
 
-class FenceOrganizerPlugin final : public IPlugin
+class SpaceOrganizerPlugin final : public IPlugin
 {
 public:
     PluginManifest GetManifest() const override
     {
         PluginManifest manifest;
-        manifest.id = L"builtin.fence_organizer";
-        manifest.displayName = L"Fence Organizer";
-        manifest.version = SimpleFencesVersion::kVersion;
-        manifest.description = L"Adds organize-by-type and cleanup actions for fence backing folders.";
+        manifest.id = L"builtin.space_organizer";
+        manifest.displayName = L"Space Organizer";
+        manifest.version = SimpleSpacesVersion::kVersion;
+        manifest.description = L"Adds organize-by-type and cleanup actions for space backing folders.";
         manifest.capabilities = {L"commands", L"menu_contributions", L"settings_pages"};
         return manifest;
     }
@@ -1347,9 +1347,9 @@ private:
     void RegisterSettings(PluginSettingsRegistry& settings)
     {
         PluginSettingsPage page;
-        page.pluginId = L"builtin.fence_organizer";
+        page.pluginId = L"builtin.space_organizer";
         page.pageId = L"organizer.actions";
-        page.title = L"Fence Organizer";
+        page.title = L"Space Organizer";
         page.order = 40;
 
         page.fields.push_back(SettingsFieldDescriptor{
@@ -1398,9 +1398,9 @@ private:
             return;
         }
 
-        menu->Register(MenuContribution{MenuSurface::FenceContext, L"Organize by File Type", L"organizer.by_type", 500, true});
-        menu->Register(MenuContribution{MenuSurface::FenceContext, L"Flatten Organized Folders", L"organizer.flatten", 510, false});
-        menu->Register(MenuContribution{MenuSurface::FenceContext, L"Remove Empty Subfolders", L"organizer.cleanup_empty", 520, false});
+        menu->Register(MenuContribution{MenuSurface::SpaceContext, L"Organize by File Type", L"organizer.by_type", 500, true});
+        menu->Register(MenuContribution{MenuSurface::SpaceContext, L"Flatten Organized Folders", L"organizer.flatten", 510, false});
+        menu->Register(MenuContribution{MenuSurface::SpaceContext, L"Remove Empty Subfolders", L"organizer.cleanup_empty", 520, false});
     }
 
     void RegisterCommands(CommandDispatcher& dispatcher)
@@ -1431,21 +1431,21 @@ private:
         return m_context.settingsRegistry->GetValue(key, fallback);
     }
 
-    FenceMetadata CurrentFence() const
+    SpaceMetadata CurrentSpace() const
     {
         if (!m_context.appCommands)
         {
             return {};
         }
 
-        return m_context.appCommands->GetActiveFenceMetadata();
+        return m_context.appCommands->GetActiveSpaceMetadata();
     }
 
     void LogInfo(const std::wstring& message) const
     {
         if (m_context.diagnostics)
         {
-            m_context.diagnostics->Info(L"[FenceOrganizer] " + message);
+            m_context.diagnostics->Info(L"[SpaceOrganizer] " + message);
         }
     }
 
@@ -1453,16 +1453,16 @@ private:
     {
         if (m_context.diagnostics)
         {
-            m_context.diagnostics->Warn(L"[FenceOrganizer] " + message);
+            m_context.diagnostics->Warn(L"[SpaceOrganizer] " + message);
         }
     }
 
     void OrganizeByType()
     {
-        const auto fence = CurrentFence();
-        if (fence.id.empty() || fence.backingFolderPath.empty())
+        const auto space = CurrentSpace();
+        if (space.id.empty() || space.backingFolderPath.empty())
         {
-            LogWarn(L"No active fence under cursor; organize action skipped.");
+            LogWarn(L"No active space under cursor; organize action skipped.");
             return;
         }
 
@@ -1479,10 +1479,10 @@ private:
 
         try
         {
-            const fs::path root(fence.backingFolderPath);
+            const fs::path root(space.backingFolderPath);
             if (!fs::exists(root) || !fs::is_directory(root))
             {
-                LogWarn(L"Backing folder not available: " + fence.backingFolderPath);
+                LogWarn(L"Backing folder not available: " + space.backingFolderPath);
                 return;
             }
 
@@ -1517,10 +1517,10 @@ private:
 
             if (m_context.appCommands)
             {
-                m_context.appCommands->RefreshFence(fence.id);
+                m_context.appCommands->RefreshSpace(space.id);
             }
 
-            LogInfo(L"Organized fence '" + fence.title + L"': moved " + std::to_wstring(movedCount) +
+            LogInfo(L"Organized space '" + space.title + L"': moved " + std::to_wstring(movedCount) +
                     L" files, skipped " + std::to_wstring(skippedCount) + L" files.");
         }
         catch (const std::exception&)
@@ -1531,10 +1531,10 @@ private:
 
     void FlattenFolders()
     {
-        const auto fence = CurrentFence();
-        if (fence.id.empty() || fence.backingFolderPath.empty())
+        const auto space = CurrentSpace();
+        if (space.id.empty() || space.backingFolderPath.empty())
         {
-            LogWarn(L"No active fence under cursor; flatten action skipped.");
+            LogWarn(L"No active space under cursor; flatten action skipped.");
             return;
         }
 
@@ -1547,10 +1547,10 @@ private:
 
         try
         {
-            const fs::path root(fence.backingFolderPath);
+            const fs::path root(space.backingFolderPath);
             if (!fs::exists(root) || !fs::is_directory(root))
             {
-                LogWarn(L"Backing folder not available: " + fence.backingFolderPath);
+                LogWarn(L"Backing folder not available: " + space.backingFolderPath);
                 return;
             }
 
@@ -1594,10 +1594,10 @@ private:
 
             if (m_context.appCommands)
             {
-                m_context.appCommands->RefreshFence(fence.id);
+                m_context.appCommands->RefreshSpace(space.id);
             }
 
-            LogInfo(L"Flattened organized folders in '" + fence.title + L"': moved " + std::to_wstring(movedCount) + L" files.");
+            LogInfo(L"Flattened organized folders in '" + space.title + L"': moved " + std::to_wstring(movedCount) + L" files.");
         }
         catch (const std::exception&)
         {
@@ -1607,20 +1607,20 @@ private:
 
     void RemoveEmptyFolders()
     {
-        const auto fence = CurrentFence();
-        if (fence.id.empty() || fence.backingFolderPath.empty())
+        const auto space = CurrentSpace();
+        if (space.id.empty() || space.backingFolderPath.empty())
         {
-            LogWarn(L"No active fence under cursor; cleanup action skipped.");
+            LogWarn(L"No active space under cursor; cleanup action skipped.");
             return;
         }
 
         size_t removedCount = 0;
         try
         {
-            const fs::path root(fence.backingFolderPath);
+            const fs::path root(space.backingFolderPath);
             if (!fs::exists(root) || !fs::is_directory(root))
             {
-                LogWarn(L"Backing folder not available: " + fence.backingFolderPath);
+                LogWarn(L"Backing folder not available: " + space.backingFolderPath);
                 return;
             }
 
@@ -1635,10 +1635,10 @@ private:
 
             if (m_context.appCommands)
             {
-                m_context.appCommands->RefreshFence(fence.id);
+                m_context.appCommands->RefreshSpace(space.id);
             }
 
-            LogInfo(L"Removed " + std::to_wstring(removedCount) + L" empty folders from '" + fence.title + L"'.");
+            LogInfo(L"Removed " + std::to_wstring(removedCount) + L" empty folders from '" + space.title + L"'.");
         }
         catch (const std::exception&)
         {
@@ -1656,10 +1656,10 @@ std::vector<std::unique_ptr<IPlugin>> CreateBuiltinPlugins()
     plugins.push_back(std::make_unique<TrayPlugin>());
     plugins.push_back(std::make_unique<SettingsPlugin>());
     plugins.push_back(std::make_unique<AppearancePlugin>());
-    plugins.push_back(std::make_unique<ExplorerFencePlugin>());
+    plugins.push_back(std::make_unique<ExplorerSpacePlugin>());
     plugins.push_back(std::make_unique<WidgetsPlugin>());
     plugins.push_back(std::make_unique<DesktopContextPlugin>());
-    plugins.push_back(std::make_unique<FenceOrganizerPlugin>());
+    plugins.push_back(std::make_unique<SpaceOrganizerPlugin>());
     return plugins;
 }
 

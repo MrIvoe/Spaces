@@ -33,13 +33,13 @@ namespace
         {L"win32.base.accent_color", RGB(70, 120, 220)},
         {L"win32.base.border_color", RGB(192, 192, 192)},
 
-        // Fence-specific tokens
-        {L"win32.fence.title_bar_color", RGB(65, 65, 65)},
-        {L"win32.fence.title_text_color", RGB(240, 240, 240)},
-        {L"win32.fence.item_text_color", RGB(200, 200, 200)},
-        {L"win32.fence.item_hover_color", RGB(85, 85, 85)},
-        {L"win32.fence.border_color", RGB(192, 192, 192)},
-        {L"win32.fence.item_selected_color", RGB(55, 55, 55)},
+        // Space-specific tokens
+        {L"win32.space.title_bar_color", RGB(65, 65, 65)},
+        {L"win32.space.title_text_color", RGB(240, 240, 240)},
+        {L"win32.space.item_text_color", RGB(200, 200, 200)},
+        {L"win32.space.item_hover_color", RGB(85, 85, 85)},
+        {L"win32.space.border_color", RGB(192, 192, 192)},
+        {L"win32.space.item_selected_color", RGB(55, 55, 55)},
     };
 }
 
@@ -97,10 +97,10 @@ ThemePalette ThemeTokenResolver::BuildPaletteFromTokens(const std::unordered_map
     resolveToken(L"win32.base.accent_color", palette.accentColor);
     resolveToken(L"win32.base.border_color", palette.borderColor);
 
-    resolveToken(L"win32.fence.title_bar_color", palette.fenceTitleBarColor);
-    resolveToken(L"win32.fence.title_text_color", palette.fenceTitleTextColor);
-    resolveToken(L"win32.fence.item_text_color", palette.fenceItemTextColor);
-    resolveToken(L"win32.fence.item_hover_color", palette.fenceItemHoverColor);
+    resolveToken(L"win32.space.title_bar_color", palette.spaceTitleBarColor);
+    resolveToken(L"win32.space.title_text_color", palette.spaceTitleTextColor);
+    resolveToken(L"win32.space.item_text_color", palette.spaceItemTextColor);
+    resolveToken(L"win32.space.item_hover_color", palette.spaceItemHoverColor);
 
     return palette;
 }
@@ -160,9 +160,9 @@ ThemePalette ThemeTokenResolver::GetFallbackPalette()
         RGB(90, 90, 90),     // subtleTextColor
         RGB(70, 120, 220),   // accentColor
         RGB(192, 192, 192),  // borderColor
-        RGB(65, 65, 65),     // fenceTitleBarColor
-        RGB(240, 240, 240),  // fenceTitleTextColor
-        RGB(200, 200, 200),  // fenceItemTextColor
-        RGB(85, 85, 85)      // fenceItemHoverColor
+        RGB(65, 65, 65),     // spaceTitleBarColor
+        RGB(240, 240, 240),  // spaceTitleTextColor
+        RGB(200, 200, 200),  // spaceItemTextColor
+        RGB(85, 85, 85)      // spaceItemHoverColor
     };
 }

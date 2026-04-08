@@ -1,12 +1,12 @@
 # Theme System - Manual Verification Checklist
 
 ## Overview
-This document provides a comprehensive manual verification checklist for the SimpleFences theme system implementation. It covers the full lifecycle of theme operations from migration through rendering.
+This document provides a comprehensive manual verification checklist for the Spaces theme system implementation. It covers the full lifecycle of theme operations from migration through rendering.
 
 **Environment Requirements:**
 - Windows 7+ system
-- SimpleFences.exe built in Debug mode
-- Access to `%LOCALAPPDATA%\SimpleFences\` directory
+- Spaces.exe built in Debug mode
+- Access to `%LOCALAPPDATA%\Spaces\` directory
 - Power Shell (for log viewing)
 - Text editor (for JSON inspection)
 
@@ -16,19 +16,19 @@ This document provides a comprehensive manual verification checklist for the Sim
 
 ### Scenario 1.1: Fresh Install (No Legacy Settings)
 - **Steps:**
-  1. Delete `%LOCALAPPDATA%\SimpleFences\Fences\settings.json`
-  2. Delete `%LOCALAPPDATA%\SimpleFences\` directory entirely
-  3. Launch SimpleFences.exe
+  1. Delete `%LOCALAPPDATA%\Spaces\Spaces\settings.json`
+  2. Delete `%LOCALAPPDATA%\Spaces\` directory entirely
+  3. Launch Spaces.exe
   4. Exit app after 5 seconds
   
 - **Verification:**
-  - [ ] Settings file created at `%LOCALAPPDATA%\SimpleFences\Fences\settings.json`
+  - [ ] Settings file created at `%LOCALAPPDATA%\Spaces\Spaces\settings.json`
   - [ ] Inspect JSON:
     - [ ] `theme.source` = `"win32_theme_system"`
     - [ ] `theme.win32.theme_id` = `"graphite-office"` (default fallback)
     - [ ] `theme.migration_v2_complete` = `"true"`
     - [ ] `theme.win32.catalog_version` = `"1.0.0"`
-  - [ ] No errors in `%LOCALAPPDATA%\SimpleFences\debug.log`
+  - [ ] No errors in `%LOCALAPPDATA%\Spaces\debug.log`
 
 ### Scenario 1.2: Upgrade from Legacy Settings (aurora_light style)
 - **Preparation:**
@@ -42,10 +42,10 @@ This document provides a comprehensive manual verification checklist for the Sim
        }
      }
      ```
-  2. Save to `%LOCALAPPDATA%\SimpleFences\Fences\settings.json`
+  2. Save to `%LOCALAPPDATA%\Spaces\Spaces\settings.json`
 
 - **Steps:**
-  1. Launch SimpleFences.exe
+  1. Launch Spaces.exe
   2. Wait for app to start (5 sec)
   3. Exit app
   
@@ -64,7 +64,7 @@ This document provides a comprehensive manual verification checklist for the Sim
   2. Note the timestamp of `settings.json` file
 
 - **Steps:**
-  1. Launch SimpleFences.exe second time
+  1. Launch Spaces.exe second time
   2. Wait 5 sec
   3. Exit app
   4. Check `settings.json` last-modified timestamp
@@ -90,7 +90,7 @@ This document provides a comprehensive manual verification checklist for the Sim
   2. Save to settings file
 
 - **Steps:**
-  1. Launch SimpleFences.exe
+  1. Launch Spaces.exe
   2. Wait 5 sec
   3. Exit app
 
@@ -110,7 +110,7 @@ This document provides a comprehensive manual verification checklist for the Sim
   - Fresh theme migration complete (Scenario 1.1)
 
 - **Steps:**
-  1. Launch SimpleFences.exe
+  1. Launch Spaces.exe
   2. Right-click tray → "Settings"
   3. Navigate to "Appearance" or "Theme" settings
   4. Select "Aurora Light" theme from dropdown
@@ -121,7 +121,7 @@ This document provides a comprehensive manual verification checklist for the Sim
 - **Verification:**
   - [ ] UI updates immediately (colors change on all visible elements)
   - [ ] No visual glitches or partial renders
-  - [ ] Fence windows update in sync
+  - [ ] Space windows update in sync
   - [ ] Settings window shows selected theme
   - [ ] Inspect settings file:
     - [ ] `theme.win32.theme_id` = `"aurora-light"`
@@ -142,7 +142,7 @@ This document provides a comprehensive manual verification checklist for the Sim
   - [ ] Each theme switch is visually immediate
   - [ ] Final theme is "Graphite Office"
   - [ ] No lag or delay between switches
-  - [ ] Fence colors match selected theme
+  - [ ] Space colors match selected theme
   - [ ] Settings persisted correctly:
     - [ ] `theme.win32.theme_id` = `"graphite-office"`
 
@@ -151,14 +151,14 @@ This document provides a comprehensive manual verification checklist for the Sim
   - Scenario 2.2 completed
 
 - **Steps:**
-  1. Exit SimpleFences.exe (if not already exited)
-  2. Relaunch SimpleFences.exe
+  1. Exit Spaces.exe (if not already exited)
+  2. Relaunch Spaces.exe
   3. Wait 3 sec for app to stabilize
   4. Check theme visually
 
 - **Verification:**
   - [ ] Graphite Office theme loaded on startup
-  - [ ] Fence colors match saved theme
+  - [ ] Space colors match saved theme
   - [ ] No theme override or reset occurred
   - [ ] Debug log shows theme applied correctly
 
@@ -173,7 +173,7 @@ This document provides a comprehensive manual verification checklist for the Sim
   3. Save file
 
 - **Steps:**
-  1. Launch SimpleFences.exe
+  1. Launch Spaces.exe
   2. Wait 5 sec
   3. Observe UI / Exits
 
@@ -191,7 +191,7 @@ This document provides a comprehensive manual verification checklist for the Sim
   2. Save corrupted file
 
 - **Steps:**
-  1. Launch SimpleFences.exe
+  1. Launch Spaces.exe
   2. Wait 3 sec
   3. Check if app recovered
 
@@ -225,7 +225,7 @@ This document provides a comprehensive manual verification checklist for the Sim
   2. Load a plugin that declares appearance-related commands
 
 - **Steps:**
-  1. Launch SimpleFences.exe with custom plugin
+  1. Launch Spaces.exe with custom plugin
   2. Check debug.log
 
 - **Verification:**
@@ -240,14 +240,14 @@ This document provides a comprehensive manual verification checklist for the Sim
 
 ### Scenario 5.1: Persistence Through Multiple Restarts
 - **Steps:**
-  1. Launch SimpleFences.exe
+  1. Launch Spaces.exe
   2. Change theme to "Aurora Light"
   3. Exit app
-  4. Relaunch SimpleFences.exe
+  4. Relaunch Spaces.exe
   5. Verify theme visually
   6. Change theme to "Nocturne Dark"
   7. Exit app
-  8. Relaunch SimpleFences.exe (3rd time)
+  8. Relaunch Spaces.exe (3rd time)
   9. Verify theme visually
 
 - **Verification:**
@@ -259,8 +259,8 @@ This document provides a comprehensive manual verification checklist for the Sim
 ### Scenario 5.2: Settings File Persists After Crash / Force-Close
 - **Steps:**
   1. Apply "Aurora Light" theme
-  2. Force-close SimpleFences.exe (Task Manager or Ctrl+Shift+Esc)
-  3. Relaunch SimpleFences.exe
+  2. Force-close Spaces.exe (Task Manager or Ctrl+Shift+Esc)
+  3. Relaunch Spaces.exe
   4. Verify theme visually
 
 - **Verification:**
@@ -274,7 +274,7 @@ This document provides a comprehensive manual verification checklist for the Sim
 
 ### Scenario 6.1: Color Token Consistency
 - **Prerequisites:**
-  - Two machines or VM instances with SimpleFences
+  - Two machines or VM instances with Spaces
 
 - **Steps:**
   1. On Machine A: Apply "Aurora Light" theme
@@ -288,7 +288,7 @@ This document provides a comprehensive manual verification checklist for the Sim
   - One known-good theme package zip that matches the published authoring contract
 
 - **Steps:**
-  1. Launch SimpleFences.exe
+  1. Launch Spaces.exe
   2. Import the valid package
   3. Select the imported theme from the same appearance list used by built-in themes
   4. Apply and observe UI updates
@@ -304,7 +304,7 @@ This document provides a comprehensive manual verification checklist for the Sim
   - One intentionally invalid package (malformed metadata or invalid token values)
 
 - **Steps:**
-  1. Launch SimpleFences.exe
+  1. Launch Spaces.exe
   2. Attempt to import the invalid package
   3. Observe diagnostics and current UI state
 
@@ -422,7 +422,7 @@ This document provides a comprehensive manual verification checklist for the Sim
 
 ### Scenario 8.1: Atomic Theme Apply (No Partial Renders)
 - **Prerequisites:**
-  - App with visible fence windows
+  - App with visible Space windows
 
 - **Steps:**
   1. Apply theme change
@@ -448,7 +448,7 @@ This document provides a comprehensive manual verification checklist for the Sim
 
 ### Scenario 8.3: Theme Apply During Window Drag
 - **Steps:**
-  1. Start dragging a fence window
+  1. Start dragging a Space window
   2. While dragging, apply a theme change
   3. Complete the drag
 
@@ -463,7 +463,7 @@ This document provides a comprehensive manual verification checklist for the Sim
 
 ### Log Checks (all scenarios)
 After each major scenario:
-- [ ] Open `%LOCALAPPDATA%\SimpleFences\debug.log`
+- [ ] Open `%LOCALAPPDATA%\Spaces\debug.log`
 - [ ] Search for theme-related messages
   - [ ] Look for "migration" messages
   - [ ] Look for "theme" messages
@@ -530,14 +530,14 @@ After each major scenario:
 - `tape-lo-fi`
 
 ### Settings File Location
-`%LOCALAPPDATA%\SimpleFences\Fences\settings.json`
+`%LOCALAPPDATA%\Spaces\Spaces\settings.json`
 
 ### Debug Log Location
-`%LOCALAPPDATA%\SimpleFences\debug.log`
+`%LOCALAPPDATA%\Spaces\debug.log`
 
 ### Test Command (Unit Tests)
 ```powershell
-c:\Users\MrIvo\Github\IVOESimpleFences\build\Debug\HostCoreTests.exe
+c:\Users\MrIvo\Github\Spaces\build\Debug\HostCoreTests.exe
 ```
 
 ### Expected CTest Result

@@ -6,7 +6,7 @@
 enum class MenuSurface
 {
     Tray,
-    FenceContext,
+    SpaceContext,
     ItemContext,
     DesktopContext,
     SettingsNavigation

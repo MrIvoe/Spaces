@@ -1,11 +1,11 @@
 - [ ] Clarify Project Requirements
-  - Win32 C++ desktop organizer (SimpleFences)
+  - Win32 C++ desktop organizer (Spaces)
   - CMake build system
-  - Phase 1 feature set: basic fences, drag/drop, persistence
+  - Phase 1 feature set: basic Spaces, drag/drop, persistence
 
 - [x] Scaffold the Project
   - [x] Create source directory structure
-  - [x] Create header files (Models.h, FenceStorage.h, Persistence.h, FenceManager.h, FenceWindow.h, TrayMenu.h, App.h, Win32Helpers.h)
+  - [x] Create header files (Models.h, SpaceStorage.h, Persistence.h, SpaceManager.h, SpaceWindow.h, TrayMenu.h, App.h, Win32Helpers.h)
   - [x] Create implementation files (complete .cpp files)
   - [x] Create CMakeLists.txt
   - [x] Create README.md with build and run instructions
@@ -18,11 +18,11 @@
 
 - [x] Run and Test
   - [x] App launches and tray icon appears
-  - [x] Right-click tray → "New Fence" works
-  - [x] Fence can be created, moved, resized
-  - [x] Drag desktop files into fence
+  - [x] Right-click tray → "New Space" works
+  - [x] Space can be created, moved, resized
+  - [x] Drag desktop files into Space
   - [x] Files move to backing folder
-  - [x] Fence reloads on restart
+  - [x] Space reloads on restart
 
 - [x] Theme System Implementation
   - [x] Implement ThemeMigrationService (idempotent migration from legacy settings)
@@ -32,7 +32,7 @@
   - [x] Create THEME_SYSTEM_DESIGN.md architecture document
   - [x] Integrate migration into AppKernel startup
   - [x] Unit test migration service (4/4 tests passing)
-  - [x] Verify runtime behavior (SimpleFences.exe migration working)
+  - [x] Verify runtime behavior (Spaces.exe migration working)
   - [ ] Implement full theme package loader (.zip extraction)
   - [ ] Implement token resolution engine
   - [ ] Implement theme rendering pipeline

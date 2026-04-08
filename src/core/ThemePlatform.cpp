@@ -1,10 +1,12 @@
 #include "core/ThemePlatform.h"
 
 #include "core/SettingsStore.h"
+#include "core/UniversalThemeLoader.h"
 
 #include <nlohmann/json.hpp>
 
 #include <cwctype>
+#include <cstdlib>
 #include <fstream>
 #include <optional>
 #include <string>
@@ -179,10 +181,10 @@ namespace
             palette.subtleTextColor = RGB(118, 131, 144);
             palette.accentColor = RGB(83, 155, 245);
             palette.borderColor = RGB(68, 76, 86);
-            palette.fenceTitleBarColor = RGB(39, 45, 53);
-            palette.fenceTitleTextColor = RGB(199, 210, 223);
-            palette.fenceItemTextColor = RGB(173, 186, 199);
-            palette.fenceItemHoverColor = RGB(55, 63, 72);
+            palette.spaceTitleBarColor = RGB(39, 45, 53);
+            palette.spaceTitleTextColor = RGB(199, 210, 223);
+            palette.spaceItemTextColor = RGB(173, 186, 199);
+            palette.spaceItemHoverColor = RGB(55, 63, 72);
         }
         else
         {
@@ -193,10 +195,10 @@ namespace
             palette.subtleTextColor = RGB(87, 96, 106);
             palette.accentColor = RGB(9, 105, 218);
             palette.borderColor = RGB(208, 215, 222);
-            palette.fenceTitleBarColor = RGB(234, 238, 242);
-            palette.fenceTitleTextColor = RGB(31, 35, 40);
-            palette.fenceItemTextColor = RGB(36, 41, 47);
-            palette.fenceItemHoverColor = RGB(230, 236, 241);
+            palette.spaceTitleBarColor = RGB(234, 238, 242);
+            palette.spaceTitleTextColor = RGB(31, 35, 40);
+            palette.spaceItemTextColor = RGB(36, 41, 47);
+            palette.spaceItemHoverColor = RGB(230, 236, 241);
         }
 
         if (key == L"graphite-office") palette.accentColor = RGB(90, 113, 143);
@@ -220,9 +222,9 @@ namespace
         else if (key == L"sunset-retro") palette.accentColor = RGB(236, 129, 84);
         else if (key == L"tape-lo-fi") palette.accentColor = RGB(121, 112, 137);
 
-        palette.fenceTitleBarColor = BlendColor(palette.fenceTitleBarColor, palette.accentColor, dark ? 120 : 90);
+        palette.spaceTitleBarColor = BlendColor(palette.spaceTitleBarColor, palette.accentColor, dark ? 120 : 90);
         palette.borderColor = BlendColor(palette.borderColor, palette.accentColor, 72);
-        palette.fenceItemHoverColor = BlendColor(palette.fenceItemHoverColor, palette.accentColor, dark ? 55 : 40);
+        palette.spaceItemHoverColor = BlendColor(palette.spaceItemHoverColor, palette.accentColor, dark ? 55 : 40);
         return palette;
     }
 }
@@ -320,9 +322,9 @@ int ThemePlatform::GetTextScalePercent() const
     return textScale;
 }
 
-FencePolicyDefaults ThemePlatform::ResolveFencePolicyDefaults() const
+SpacePolicyDefaults ThemePlatform::ResolveSpacePolicyDefaults() const
 {
-    FencePolicyDefaults defaults;
+    SpacePolicyDefaults defaults;
     defaults.rollupWhenNotHovered = false;
     defaults.transparentWhenNotHovered = false;
     defaults.labelsOnHover = true;
@@ -344,10 +346,10 @@ ThemePalette ThemePlatform::BuildPaletteFor(ThemeMode mode, ThemeStyle style)
         palette.accentColor = RGB(88, 101, 242);
         palette.borderColor = RGB(72, 72, 72);
 
-        palette.fenceTitleBarColor = RGB(58, 58, 58);
-        palette.fenceTitleTextColor = RGB(239, 239, 239);
-        palette.fenceItemTextColor = RGB(210, 210, 210);
-        palette.fenceItemHoverColor = RGB(82, 82, 82);
+        palette.spaceTitleBarColor = RGB(58, 58, 58);
+        palette.spaceTitleTextColor = RGB(239, 239, 239);
+        palette.spaceItemTextColor = RGB(210, 210, 210);
+        palette.spaceItemHoverColor = RGB(82, 82, 82);
     }
     else
     {
@@ -359,14 +361,68 @@ ThemePalette ThemePlatform::BuildPaletteFor(ThemeMode mode, ThemeStyle style)
         palette.accentColor = RGB(78, 91, 242);
         palette.borderColor = RGB(205, 210, 218);
 
-        palette.fenceTitleBarColor = RGB(216, 226, 235);
-        palette.fenceTitleTextColor = RGB(30, 42, 54);
-        palette.fenceItemTextColor = RGB(43, 58, 72);
-        palette.fenceItemHoverColor = RGB(201, 219, 235);
+        palette.spaceTitleBarColor = RGB(216, 226, 235);
+        palette.spaceTitleTextColor = RGB(30, 42, 54);
+        palette.spaceItemTextColor = RGB(43, 58, 72);
+        palette.spaceItemHoverColor = RGB(201, 219, 235);
     }
 
     (void)style;
     return palette;
+}
+
+bool ThemePlatform::TryLoadUniversalTheme(std::shared_ptr<UniversalThemeData>& outTheme) const
+{
+    // First check if we have a cached theme
+    if (m_cachedTheme)
+    {
+        outTheme = m_cachedTheme;
+        return true;
+    }
+
+    if (!m_store)
+    {
+        return false;
+    }
+
+    // Try to determine the theme directory
+    // For now, check common location: %APPDATA%/SimpleSpaces/Spaces/themes/
+    // In a full implementation, this would be configurable
+    std::wstring themePath = m_store->Get(L"theme.custom.path", L"");
+    if (themePath.empty())
+    {
+        // Default to user's Custom theme folder
+        wchar_t* appData = nullptr;
+        size_t appDataLength = 0;
+        const errno_t envResult = _wdupenv_s(&appData, &appDataLength, L"APPDATA");
+        if (envResult == 0 && appData != nullptr && appDataLength > 0)
+        {
+            themePath = std::wstring(appData) + L"\\SimpleSpaces\\Spaces\\themes\\custom";
+            free(appData);
+        }
+        else
+        {
+            if (appData != nullptr)
+            {
+                free(appData);
+            }
+            return false;
+        }
+    }
+
+    // Attempt to load theme from directory
+    UniversalThemeData theme;
+    if (!UniversalThemeLoader::LoadFromDirectory(themePath, theme))
+    {
+        // Fallback to loading a built-in theme from application theme directory
+        // This would typically be in the exe directory or a resources path
+        return false;
+    }
+
+    // Cache the loaded theme
+    m_cachedTheme = std::make_shared<UniversalThemeData>(theme);
+    outTheme = m_cachedTheme;
+    return true;
 }
 
 ThemePalette ThemePlatform::BuildPalette() const
@@ -385,6 +441,39 @@ ThemePalette ThemePlatform::BuildPalette() const
         {
             forcedMode = ThemeMode::Light;
         }
+    }
+
+    // Try to load and apply universal theme semantic tokens
+    std::shared_ptr<UniversalThemeData> universalTheme;
+    if (TryLoadUniversalTheme(universalTheme))
+    {
+        ThemePalette palette;
+        
+        // Resolve all semantic tokens to actual colors
+        palette.windowColor = UniversalThemeLoader::ResolveSemanticColorRef(
+            *universalTheme, "core.window.background", RGB(24, 24, 24));
+        palette.surfaceColor = UniversalThemeLoader::ResolveSemanticColorRef(
+            *universalTheme, "core.surface.background", RGB(36, 36, 36));
+        palette.navColor = UniversalThemeLoader::ResolveSemanticColorRef(
+            *universalTheme, "core.nav.background", RGB(30, 30, 30));
+        palette.textColor = UniversalThemeLoader::ResolveSemanticColorRef(
+            *universalTheme, "core.text.primary", RGB(232, 232, 232));
+        palette.subtleTextColor = UniversalThemeLoader::ResolveSemanticColorRef(
+            *universalTheme, "core.text.secondary", RGB(180, 180, 180));
+        palette.accentColor = UniversalThemeLoader::ResolveSemanticColorRef(
+            *universalTheme, "core.ui.accent", RGB(88, 101, 242));
+        palette.borderColor = UniversalThemeLoader::ResolveSemanticColorRef(
+            *universalTheme, "core.border.default", RGB(72, 72, 72));
+        palette.spaceTitleBarColor = UniversalThemeLoader::ResolveSemanticColorRef(
+            *universalTheme, "space.titlebar.background", RGB(58, 58, 58));
+        palette.spaceTitleTextColor = UniversalThemeLoader::ResolveSemanticColorRef(
+            *universalTheme, "space.titlebar.text", RGB(239, 239, 239));
+        palette.spaceItemTextColor = UniversalThemeLoader::ResolveSemanticColorRef(
+            *universalTheme, "space.item.text", RGB(210, 210, 210));
+        palette.spaceItemHoverColor = UniversalThemeLoader::ResolveSemanticColorRef(
+            *universalTheme, "space.item.hover", RGB(82, 82, 82));
+
+        return palette;
     }
 
     ThemePalette palette = (style == ThemeStyle::Win32ThemeCatalog && m_store)
@@ -406,7 +495,7 @@ bool ThemePlatform::ExportCustomPreset(const std::wstring& filePath) const
         const ThemePalette palette = BuildPalette();
         nlohmann::json root;
         root["version"] = 1;
-        root["type"] = "simplefences.theme-preset";
+        root["type"] = "simplespaces.theme-preset";
         root["mode"] = WStringToUtf8(m_store->Get(L"appearance.theme.mode", L"system"));
         root["style"] = "custom";
         root["textScalePercent"] = GetTextScalePercent();
@@ -418,10 +507,10 @@ bool ThemePlatform::ExportCustomPreset(const std::wstring& filePath) const
             {"subtleText", WStringToUtf8(m_store->Get(L"appearance.theme.custom.subtle_text", ColorToHex(palette.subtleTextColor)))},
             {"accent", WStringToUtf8(m_store->Get(L"appearance.theme.custom.accent", ColorToHex(palette.accentColor)))},
             {"border", WStringToUtf8(m_store->Get(L"appearance.theme.custom.border", ColorToHex(palette.borderColor)))},
-            {"fenceTitleBar", WStringToUtf8(m_store->Get(L"appearance.theme.custom.fence_title_bar", ColorToHex(palette.fenceTitleBarColor)))},
-            {"fenceTitleText", WStringToUtf8(m_store->Get(L"appearance.theme.custom.fence_title_text", ColorToHex(palette.fenceTitleTextColor)))},
-            {"fenceItemText", WStringToUtf8(m_store->Get(L"appearance.theme.custom.fence_item_text", ColorToHex(palette.fenceItemTextColor)))},
-            {"fenceItemHover", WStringToUtf8(m_store->Get(L"appearance.theme.custom.fence_item_hover", ColorToHex(palette.fenceItemHoverColor)))}
+            {"spaceTitleBar", WStringToUtf8(m_store->Get(L"appearance.theme.custom.space_title_bar", ColorToHex(palette.spaceTitleBarColor)))},
+            {"spaceTitleText", WStringToUtf8(m_store->Get(L"appearance.theme.custom.space_title_text", ColorToHex(palette.spaceTitleTextColor)))},
+            {"spaceItemText", WStringToUtf8(m_store->Get(L"appearance.theme.custom.space_item_text", ColorToHex(palette.spaceItemTextColor)))},
+            {"spaceItemHover", WStringToUtf8(m_store->Get(L"appearance.theme.custom.space_item_hover", ColorToHex(palette.spaceItemHoverColor)))}
         };
 
         std::ofstream output(filePath);
@@ -486,10 +575,10 @@ bool ThemePlatform::ImportCustomPreset(const std::wstring& filePath) const
         importColor("subtleText", L"appearance.theme.custom.subtle_text");
         importColor("accent", L"appearance.theme.custom.accent");
         importColor("border", L"appearance.theme.custom.border");
-        importColor("fenceTitleBar", L"appearance.theme.custom.fence_title_bar");
-        importColor("fenceTitleText", L"appearance.theme.custom.fence_title_text");
-        importColor("fenceItemText", L"appearance.theme.custom.fence_item_text");
-        importColor("fenceItemHover", L"appearance.theme.custom.fence_item_hover");
+        importColor("spaceTitleBar", L"appearance.theme.custom.space_title_bar");
+        importColor("spaceTitleText", L"appearance.theme.custom.space_title_text");
+        importColor("spaceItemText", L"appearance.theme.custom.space_item_text");
+        importColor("spaceItemHover", L"appearance.theme.custom.space_item_hover");
 
         m_store->Set(L"appearance.theme.style", L"custom");
         return true;
@@ -502,7 +591,7 @@ bool ThemePlatform::ImportCustomPreset(const std::wstring& filePath) const
 
 UINT ThemePlatform::GetThemeChangedMessageId()
 {
-    static const UINT kThemeChanged = RegisterWindowMessageW(L"SimpleFences.ThemeChanged");
+    static const UINT kThemeChanged = RegisterWindowMessageW(L"SimpleSpaces.ThemeChanged");
     return kThemeChanged;
 }
 

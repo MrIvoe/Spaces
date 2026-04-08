@@ -69,10 +69,10 @@ The host exposes generic app operations to plugins through `IApplicationCommands
 
 As of plugin API `2`, plugins can query and refresh Space state without direct access to host internals:
 
-- `GetActiveFenceMetadata()`
-- `GetAllFenceIds()`
-- `GetFenceMetadata(fenceId)`
-- `RefreshFence(fenceId)`
+- `GetActiveSpaceMetadata()`
+- `GetAllSpaceIds()`
+- `GetSpaceMetadata(spaceId)`
+- `RefreshSpace(spaceId)`
 
 These APIs are intentionally general-purpose so multiple plugins can reuse them (organizers, rules plugins, diagnostics plugins) without adding host special cases.
 

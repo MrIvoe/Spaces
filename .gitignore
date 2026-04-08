@@ -1,4 +1,4 @@
-# IVOESimpleFences - generated/build artifacts
+# IVOESimpleSpaces - generated/build artifacts
 
 # CMake and build trees
 build/
@@ -42,7 +42,7 @@ TestResults/
 *.cache
 
 # Legacy in-repo build output locations
-IVOEFences/build-vs18/
+IVOESpaces/build-vs18/
 
 # OS
 Thumbs.db

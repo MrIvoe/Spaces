@@ -9,10 +9,10 @@ param(
 $ErrorActionPreference = "Stop"
 
 if ([string]::IsNullOrWhiteSpace($AppPath)) {
-    $AppPath = Join-Path $PSScriptRoot "build\\bin\\Debug\\SimpleFences.exe"
+    $AppPath = Join-Path $PSScriptRoot "build\\bin\\Debug\\SimpleSpaces.exe"
 }
 
-$logRoot = Join-Path $env:LOCALAPPDATA "SimpleFences"
+$logRoot = Join-Path $env:LOCALAPPDATA "SimpleSpaces"
 $logPath = Join-Path $logRoot "debug.log"
 
 if (-not (Test-Path $logRoot)) {
@@ -28,10 +28,10 @@ if (-not (Test-Path $logPath)) {
 }
 
 if ($StartApp) {
-    $running = Get-Process SimpleFences -ErrorAction SilentlyContinue
+    $running = Get-Process SimpleSpaces -ErrorAction SilentlyContinue
     if (-not $running) {
         if (-not (Test-Path $AppPath)) {
-            throw "SimpleFences executable not found at: $AppPath"
+            throw "SimpleSpaces executable not found at: $AppPath"
         }
         Start-Process -FilePath $AppPath | Out-Null
     }

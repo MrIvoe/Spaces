@@ -5,7 +5,7 @@
 #include <unordered_map>
 
 // Lightweight JSON-backed key/value store persisted to
-// %LOCALAPPDATA%\SimpleFences\settings.json.
+// %LOCALAPPDATA%\SimpleSpaces\settings.json.
 //
 // All values are stored as wstrings internally and serialised as UTF-8 JSON.
 // The store is loaded once on startup and saved on every Set() call.

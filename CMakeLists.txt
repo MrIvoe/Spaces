@@ -43,6 +43,8 @@ add_executable(Spaces WIN32
     src/core/ThemePackageLoader.cpp
     src/core/ThemeTokenResolver.h
     src/core/ThemeTokenResolver.cpp
+    src/core/UniversalThemeLoader.h
+    src/core/UniversalThemeLoader.cpp
     src/core/ThemeApplyPipeline.h
     src/core/ThemeApplyPipeline.cpp
     src/core/ThemePlatform.h
@@ -61,14 +63,14 @@ add_executable(Spaces WIN32
     src/extensions/SpaceExtensionRegistry.cpp
     src/plugins/builtins/BuiltinPlugins.h
     src/plugins/builtins/BuiltinPlugins.cpp
-    src/FenceStorage.h
-    src/FenceStorage.cpp
+    src/SpaceStorage.h
+    src/SpaceStorage.cpp
     src/Persistence.h
     src/Persistence.cpp
-    src/FenceManager.h
-    src/FenceManager.cpp
-    src/FenceWindow.h
-    src/FenceWindow.cpp
+    src/SpaceManager.h
+    src/SpaceManager.cpp
+    src/SpaceWindow.h
+    src/SpaceWindow.cpp
     src/TrayMenu.h
     src/TrayMenu.cpp
     src/Win32Helpers.h
@@ -135,6 +137,8 @@ add_executable(HostCoreTests
         src/core/ThemePackageLoader.cpp
         src/core/ThemeTokenResolver.h
         src/core/ThemeTokenResolver.cpp
+        src/core/UniversalThemeLoader.h
+        src/core/UniversalThemeLoader.cpp
         src/core/ThemeApplyPipeline.h
         src/core/ThemeApplyPipeline.cpp
     src/core/ThemePlatform.h
@@ -169,6 +173,8 @@ add_executable(HostCoreTests
         src/core/ThemePackageLoader.cpp
         src/core/ThemeTokenResolver.h
         src/core/ThemeTokenResolver.cpp
+        src/core/UniversalThemeLoader.h
+        src/core/UniversalThemeLoader.cpp
         src/core/ThemeApplyPipeline.h
         src/core/ThemeApplyPipeline.cpp
     src/Win32Helpers.h

@@ -21,7 +21,9 @@ public:
     const PluginRegistry& GetRegistry() const;
 
 private:
-    std::vector<std::unique_ptr<IPlugin>> m_plugins;
+    struct LoadedPlugin;
+
+    std::vector<std::unique_ptr<LoadedPlugin>> m_plugins;
     std::unordered_map<std::wstring, std::vector<std::wstring>> m_registeredPluginCommands;
     CommandDispatcher* m_commandDispatcher = nullptr;
     PluginRegistry m_registry;

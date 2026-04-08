@@ -1,6 +1,6 @@
 #include "TrayMenu.h"
 #include "App.h"
-#include "FenceManager.h"
+#include "SpaceManager.h"
 #include "Win32Helpers.h"
 #include "core/ThemePlatform.h"
 #include <shellapi.h>
@@ -27,10 +27,10 @@ void TrayMenu::RefreshTooltipText()
         return;
     }
 
-    std::wstring tooltip = L"SimpleFences";
-    if (m_app && m_app->GetFenceManager() && m_app->GetFenceManager()->AreAllFencesHidden())
+    std::wstring tooltip = L"SimpleSpaces";
+    if (m_app && m_app->GetSpaceManager() && m_app->GetSpaceManager()->AreAllSpacesHidden())
     {
-        tooltip = L"SimpleFences (hidden)";
+        tooltip = L"SimpleSpaces (hidden)";
     }
 
     lstrcpynW(m_nid.szTip, tooltip.c_str(), static_cast<int>(std::size(m_nid.szTip)));
@@ -44,7 +44,7 @@ bool TrayMenu::Create(HINSTANCE hInstance)
     // Create message-only window
     WNDCLASSW wc{};
     wc.lpfnWndProc = TrayMenu::WndProcStatic;
-    wc.lpszClassName = L"SimpleFences_TrayWindow";
+    wc.lpszClassName = L"SimpleSpaces_TrayWindow";
     wc.hInstance = hInstance;
 
     if (!RegisterClassW(&wc))
@@ -77,7 +77,7 @@ bool TrayMenu::Create(HINSTANCE hInstance)
     m_nid.uFlags = NIF_MESSAGE | NIF_TIP | NIF_ICON;
     m_nid.uCallbackMessage = WMAPP_TRAYICON;
     m_nid.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
-    lstrcpyW(m_nid.szTip, L"SimpleFences");
+    lstrcpyW(m_nid.szTip, L"SimpleSpaces");
 
     if (!Shell_NotifyIconW(NIM_ADD, &m_nid))
     {
@@ -222,9 +222,9 @@ LRESULT TrayMenu::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
         if (lParam == WM_LBUTTONDBLCLK)
         {
-            if (m_app && m_app->GetFenceManager())
+            if (m_app && m_app->GetSpaceManager())
             {
-                m_app->GetFenceManager()->ToggleAllFencesHidden();
+                m_app->GetSpaceManager()->ToggleAllSpacesHidden();
                 RefreshTooltipText();
             }
             return 0;

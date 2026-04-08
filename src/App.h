@@ -7,9 +7,9 @@
 #include "core/AppKernel.h"
 #include "extensions/PluginContracts.h"
 
-class FenceStorage;
+class SpaceStorage;
 class Persistence;
-class FenceManager;
+class SpaceManager;
 class TrayMenu;
 class SettingsWindow;
 class ThemePlatform;
@@ -24,9 +24,9 @@ public:
     int Run();
     void Exit();
 
-    std::wstring CreateFenceNearCursor();
-    std::wstring CreateFenceNearCursor(const FenceCreateRequest& request);
-    FenceManager* GetFenceManager() const;
+    std::wstring CreateSpaceNearCursor();
+    std::wstring CreateSpaceNearCursor(const SpaceCreateRequest& request);
+    SpaceManager* GetSpaceManager() const;
     bool ExecuteCommand(const std::wstring& commandId) const;
     bool ExecuteCommand(const std::wstring& commandId, const CommandContext& context) const;
     std::vector<TrayMenuEntry> GetTrayMenuEntries() const;
@@ -44,9 +44,9 @@ private:
     HINSTANCE m_hInstance = nullptr;
     bool m_shutdownStarted = false;
     HANDLE m_singleInstanceMutex = nullptr;
-    std::unique_ptr<FenceStorage> m_storage;
+    std::unique_ptr<SpaceStorage> m_storage;
     std::unique_ptr<Persistence> m_persistence;
-    std::unique_ptr<FenceManager> m_manager;
+    std::unique_ptr<SpaceManager> m_manager;
     std::unique_ptr<TrayMenu> m_tray;
     std::unique_ptr<AppKernel> m_kernel;
     std::unique_ptr<SettingsWindow> m_settingsWindow;

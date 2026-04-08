@@ -3,16 +3,16 @@
 #include <string>
 #include <vector>
 
-struct FenceItem
+struct SpaceItem
 {
     std::wstring name;
     std::wstring fullPath;
-    std::wstring originalPath;  // Where the file came from before being added to fence
+    std::wstring originalPath;  // Where the file came from before being added to space
     bool isDirectory = false;
     int iconIndex = 0;          // Index into system image list for small icons
 };
 
-struct FenceModel
+struct SpaceModel
 {
     std::wstring id;
     std::wstring title;
@@ -29,7 +29,7 @@ struct FenceModel
     std::wstring appearanceProfileId;
     std::wstring widgetLayoutId;
 
-    // Per-fence presentation controls.
+    // Per-space presentation controls.
     bool textOnlyMode = false;                  // false => icon-first desktop style
     bool rollupWhenNotHovered = false;
     bool transparentWhenNotHovered = false;

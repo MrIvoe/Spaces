@@ -12,6 +12,6 @@ struct PluginHubSyncResult
 namespace PluginHubSync
 {
     // Sync plugin-hub repository and mirror its plugins/* folders into
-    // %LOCALAPPDATA%\SimpleFences\plugins.
+    // %LOCALAPPDATA%\SimpleSpaces\plugins.
     PluginHubSyncResult SyncFromRepository(const std::wstring& repoUrl, const std::wstring& branch);
 }

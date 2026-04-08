@@ -4,7 +4,7 @@
 
 Import/export responsibilities remain host-owned for safety.
 
-- persisted settings and fence metadata are host-managed
+- persisted settings and Space metadata are host-managed
 - migration runs before first render when required
 - fallback behavior protects startup usability
 

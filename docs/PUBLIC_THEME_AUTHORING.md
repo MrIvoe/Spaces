@@ -1,4 +1,4 @@
-# Public Theme Authoring Guide for SimpleFences
+# Public Theme Authoring Guide for Spaces
 
 **Version**: 1.0.0  
 **Status**: Production  
@@ -6,14 +6,14 @@
 
 ## Overview
 
-SimpleFences now supports public theme authoring through a **stable, versioned, open contract**. Third-party authors can create and distribute custom themes without modifying the SimpleFences host code.
+Spaces now supports public theme authoring through a **stable, versioned, open contract**. Third-party authors can create and distribute custom themes without modifying the Spaces host code.
 
 ## Before You Start
 
 - **Compatibility**: Your theme package must target Win32ThemeSystem (the only valid system).
 - **Stability**: Once published, maintain backward compatibility. Themes are immutable once released.
 - **Validation**: Your theme will be validated against the contract before acceptance by users.
-- **Support**: Guidelines, examples, and feedback are available at https://github.com/MrIvoe/IVOESimpleFences.
+- **Support**: Guidelines, examples, and feedback are available at https://github.com/MrIvoe/Spaces.
 
 ## Theme Package Structure
 
@@ -43,7 +43,7 @@ Metadata about your theme. **Required.**
   "displayName": "My Custom Theme",
   "version": "1.0.0",
   "author": "Your Name",
-  "description": "A beautiful custom theme for SimpleFences.",
+  "description": "A beautiful custom theme for Spaces.",
   "website": "https://example.com",
   "tokenNamespace": "win32_theme_system",
   "minimumHostVersion": "1.0.0",
@@ -62,14 +62,14 @@ Metadata about your theme. **Required.**
 | `description` | string | No | Brief description. Max 500 chars. |
 | `website` | string | No | URL to your website or documentation. |
 | `tokenNamespace` | string | **Yes** | Must be `win32_theme_system`. No other values are valid. |
-| `minimumHostVersion` | string | No | Minimum SimpleFences version required. Defaults to `1.0.0` |
-| `maximumHostVersion` | string | No | Maximum SimpleFences version supported. Defaults to `99.0.0` |
+| `minimumHostVersion` | string | No | Minimum Spaces version required. Defaults to `1.0.0` |
+| `maximumHostVersion` | string | No | Maximum Spaces version supported. Defaults to `99.0.0` |
 
 ### File: theme/tokens/default.json
 
 The token map defining your theme colors. **Required.**
 
-This JSON maps semantic token names to hex color values. SimpleFences uses these tokens to render all UI surfaces.
+This JSON maps semantic token names to hex color values. Spaces uses these tokens to render all UI surfaces.
 
 **Minimal Example**:
 
@@ -82,16 +82,16 @@ This JSON maps semantic token names to hex color values. SimpleFences uses these
   "win32.base.subtle_text_color": "#8B9DC3",
   "win32.base.accent_color": "#5090F6",
   "win32.base.border_color": "#44484E",
-  "win32.fence.title_bar_color": "#272D35",
-  "win32.fence.title_text_color": "#C7D2DF",
-  "win32.fence.item_text_color": "#ADBAC7",
-  "win32.fence.item_hover_color": "#373F48"
+  "win32.Space.title_bar_color": "#272D35",
+  "win32.Space.title_text_color": "#C7D2DF",
+  "win32.Space.item_text_color": "#ADBAC7",
+  "win32.Space.item_hover_color": "#373F48"
 }
 ```
 
 **Full Token List**:
 
-All tokens in the `win32.*` namespace are recognized by SimpleFences:
+All tokens in the `win32.*` namespace are recognized by Spaces:
 
 ```
 win32.base.window_color          — Main app window background
@@ -102,10 +102,10 @@ win32.base.subtle_text_color     — Secondary/disabled text color
 win32.base.accent_color          — Highlight / focus color
 win32.base.border_color          — Divider / border color
 
-win32.fence.title_bar_color      — Fence title bar background
-win32.fence.title_text_color     — Fence title bar text
-win32.fence.item_text_color      — Fence item text color
-win32.fence.item_hover_color     — Fence item hover state background
+win32.Space.title_bar_color      — Space title bar background
+win32.Space.title_text_color     — Space title bar text
+win32.Space.item_text_color      — Space item text color
+win32.Space.item_hover_color     — Space item hover state background
 ```
 
 **Color Values**:
@@ -171,10 +171,10 @@ my-custom-theme---x      (consecutive hyphens, excess length)
 ## Distribution
 
 1. **Create your theme package** following the structure above.
-2. **Validate** your package: use SimpleFences' built-in validator or inspect manually.
+2. **Validate** your package: use Spaces' built-in validator or inspect manually.
 3. **Host distribution**: Publish your `.zip` file on your own server or GitHub Releases.
 4. **Document**: Provide installation instructions to users.
-5. **Install in SimpleFences**: Users download your `.zip` and use the built-in package installer.
+5. **Install in Spaces**: Users download your `.zip` and use the built-in package installer.
 
 ## Examples
 
@@ -201,10 +201,10 @@ my-custom-theme---x      (consecutive hyphens, excess length)
   "win32.base.subtle_text_color": "#8b95a5",
   "win32.base.accent_color": "#00d9ff",
   "win32.base.border_color": "#2a2f38",
-  "win32.fence.title_bar_color": "#1a1f28",
-  "win32.fence.title_text_color": "#ffffff",
-  "win32.fence.item_text_color": "#d0d5dd",
-  "win32.fence.item_hover_color": "#252d38"
+  "win32.Space.title_bar_color": "#1a1f28",
+  "win32.Space.title_text_color": "#ffffff",
+  "win32.Space.item_text_color": "#d0d5dd",
+  "win32.Space.item_hover_color": "#252d38"
 }
 ```
 
@@ -229,10 +229,10 @@ my-custom-theme---x      (consecutive hyphens, excess length)
   "win32.base.subtle_text_color": "#6b7280",
   "win32.base.accent_color": "#3b82f6",
   "win32.base.border_color": "#e5e7eb",
-  "win32.fence.title_bar_color": "#e5e7eb",
-  "win32.fence.title_text_color": "#1f2937",
-  "win32.fence.item_text_color": "#374151",
-  "win32.fence.item_hover_color": "#f3f4f6"
+  "win32.Space.title_bar_color": "#e5e7eb",
+  "win32.Space.title_text_color": "#1f2937",
+  "win32.Space.item_text_color": "#374151",
+  "win32.Space.item_hover_color": "#f3f4f6"
 }
 
 // theme/tokens/dark.json (override for dark mode, merged with default.json)
@@ -249,7 +249,7 @@ my-custom-theme---x      (consecutive hyphens, excess length)
 
 ### Automatic Validation
 
-SimpleFences validates all theme packages before applying:
+Spaces validates all theme packages before applying:
 
 1. **File integrity**: Archive is valid and readable.
 2. **Metadata completeness**: `theme-metadata.json` contains required fields.
@@ -282,7 +282,7 @@ Packages are rejected if they:
 
 ### Diagnostic Messages (Current Host)
 
-When validation fails, SimpleFences surfaces these concrete diagnostics:
+When validation fails, Spaces surfaces these concrete diagnostics:
 
 | Failure Path | Diagnostic Message |
 |-------|-------|
@@ -313,7 +313,7 @@ Notes for authors:
 ## Compatibility
 
 - **Windows versions**: Windows 10 (build 19041) +
-- **SimpleFences versions**: 1.0.0+ (always check `minimumHostVersion`/`maximumHostVersion`)
+- **Spaces versions**: 1.0.0+ (always check `minimumHostVersion`/`maximumHostVersion`)
 - **Token namespace**: Only `win32_theme_system` is valid now and in the foreseeable future.
 
 ## Support & Feedback
