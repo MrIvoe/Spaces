@@ -51,6 +51,10 @@ add_executable(Spaces WIN32
     src/core/ThemeApplyPipeline.cpp
     src/core/ThemePlatform.h
     src/core/ThemePlatform.cpp
+    src/core/PluginCatalogFetcher.h
+    src/core/PluginCatalogFetcher.cpp
+    src/core/PluginPackageInstaller.h
+    src/core/PluginPackageInstaller.cpp
     src/extensions/PluginContracts.h
     src/extensions/SettingsSchema.h
     src/extensions/PluginHost.h

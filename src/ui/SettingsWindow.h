@@ -36,7 +36,9 @@ private:
     struct PluginTab
     {
         std::wstring pluginId;
+        std::wstring iconKey;
         std::wstring iconGlyph;
+        std::wstring iconAsset;
         std::wstring title;
         std::vector<size_t> pageIndexes;
     };
@@ -54,6 +56,7 @@ private:
     void DestroyThemeBrushes();
     void DestroyFonts();
     void BuildPluginTabs(const std::vector<PluginStatusView>& plugins);
+    void ApplyWindowTranslucency();
     void PopulatePluginTabs();
     void ShowSelectedPluginTab();
     std::wstring BuildSelectedTabContent(size_t tabIndex) const;
@@ -61,10 +64,14 @@ private:
                                    const std::vector<PluginStatusView>& plugins) const;
     std::wstring ResolvePluginDisplayName(const std::wstring& pluginId,
                                           const std::vector<PluginStatusView>& plugins) const;
-    std::wstring ResolvePluginIcon(const PluginStatusView& plugin) const;
+    std::wstring ResolvePluginIconKey(const PluginStatusView& plugin) const;
 
     std::wstring BuildGeneralContent(const std::vector<PluginStatusView>& plugins) const;
     std::wstring BuildPluginsContent(const std::vector<PluginStatusView>& plugins) const;
+    std::wstring BuildMarketplaceDiscoverContent() const;
+    std::wstring BuildMarketplaceInstalledContent(const std::vector<PluginStatusView>& plugins) const;
+    std::wstring BuildMarketplaceUpdatesContent(const std::vector<PluginStatusView>& plugins) const;
+    std::wstring BuildMarketplaceDisabledContent(const std::vector<PluginStatusView>& plugins) const;
     std::wstring BuildDiagnosticsContent(const std::vector<PluginStatusView>& plugins) const;
     std::wstring BuildGenericPageContent(const SettingsPageView& page) const;
     std::wstring BuildPluginOverviewContent(const PluginStatusView& plugin) const;
@@ -77,6 +84,7 @@ private:
     void UpdateShellHeaderAndStatus(size_t tabIndex);
     std::wstring BuildTabHelpText(size_t tabIndex) const;
     void DrawNavItem(const DRAWITEMSTRUCT* drawInfo);
+    void DrawToggleControl(const DRAWITEMSTRUCT* drawInfo);
     static LRESULT CALLBACK NavListSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
                                                 UINT_PTR subclassId, DWORD_PTR refData);
     // Right-pane scroll panel

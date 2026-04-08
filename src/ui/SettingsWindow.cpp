@@ -1,6 +1,8 @@
 #include "ui/SettingsWindow.h"
 
+#include "core/PluginCatalogFetcher.h"
 #include "core/PluginHubSync.h"
+#include "core/PluginPackageInstaller.h"
 #include "core/ThemePackageLoader.h"
 #include "core/ThemePackageValidator.h"
 #include "core/ThemePlatform.h"
@@ -12,12 +14,16 @@
 #include <cwctype>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <sstream>
 #include <unordered_map>
 #include <nlohmann/json.hpp>
 #include <commctrl.h>
+#include <dwmapi.h>
 #include <windows.h>
 #include <windowsx.h>
+
+#pragma comment(lib, "Dwmapi.lib")
 
 namespace
 {
@@ -124,6 +130,105 @@ namespace
     {
         const std::wstring ext = ToLowerCopy(std::filesystem::path(filePath).extension().wstring());
         return ext == L".zip";
+    }
+
+    std::wstring ResolveDefaultCatalogSource()
+    {
+        wchar_t modulePath[MAX_PATH] = {};
+        if (GetModuleFileNameW(nullptr, modulePath, MAX_PATH) == 0)
+        {
+            return L"";
+        }
+
+        const std::filesystem::path exeDir = std::filesystem::path(modulePath).parent_path();
+        const std::filesystem::path sideBySide = exeDir / L"plugin-catalog.json";
+        if (std::filesystem::exists(sideBySide))
+        {
+            return sideBySide.wstring();
+        }
+
+        const std::filesystem::path assetsPath = exeDir / L"assets" / L"plugin-catalog.json";
+        if (std::filesystem::exists(assetsPath))
+        {
+            return assetsPath.wstring();
+        }
+
+        return L"";
+    }
+
+    std::wstring ResolveCatalogSource(const PluginSettingsRegistry* settingsRegistry)
+    {
+        if (settingsRegistry)
+        {
+            const std::wstring configured = settingsRegistry->GetValue(L"settings.plugins.catalog_url", L"");
+            if (!configured.empty())
+            {
+                return configured;
+            }
+        }
+
+        return ResolveDefaultCatalogSource();
+    }
+
+    std::wstring TruncateWithEllipsis(const std::wstring& text, size_t maxLength)
+    {
+        if (text.size() <= maxLength)
+        {
+            return text;
+        }
+        if (maxLength < 4)
+        {
+            return text.substr(0, maxLength);
+        }
+        return text.substr(0, maxLength - 3) + L"...";
+    }
+
+    bool MarketplaceEntryMatchesQuery(const PluginCatalog::PluginEntry& entry, const std::wstring& query)
+    {
+        if (query.empty())
+        {
+            return true;
+        }
+
+        const std::wstring q = ToLowerCopy(query);
+        if (ToLowerCopy(entry.id).find(q) != std::wstring::npos)
+        {
+            return true;
+        }
+        if (ToLowerCopy(entry.displayName).find(q) != std::wstring::npos)
+        {
+            return true;
+        }
+        if (ToLowerCopy(entry.description).find(q) != std::wstring::npos)
+        {
+            return true;
+        }
+        if (ToLowerCopy(entry.author).find(q) != std::wstring::npos)
+        {
+            return true;
+        }
+        if (ToLowerCopy(entry.category).find(q) != std::wstring::npos)
+        {
+            return true;
+        }
+
+        for (const auto& capability : entry.capabilities)
+        {
+            if (ToLowerCopy(capability).find(q) != std::wstring::npos)
+            {
+                return true;
+            }
+        }
+
+        for (const auto& tag : entry.tags)
+        {
+            if (ToLowerCopy(tag).find(q) != std::wstring::npos)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     std::string NarrowAscii(const std::wstring& text)
@@ -384,6 +489,7 @@ void SettingsWindow::RefreshTheme()
     m_windowBrush = CreateSolidBrush(m_windowColor);
     m_surfaceBrush = CreateSolidBrush(m_surfaceColor);
     m_navBrush = CreateSolidBrush(m_navColor);
+    ApplyWindowTranslucency();
 
     const int basePx = (20 * textScale) / 100;
     const int sectionPx = (24 * textScale) / 100;
@@ -449,6 +555,49 @@ void SettingsWindow::RefreshTheme()
     }
 }
 
+void SettingsWindow::ApplyWindowTranslucency()
+{
+    if (!m_hwnd)
+    {
+        return;
+    }
+
+    int opacityPercent = 94;
+    bool blurEnabled = true;
+    if (m_themePlatform)
+    {
+        opacityPercent = m_themePlatform->GetSettingsWindowOpacityPercent();
+        blurEnabled = m_themePlatform->IsSettingsWindowBlurEnabled();
+    }
+
+    LONG_PTR exStyle = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
+    
+    if (opacityPercent < 100)
+    {
+        if ((exStyle & WS_EX_LAYERED) == 0)
+        {
+            SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+        }
+
+        const BYTE alpha = static_cast<BYTE>((opacityPercent * 255) / 100);
+        SetLayeredWindowAttributes(m_hwnd, 0, alpha, LWA_ALPHA);
+    }
+    else
+    {
+        // At 100% opacity, fully remove layered window style for true solidity
+        if ((exStyle & WS_EX_LAYERED) != 0)
+        {
+            SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle & ~WS_EX_LAYERED);
+            SetWindowPos(m_hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+        }
+    }
+
+    DWM_BLURBEHIND bb{};
+    bb.dwFlags = DWM_BB_ENABLE;
+    bb.fEnable = blurEnabled ? TRUE : FALSE;
+    DwmEnableBlurBehindWindow(m_hwnd, &bb);
+}
+
 std::wstring SettingsWindow::ResolvePluginDisplayName(const std::wstring& pluginId, const std::vector<PluginStatusView>& plugins) const
 {
     for (const auto& plugin : plugins)
@@ -467,33 +616,54 @@ std::wstring SettingsWindow::ResolvePluginDisplayName(const std::wstring& plugin
     return pluginId;
 }
 
-std::wstring SettingsWindow::ResolvePluginIcon(const PluginStatusView& plugin) const
+std::wstring SettingsWindow::ResolvePluginIconKey(const PluginStatusView& plugin) const
 {
+    if (plugin.id == L"builtin.settings")
+    {
+        return L"plugins.builtin.settings";
+    }
+    if (plugin.id == L"builtin.tray")
+    {
+        return L"plugins.builtin.tray";
+    }
+    if (plugin.id == L"builtin.widgets")
+    {
+        return L"plugins.builtin.widgets";
+    }
+    if (plugin.id == L"builtin.explorer_portal")
+    {
+        return L"plugins.builtin.explorer_portal";
+    }
+    if (plugin.id == L"builtin.core_commands")
+    {
+        return L"plugins.builtin.core_commands";
+    }
+
     for (const auto& capability : plugin.capabilities)
     {
         if (capability == L"settings_pages")
         {
-            return L"\uE713";
+            return L"settings.general";
         }
         if (capability == L"appearance")
         {
-            return L"\uE790";
+            return L"settings.appearance";
         }
         if (capability == L"widgets")
         {
-            return L"\uE9CA";
+            return L"plugins.builtin.widgets";
         }
         if (capability == L"space_content_provider")
         {
-            return L"\uE8B7";
+            return L"plugins.builtin.explorer_portal";
         }
         if (capability == L"tray_contributions")
         {
-            return L"\uEA8F";
+            return L"plugins.builtin.tray";
         }
     }
 
-    return L"\uE943";
+    return L"plugins.generic";
 }
 
 void SettingsWindow::BuildPluginTabs(const std::vector<PluginStatusView>& plugins)
@@ -502,7 +672,17 @@ void SettingsWindow::BuildPluginTabs(const std::vector<PluginStatusView>& plugin
 
     PluginTab overview;
     overview.pluginId = L"__overview__";
-    overview.iconGlyph = L"\uE80F";
+    overview.iconKey = L"settings.overview";
+    if (m_themePlatform)
+    {
+        const ThemeIconMapping icon = m_themePlatform->ResolveIconMapping(overview.iconKey, L"\uE80F");
+        overview.iconGlyph = icon.glyph;
+        overview.iconAsset = icon.assetPack.empty() ? L"" : (icon.assetPack + L":" + icon.assetName);
+    }
+    else
+    {
+        overview.iconGlyph = L"\uE80F";
+    }
     overview.title = L"Overview";
     m_pluginTabs.push_back(std::move(overview));
 
@@ -513,7 +693,17 @@ void SettingsWindow::BuildPluginTabs(const std::vector<PluginStatusView>& plugin
     {
         PluginTab tab;
         tab.pluginId = plugin.id;
-        tab.iconGlyph = ResolvePluginIcon(plugin);
+        tab.iconKey = ResolvePluginIconKey(plugin);
+        if (m_themePlatform)
+        {
+            const ThemeIconMapping icon = m_themePlatform->ResolveIconMapping(tab.iconKey, L"\uE943");
+            tab.iconGlyph = icon.glyph;
+            tab.iconAsset = icon.assetPack.empty() ? L"" : (icon.assetPack + L":" + icon.assetName);
+        }
+        else
+        {
+            tab.iconGlyph = L"\uE943";
+        }
         tab.title = plugin.displayName.empty() ? plugin.id : plugin.displayName;
         byPlugin.emplace(tab.pluginId, m_pluginTabs.size());
         m_pluginTabs.push_back(std::move(tab));
@@ -527,7 +717,17 @@ void SettingsWindow::BuildPluginTabs(const std::vector<PluginStatusView>& plugin
         {
             PluginTab tab;
             tab.pluginId = page.pluginId;
-            tab.iconGlyph = L"\uE943";
+            tab.iconKey = L"plugins.generic";
+            if (m_themePlatform)
+            {
+                const ThemeIconMapping icon = m_themePlatform->ResolveIconMapping(tab.iconKey, L"\uE943");
+                tab.iconGlyph = icon.glyph;
+                tab.iconAsset = icon.assetPack.empty() ? L"" : (icon.assetPack + L":" + icon.assetName);
+            }
+            else
+            {
+                tab.iconGlyph = L"\uE943";
+            }
             tab.title = ResolvePluginDisplayName(page.pluginId, plugins);
             tab.pageIndexes.push_back(i);
             byPlugin.emplace(tab.pluginId, m_pluginTabs.size());
@@ -542,7 +742,17 @@ void SettingsWindow::BuildPluginTabs(const std::vector<PluginStatusView>& plugin
     {
         PluginTab fallback;
         fallback.pluginId = L"__overview__";
-        fallback.iconGlyph = L"\uE80F";
+        fallback.iconKey = L"settings.overview";
+        if (m_themePlatform)
+        {
+            const ThemeIconMapping icon = m_themePlatform->ResolveIconMapping(fallback.iconKey, L"\uE80F");
+            fallback.iconGlyph = icon.glyph;
+            fallback.iconAsset = icon.assetPack.empty() ? L"" : (icon.assetPack + L":" + icon.assetName);
+        }
+        else
+        {
+            fallback.iconGlyph = L"\uE80F";
+        }
         fallback.title = L"Overview";
         if (!m_pages.empty())
         {
@@ -788,6 +998,22 @@ std::vector<SettingsWindow::UiPage> SettingsWindow::BuildPages(
         {
             uiPage.content = BuildPluginsContent(plugins);
         }
+        else if (page.pageId == L"marketplace.discover")
+        {
+            uiPage.content = BuildMarketplaceDiscoverContent();
+        }
+        else if (page.pageId == L"marketplace.installed")
+        {
+            uiPage.content = BuildMarketplaceInstalledContent(plugins);
+        }
+        else if (page.pageId == L"marketplace.updates")
+        {
+            uiPage.content = BuildMarketplaceUpdatesContent(plugins);
+        }
+        else if (page.pageId == L"marketplace.disabled")
+        {
+            uiPage.content = BuildMarketplaceDisabledContent(plugins);
+        }
         else if (page.pageId == L"diagnostics")
         {
             uiPage.content = BuildDiagnosticsContent(plugins);
@@ -856,9 +1082,9 @@ std::wstring SettingsWindow::BuildGeneralContent(const std::vector<PluginStatusV
 std::wstring SettingsWindow::BuildPluginsContent(const std::vector<PluginStatusView>& plugins) const
 {
     std::wstring text;
-    text += L"Plugin Manager (Scaffold)\r\n\r\n";
-    text += L"Use the Plugin Hub controls above to sync plugins into %LOCALAPPDATA%\\SimpleSpaces\\plugins.\r\n\r\n";
-    text += L"Planned actions: install, enable/disable, update, reinstall, remove, open settings, open diagnostics, rollback.\r\n\r\n";
+    text += L"Plugin Manager\r\n\r\n";
+    text += L"Marketplace-first workflow is active. Use Marketplace tabs to discover and manage plugins.\r\n";
+    text += L"Plugin Hub git sync remains available as a developer fallback only.\r\n\r\n";
 
     const std::wstring statusFilter = m_settingsRegistry
         ? m_settingsRegistry->GetValue(L"settings.plugins.manager_filter_status", L"all")
@@ -923,6 +1149,256 @@ std::wstring SettingsWindow::BuildPluginsContent(const std::vector<PluginStatusV
     if (shown == 0)
     {
         text += L"No plugins matched the active filter.\r\n";
+    }
+
+    return text;
+}
+
+std::wstring SettingsWindow::BuildMarketplaceDiscoverContent() const
+{
+    std::wstring text;
+    text += L"Marketplace - Discover\r\n\r\n";
+
+    const bool enabled = !m_settingsRegistry ||
+        m_settingsRegistry->GetValue(L"settings.plugins.marketplace_enabled", L"true") == L"true";
+    if (!enabled)
+    {
+        text += L"Marketplace is currently disabled. Enable it in App and Updates settings.\r\n";
+        return text;
+    }
+
+    const std::wstring query = m_settingsRegistry
+        ? m_settingsRegistry->GetValue(L"settings.plugins.marketplace.search_query", L"")
+        : L"";
+    const std::wstring category = m_settingsRegistry
+        ? m_settingsRegistry->GetValue(L"settings.plugins.marketplace.category_filter", L"all")
+        : L"all";
+    const bool showIncompatible = m_settingsRegistry
+        ? (m_settingsRegistry->GetValue(L"settings.plugins.show_incompatible", L"false") == L"true")
+        : false;
+
+    const std::wstring source = ResolveCatalogSource(m_settingsRegistry);
+    if (source.empty())
+    {
+        text += L"No catalog source is configured. Set 'Plugin catalog URL' in App and Updates.\r\n";
+        return text;
+    }
+
+    PluginCatalog::CatalogFetcher fetcher;
+    if (!fetcher.FetchCatalog(source))
+    {
+        text += L"Failed to load catalog from: " + source + L"\r\n";
+        text += L"Error: " + fetcher.GetLastError() + L"\r\n";
+        return text;
+    }
+
+    text += L"Catalog source: " + source + L"\r\n";
+    text += L"Catalog version: " + fetcher.GetCatalog().catalogVersion + L"\r\n";
+    text += L"Filter: category='" + category + L"'";
+    if (!query.empty())
+    {
+        text += L", query='" + query + L"'";
+    }
+    text += L"\r\n\r\n";
+
+    int shown = 0;
+    for (const auto& entry : fetcher.GetCatalog().plugins)
+    {
+        const bool compatible = fetcher.IsPluginCompatible(entry);
+        if (!showIncompatible && !compatible)
+        {
+            continue;
+        }
+        if (category != L"all" && entry.category != category)
+        {
+            continue;
+        }
+        if (!MarketplaceEntryMatchesQuery(entry, query))
+        {
+            continue;
+        }
+
+        ++shown;
+        text += entry.displayName + L" (" + entry.id + L")\r\n";
+        text += L"Version: " + entry.version + L" | Author: " + entry.author + L" | Channel: " + entry.channel + L"\r\n";
+        text += L"Category: " + entry.category + L" | Compatibility: " + (compatible ? L"compatible" : L"incompatible") + L"\r\n";
+        text += L"Capabilities: " + JoinCapabilities(entry.capabilities) + L"\r\n";
+        if (!entry.description.empty())
+        {
+            text += L"Description: " + TruncateWithEllipsis(entry.description, 180) + L"\r\n";
+        }
+        text += L"\r\n";
+
+        if (shown >= 25)
+        {
+            text += L"Showing first 25 matching plugins. Refine search for more.\r\n";
+            break;
+        }
+    }
+
+    if (shown == 0)
+    {
+        text += L"No marketplace plugins matched the active filters.\r\n";
+    }
+
+    const std::wstring selectedId = m_settingsRegistry
+        ? m_settingsRegistry->GetValue(L"settings.plugins.marketplace.selected_plugin_id", L"")
+        : L"";
+    text += L"\r\nSelected plugin id: " + (selectedId.empty() ? L"(none)" : selectedId) + L"\r\n";
+    return text;
+}
+
+std::wstring SettingsWindow::BuildMarketplaceInstalledContent(const std::vector<PluginStatusView>& plugins) const
+{
+    std::wstring text;
+    text += L"Marketplace - Installed\r\n\r\n";
+
+    const std::wstring filter = m_settingsRegistry
+        ? m_settingsRegistry->GetValue(L"settings.plugins.marketplace.installed_filter", L"all")
+        : L"all";
+    text += L"Installed filter: " + filter + L"\r\n\r\n";
+
+    int shown = 0;
+    for (const auto& plugin : plugins)
+    {
+        const bool requiresRestart = !plugin.enabled || !plugin.loaded;
+        if (filter == L"enabled" && !plugin.enabled)
+        {
+            continue;
+        }
+        if (filter == L"disabled" && plugin.enabled)
+        {
+            continue;
+        }
+        if (filter == L"requires_restart" && !requiresRestart)
+        {
+            continue;
+        }
+
+        ++shown;
+        text += plugin.displayName + L" (" + plugin.id + L", v" + plugin.version + L")\r\n";
+        text += L"State: " + PluginStateText(plugin) + L"\r\n";
+        text += L"Compatibility: " + (plugin.compatibilityStatus.empty() ? L"unknown" : plugin.compatibilityStatus) + L"\r\n\r\n";
+    }
+
+    if (shown == 0)
+    {
+        text += L"No installed plugins matched the active filter.\r\n";
+    }
+
+    return text;
+}
+
+std::wstring SettingsWindow::BuildMarketplaceUpdatesContent(const std::vector<PluginStatusView>& plugins) const
+{
+    std::wstring text;
+    text += L"Marketplace - Updates\r\n\r\n";
+
+    const std::wstring source = ResolveCatalogSource(m_settingsRegistry);
+    if (source.empty())
+    {
+        text += L"No catalog source is configured.\r\n";
+        return text;
+    }
+
+    PluginCatalog::CatalogFetcher fetcher;
+    if (!fetcher.FetchCatalog(source))
+    {
+        text += L"Failed to load catalog from: " + source + L"\r\n";
+        text += L"Error: " + fetcher.GetLastError() + L"\r\n";
+        return text;
+    }
+
+    std::unordered_map<std::wstring, std::wstring> installedVersions;
+    for (const auto& plugin : plugins)
+    {
+        installedVersions[plugin.id] = plugin.version;
+    }
+
+    const std::wstring updateScope = m_settingsRegistry
+        ? m_settingsRegistry->GetValue(L"settings.plugins.marketplace.update_scope", L"selected")
+        : L"selected";
+    const std::wstring selectedId = m_settingsRegistry
+        ? m_settingsRegistry->GetValue(L"settings.plugins.marketplace.selected_plugin_id", L"")
+        : L"";
+
+    text += L"Update scope: " + updateScope + L"\r\n";
+    if (!selectedId.empty())
+    {
+        text += L"Selected plugin id: " + selectedId + L"\r\n";
+    }
+    text += L"\r\n";
+
+    int updates = 0;
+    for (const auto& entry : fetcher.GetCatalog().plugins)
+    {
+        const auto installedIt = installedVersions.find(entry.id);
+        if (installedIt == installedVersions.end())
+        {
+            continue;
+        }
+        if (updateScope == L"selected" && !selectedId.empty() && entry.id != selectedId)
+        {
+            continue;
+        }
+        if (!fetcher.IsPluginCompatible(entry))
+        {
+            continue;
+        }
+
+        const std::wstring installedVersion = installedIt->second;
+        if (installedVersion == entry.version)
+        {
+            continue;
+        }
+
+        ++updates;
+        text += entry.displayName + L" (" + entry.id + L")\r\n";
+        text += L"Installed: " + installedVersion + L" -> Available: " + entry.version + L"\r\n";
+        text += L"Restart required: " + std::wstring(entry.restartRequired ? L"yes" : L"no") + L"\r\n\r\n";
+    }
+
+    if (updates == 0)
+    {
+        text += L"No compatible updates are currently available.\r\n";
+    }
+
+    return text;
+}
+
+std::wstring SettingsWindow::BuildMarketplaceDisabledContent(const std::vector<PluginStatusView>& plugins) const
+{
+    std::wstring text;
+    text += L"Marketplace - Disabled\r\n\r\n";
+
+    const bool showReason = m_settingsRegistry
+        ? (m_settingsRegistry->GetValue(L"settings.plugins.marketplace.show_disabled_reason", L"true") == L"true")
+        : true;
+
+    int shown = 0;
+    for (const auto& plugin : plugins)
+    {
+        const bool isDisabled = !plugin.enabled;
+        const bool isIncompatible = plugin.compatibilityStatus == L"incompatible" || plugin.compatibilityStatus == L"rejected";
+        if (!isDisabled && !isIncompatible)
+        {
+            continue;
+        }
+
+        ++shown;
+        text += plugin.displayName + L" (" + plugin.id + L")\r\n";
+        text += L"State: " + PluginStateText(plugin) + L"\r\n";
+        text += L"Compatibility: " + (plugin.compatibilityStatus.empty() ? L"unknown" : plugin.compatibilityStatus) + L"\r\n";
+        if (showReason && !plugin.compatibilityReason.empty())
+        {
+            text += L"Reason: " + plugin.compatibilityReason + L"\r\n";
+        }
+        text += L"\r\n";
+    }
+
+    if (shown == 0)
+    {
+        text += L"No disabled or incompatible plugins detected.\r\n";
     }
 
     return text;
@@ -1567,12 +2043,23 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
 
     const HFONT hFont = m_baseFont ? m_baseFont : reinterpret_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
     const HFONT hHeaderFont = m_sectionFont ? m_sectionFont : hFont;
-    const int   rowH        = 34;
-    const int   rowGap      = 6;
-    const int   sectionGap  = 22;
+    int         rowH        = 34;
+    int         rowGap      = 6;
+    int         sectionGap  = 22;
+    int         toggleWidth = 62;
+    int         toggleHeight = 28;
     const int   labelWidth  = 280;
     const int   ctrlWidth   = 290;
     const int   ctrlGap     = 14;
+
+    if (m_themePlatform)
+    {
+        rowH = m_themePlatform->GetSettingsRowHeightPx();
+        rowGap = m_themePlatform->GetSettingsRowGapPx();
+        sectionGap = m_themePlatform->GetSettingsSectionGapPx();
+        toggleWidth = m_themePlatform->GetSettingsToggleWidthPx();
+        toggleHeight = m_themePlatform->GetSettingsToggleHeightPx();
+    }
 
     int y = topPad;
 
@@ -1660,11 +2147,13 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
                     ? m_settingsRegistry->GetValue(field.key, field.defaultValue)
                     : field.defaultValue;
                 const bool checked = (curVal == L"true");
+                const int normalizedToggleHeight = (std::min)(toggleHeight, rowH);
+                const int toggleY = y + ((rowH - normalizedToggleHeight) / 2);
 
                 hCtrl = CreateWindowExW(
                     0, L"BUTTON", L"",
-                    WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-                    ctrlX, y, ctrlWidth, rowH,
+                    WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX | BS_OWNERDRAW,
+                    ctrlX, toggleY, toggleWidth, normalizedToggleHeight,
                     m_rightScrollPanel,
                     reinterpret_cast<HMENU>(static_cast<INT_PTR>(ctrlId)),
                     GetModuleHandleW(nullptr), nullptr);
@@ -1777,6 +2266,8 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
 
         if (StartsWith(changedKey, L"appearance.theme.") ||
             changedKey == L"appearance.text.scale_percent" ||
+            StartsWith(changedKey, L"appearance.ui.") ||
+            StartsWith(changedKey, L"appearance.icons.") ||
             StartsWith(changedKey, L"theme.win32.") ||
             changedKey == L"theme.source")
         {
@@ -1882,6 +2373,388 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
                 }
 
                 m_settingsRegistry->SetValue(L"settings.plugins.manager_action", L"idle");
+                SendMessageW(hwndCtrl, CB_SETCURSEL, 0, 0);
+            }
+
+            if (info.key == L"settings.plugins.marketplace.action" && selectedValue != L"idle")
+            {
+                const auto resetEnumAction = [&](const std::wstring& keyToReset) {
+                    m_settingsRegistry->SetValue(keyToReset, L"idle");
+                    SendMessageW(hwndCtrl, CB_SETCURSEL, 0, 0);
+                };
+
+                const auto triggerPluginReload = [&]() {
+                    // Re-trigger watcher by toggling through idle.
+                    m_settingsRegistry->SetValue(L"settings.plugins.manager_action", L"idle");
+                    m_settingsRegistry->SetValue(L"settings.plugins.manager_action", L"apply_now");
+                };
+
+                const auto finishWithApplyDecision = [&](const std::wstring& operationText, bool restartRequired) {
+                    const bool applyOnRestart =
+                        m_settingsRegistry->GetValue(L"settings.plugins.apply_updates_on_restart", L"true") == L"true";
+                    if (restartRequired || applyOnRestart)
+                    {
+                        m_settingsRegistry->SetValue(L"settings.plugins.marketplace.pending_restart", L"true");
+                        m_settingsRegistry->SetValue(L"settings.plugins.marketplace.pending_restart_reason", operationText);
+                        MessageBoxW(
+                            m_hwnd,
+                            (operationText + L"\r\n\r\nThe change is queued for restart-safe apply.").c_str(),
+                            L"Marketplace",
+                            MB_OK | MB_ICONINFORMATION);
+                    }
+                    else
+                    {
+                        triggerPluginReload();
+                        MessageBoxW(
+                            m_hwnd,
+                            (operationText + L"\r\n\r\nPlugin host reload requested.").c_str(),
+                            L"Marketplace",
+                            MB_OK | MB_ICONINFORMATION);
+                    }
+                    ShowSelectedPluginTab();
+                };
+
+                const auto withCatalogEntry = [&](const std::wstring& pluginId,
+                                                  const std::function<void(const PluginCatalog::CatalogFetcher&, const PluginCatalog::PluginEntry&)>& action) {
+                    const std::wstring source = ResolveCatalogSource(m_settingsRegistry);
+                    PluginCatalog::CatalogFetcher fetcher;
+                    if (source.empty() || !fetcher.FetchCatalog(source))
+                    {
+                        Win32Helpers::ShowUserWarning(
+                            m_hwnd,
+                            L"Marketplace",
+                            source.empty()
+                                ? L"No plugin catalog source is configured."
+                                : (L"Failed to load catalog: " + fetcher.GetLastError()));
+                        return;
+                    }
+
+                    const PluginCatalog::PluginEntry* entry = fetcher.FindPlugin(pluginId);
+                    if (!entry)
+                    {
+                        Win32Helpers::ShowUserWarning(
+                            m_hwnd,
+                            L"Marketplace",
+                            L"Selected plugin id was not found in the current catalog.");
+                        return;
+                    }
+
+                    action(fetcher, *entry);
+                };
+
+                const auto installRoot = Win32Helpers::GetAppDataRoot() / L"plugins";
+                PluginPackage::PackageInstaller installer(installRoot);
+                const bool keepBackup =
+                    m_settingsRegistry->GetValue(L"settings.plugins.keep_backup_versions", L"true") == L"true";
+                const std::wstring targetId = m_settingsRegistry->GetValue(L"settings.plugins.marketplace.selected_plugin_id", L"");
+                const bool marketplaceEnabled =
+                    m_settingsRegistry->GetValue(L"settings.plugins.marketplace_enabled", L"true") == L"true";
+
+                auto runSinglePluginAction = [&](const std::wstring& actionValue,
+                                                const std::wstring& pluginId) {
+                    if (pluginId.empty())
+                    {
+                        Win32Helpers::ShowUserWarning(
+                            m_hwnd,
+                            L"Marketplace Action",
+                            L"Enter a plugin id in 'Selected plugin id' before running a marketplace action.");
+                        return;
+                    }
+
+                    if (actionValue == L"enable" || actionValue == L"enable_selected")
+                    {
+                        m_settingsRegistry->SetValue(L"settings.plugins.enable." + pluginId, L"true");
+                        finishWithApplyDecision(L"Plugin enable override saved for '" + pluginId + L"'.", false);
+                        return;
+                    }
+
+                    if (actionValue == L"disable" || actionValue == L"disable_selected")
+                    {
+                        m_settingsRegistry->SetValue(L"settings.plugins.enable." + pluginId, L"false");
+                        finishWithApplyDecision(L"Plugin disable override saved for '" + pluginId + L"'.", false);
+                        return;
+                    }
+
+                    if (actionValue == L"uninstall" || actionValue == L"uninstall_selected")
+                    {
+                        if (!installer.Uninstall(pluginId))
+                        {
+                            Win32Helpers::ShowUserWarning(
+                                m_hwnd,
+                                L"Marketplace Uninstall Failed",
+                                installer.GetLastError().empty() ? L"Uninstall failed." : installer.GetLastError());
+                            return;
+                        }
+
+                        // Clear startup override by setting empty value.
+                        m_settingsRegistry->SetValue(L"settings.plugins.enable." + pluginId, L"");
+                        finishWithApplyDecision(L"Plugin '" + pluginId + L"' was uninstalled.", true);
+                        return;
+                    }
+
+                    if (actionValue == L"view_details")
+                    {
+                        withCatalogEntry(pluginId, [&](const PluginCatalog::CatalogFetcher&, const PluginCatalog::PluginEntry& entry) {
+                            std::wstring details;
+                            details += entry.displayName + L" (" + entry.id + L")\r\n";
+                            details += L"Version: " + entry.version + L"\r\n";
+                            details += L"Author: " + entry.author + L"\r\n";
+                            details += L"Category: " + entry.category + L"\r\n";
+                            details += L"Channel: " + entry.channel + L"\r\n";
+                            details += L"Restart required: " + std::wstring(entry.restartRequired ? L"yes" : L"no") + L"\r\n";
+                            details += L"Capabilities: " + JoinCapabilities(entry.capabilities) + L"\r\n\r\n";
+                            details += entry.description.empty() ? L"No description provided." : entry.description;
+                            MessageBoxW(m_hwnd, details.c_str(), L"Marketplace Plugin Details", MB_OK | MB_ICONINFORMATION);
+                        });
+                        return;
+                    }
+
+                    if (actionValue == L"install" || actionValue == L"update" || actionValue == L"update_now")
+                    {
+                        withCatalogEntry(pluginId, [&](const PluginCatalog::CatalogFetcher& fetcher, const PluginCatalog::PluginEntry& entry) {
+                            if (!fetcher.IsPluginCompatible(entry))
+                            {
+                                Win32Helpers::ShowUserWarning(
+                                    m_hwnd,
+                                    L"Marketplace",
+                                    L"Selected plugin is not compatible with this host/API version.");
+                                return;
+                            }
+
+                            PluginPackage::InstallStatus status = PluginPackage::InstallStatus::InstallFailed;
+                            if (actionValue == L"install")
+                            {
+                                status = installer.InstallFromUrl(entry.id, entry.downloadUrl, entry.hash);
+                            }
+                            else
+                            {
+                                status = installer.UpdateFromUrl(entry.id, entry.downloadUrl, entry.hash, keepBackup);
+                            }
+
+                            if (status != PluginPackage::InstallStatus::Success)
+                            {
+                                Win32Helpers::ShowUserWarning(
+                                    m_hwnd,
+                                    L"Marketplace Package Operation Failed",
+                                    installer.GetLastError().empty() ? L"Package operation failed." : installer.GetLastError());
+                                return;
+                            }
+
+                            const std::wstring opName = (actionValue == L"install") ? L"installed" : L"updated";
+                            const std::wstring opText =
+                                L"Plugin '" + entry.id + L"' was " + opName +
+                                L" from the marketplace package.";
+                            finishWithApplyDecision(opText, entry.restartRequired);
+                        });
+                        return;
+                    }
+
+                    Win32Helpers::ShowUserWarning(
+                        m_hwnd,
+                        L"Marketplace Action",
+                        L"Unsupported marketplace action.");
+                };
+
+                if (!marketplaceEnabled)
+                {
+                    Win32Helpers::ShowUserWarning(
+                        m_hwnd,
+                        L"Marketplace Disabled",
+                        L"Enable plugin marketplace in App and Updates before running marketplace actions.");
+                    resetEnumAction(L"settings.plugins.marketplace.action");
+                    return;
+                }
+
+                runSinglePluginAction(selectedValue, targetId);
+                resetEnumAction(L"settings.plugins.marketplace.action");
+            }
+
+            if (info.key == L"settings.plugins.marketplace.installed_action" && selectedValue != L"idle")
+            {
+                const std::wstring targetId = m_settingsRegistry->GetValue(L"settings.plugins.marketplace.selected_plugin_id", L"");
+                PluginPackage::PackageInstaller installer(Win32Helpers::GetAppDataRoot() / L"plugins");
+                if (selectedValue == L"apply_now")
+                {
+                    m_settingsRegistry->SetValue(L"settings.plugins.manager_action", L"idle");
+                    m_settingsRegistry->SetValue(L"settings.plugins.manager_action", L"apply_now");
+                    MessageBoxW(
+                        m_hwnd,
+                        L"Plugin host reload requested.",
+                        L"Marketplace Installed",
+                        MB_OK | MB_ICONINFORMATION);
+                    ShowSelectedPluginTab();
+                }
+                else
+                {
+                    if (targetId.empty())
+                    {
+                        Win32Helpers::ShowUserWarning(
+                            m_hwnd,
+                            L"Marketplace Installed",
+                            L"Enter a plugin id in 'Selected plugin id' before running installed actions.");
+                    }
+                    else if (selectedValue == L"enable_selected" || selectedValue == L"disable_selected")
+                    {
+                        m_settingsRegistry->SetValue(
+                            L"settings.plugins.enable." + targetId,
+                            selectedValue == L"enable_selected" ? L"true" : L"false");
+                        m_settingsRegistry->SetValue(L"settings.plugins.manager_action", L"idle");
+                        m_settingsRegistry->SetValue(L"settings.plugins.manager_action", L"apply_now");
+                        MessageBoxW(
+                            m_hwnd,
+                            L"Plugin startup override saved. Plugin host reload requested.",
+                            L"Marketplace Installed",
+                            MB_OK | MB_ICONINFORMATION);
+                        ShowSelectedPluginTab();
+                    }
+                    else if (selectedValue == L"uninstall_selected")
+                    {
+                        if (!installer.Uninstall(targetId))
+                        {
+                            Win32Helpers::ShowUserWarning(
+                                m_hwnd,
+                                L"Marketplace Uninstall Failed",
+                                installer.GetLastError().empty() ? L"Uninstall failed." : installer.GetLastError());
+                        }
+                        else
+                        {
+                            m_settingsRegistry->SetValue(L"settings.plugins.enable." + targetId, L"");
+                            m_settingsRegistry->SetValue(L"settings.plugins.marketplace.pending_restart", L"true");
+                            m_settingsRegistry->SetValue(
+                                L"settings.plugins.marketplace.pending_restart_reason",
+                                L"Plugin '" + targetId + L"' was uninstalled.");
+                            MessageBoxW(
+                                m_hwnd,
+                                L"Plugin was uninstalled. Restart to complete restart-safe apply.",
+                                L"Marketplace Installed",
+                                MB_OK | MB_ICONINFORMATION);
+                            ShowSelectedPluginTab();
+                        }
+                    }
+                }
+
+                m_settingsRegistry->SetValue(L"settings.plugins.marketplace.installed_action", L"idle");
+                SendMessageW(hwndCtrl, CB_SETCURSEL, 0, 0);
+            }
+
+            if (info.key == L"settings.plugins.marketplace.updates_action" && selectedValue != L"idle")
+            {
+                const std::wstring source = ResolveCatalogSource(m_settingsRegistry);
+                const std::wstring updateScope = m_settingsRegistry->GetValue(L"settings.plugins.marketplace.update_scope", L"selected");
+                const std::wstring selectedId = m_settingsRegistry->GetValue(L"settings.plugins.marketplace.selected_plugin_id", L"");
+                const bool keepBackup =
+                    m_settingsRegistry->GetValue(L"settings.plugins.keep_backup_versions", L"true") == L"true";
+                const bool applyOnRestart =
+                    m_settingsRegistry->GetValue(L"settings.plugins.apply_updates_on_restart", L"true") == L"true";
+
+                if (selectedValue == L"apply_now")
+                {
+                    m_settingsRegistry->SetValue(L"settings.plugins.manager_action", L"idle");
+                    m_settingsRegistry->SetValue(L"settings.plugins.manager_action", L"apply_now");
+                    MessageBoxW(
+                        m_hwnd,
+                        L"Plugin host reload requested.",
+                        L"Marketplace Updates",
+                        MB_OK | MB_ICONINFORMATION);
+                    m_settingsRegistry->SetValue(L"settings.plugins.marketplace.updates_action", L"idle");
+                    SendMessageW(hwndCtrl, CB_SETCURSEL, 0, 0);
+                    ShowSelectedPluginTab();
+                    return;
+                }
+
+                PluginCatalog::CatalogFetcher fetcher;
+                if (source.empty() || !fetcher.FetchCatalog(source))
+                {
+                    Win32Helpers::ShowUserWarning(
+                        m_hwnd,
+                        L"Marketplace Updates",
+                        source.empty() ? L"No plugin catalog source is configured."
+                                       : (L"Failed to load catalog: " + fetcher.GetLastError()));
+                    m_settingsRegistry->SetValue(L"settings.plugins.marketplace.updates_action", L"idle");
+                    SendMessageW(hwndCtrl, CB_SETCURSEL, 0, 0);
+                    return;
+                }
+
+                std::unordered_map<std::wstring, std::wstring> installedVersions;
+                for (const auto& plugin : m_plugins)
+                {
+                    installedVersions[plugin.id] = plugin.version;
+                }
+
+                PluginPackage::PackageInstaller installer(Win32Helpers::GetAppDataRoot() / L"plugins");
+                int updated = 0;
+                bool anyRestartRequired = false;
+                std::wstring firstError;
+
+                for (const auto& entry : fetcher.GetCatalog().plugins)
+                {
+                    const auto installedIt = installedVersions.find(entry.id);
+                    if (installedIt == installedVersions.end())
+                    {
+                        continue;
+                    }
+                    if (updateScope == L"selected" && !selectedId.empty() && entry.id != selectedId)
+                    {
+                        continue;
+                    }
+                    if (!fetcher.IsPluginCompatible(entry))
+                    {
+                        continue;
+                    }
+                    if (installedIt->second == entry.version)
+                    {
+                        continue;
+                    }
+
+                    const auto status = installer.UpdateFromUrl(entry.id, entry.downloadUrl, entry.hash, keepBackup);
+                    if (status != PluginPackage::InstallStatus::Success)
+                    {
+                        if (firstError.empty())
+                        {
+                            firstError = installer.GetLastError();
+                        }
+                        continue;
+                    }
+
+                    ++updated;
+                    anyRestartRequired = anyRestartRequired || entry.restartRequired;
+                }
+
+                if (updated == 0)
+                {
+                    Win32Helpers::ShowUserWarning(
+                        m_hwnd,
+                        L"Marketplace Updates",
+                        firstError.empty() ? L"No plugin updates were applied." : firstError);
+                }
+                else
+                {
+                    if (applyOnRestart || anyRestartRequired)
+                    {
+                        m_settingsRegistry->SetValue(L"settings.plugins.marketplace.pending_restart", L"true");
+                        m_settingsRegistry->SetValue(
+                            L"settings.plugins.marketplace.pending_restart_reason",
+                            L"Updated " + std::to_wstring(updated) + L" plugin(s). Restart required for safe apply.");
+                        MessageBoxW(
+                            m_hwnd,
+                            (L"Updated " + std::to_wstring(updated) + L" plugin(s).\r\n\r\nChanges are queued for restart-safe apply.").c_str(),
+                            L"Marketplace Updates",
+                            MB_OK | MB_ICONINFORMATION);
+                    }
+                    else
+                    {
+                        m_settingsRegistry->SetValue(L"settings.plugins.manager_action", L"idle");
+                        m_settingsRegistry->SetValue(L"settings.plugins.manager_action", L"apply_now");
+                        MessageBoxW(
+                            m_hwnd,
+                            (L"Updated " + std::to_wstring(updated) + L" plugin(s). Plugin host reload requested.").c_str(),
+                            L"Marketplace Updates",
+                            MB_OK | MB_ICONINFORMATION);
+                    }
+                    ShowSelectedPluginTab();
+                }
+
+                m_settingsRegistry->SetValue(L"settings.plugins.marketplace.updates_action", L"idle");
                 SendMessageW(hwndCtrl, CB_SETCURSEL, 0, 0);
             }
 
@@ -2004,6 +2877,88 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
     }
 }
 
+void SettingsWindow::DrawToggleControl(const DRAWITEMSTRUCT* drawInfo)
+{
+    if (!drawInfo || !drawInfo->hwndItem)
+    {
+        return;
+    }
+
+    HDC hdc = drawInfo->hDC;
+    RECT rc = drawInfo->rcItem;
+
+    const bool checked = (SendMessageW(drawInfo->hwndItem, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    const bool focused = (drawInfo->itemState & ODS_FOCUS) != 0;
+    const bool pressed = (drawInfo->itemState & ODS_SELECTED) != 0;
+    const bool disabled = (drawInfo->itemState & ODS_DISABLED) != 0;
+
+    HBRUSH backgroundBrush = CreateSolidBrush(m_surfaceColor);
+    FillRect(hdc, &rc, backgroundBrush);
+    DeleteObject(backgroundBrush);
+
+    const int width = rc.right - rc.left;
+    const int height = rc.bottom - rc.top;
+    const int trackWidth = min(50, max(40, width - 4));
+    const int trackHeight = min(28, max(18, height - 6));
+
+    RECT track{};
+    track.left = rc.left + ((width - trackWidth) / 2);
+    track.top = rc.top + ((height - trackHeight) / 2);
+    track.right = track.left + trackWidth;
+    track.bottom = track.top + trackHeight;
+
+    COLORREF trackColor = checked
+        ? BlendColor(m_accentColor, RGB(255, 255, 255), pressed ? 14 : 0)
+        : BlendColor(m_surfaceColor, m_textColor, 38);
+    if (disabled)
+    {
+        trackColor = BlendColor(m_surfaceColor, trackColor, 110);
+    }
+
+    HPEN borderPen = CreatePen(PS_SOLID, 1, BlendColor(trackColor, m_textColor, 28));
+    HBRUSH trackBrush = CreateSolidBrush(trackColor);
+    HGDIOBJ oldPen = SelectObject(hdc, borderPen);
+    HGDIOBJ oldBrush = SelectObject(hdc, trackBrush);
+    RoundRect(hdc, track.left, track.top, track.right, track.bottom, trackHeight, trackHeight);
+    SelectObject(hdc, oldBrush);
+    SelectObject(hdc, oldPen);
+    DeleteObject(trackBrush);
+    DeleteObject(borderPen);
+
+    const int knobSize = trackHeight - 6;
+    int knobLeft = checked ? (track.right - knobSize - 3) : (track.left + 3);
+    if (pressed)
+    {
+        knobLeft += checked ? -1 : 1;
+    }
+
+    RECT knob{};
+    knob.left = knobLeft;
+    knob.top = track.top + 3;
+    knob.right = knob.left + knobSize;
+    knob.bottom = knob.top + knobSize;
+
+    COLORREF knobColor = disabled
+        ? BlendColor(m_surfaceColor, RGB(255, 255, 255), 160)
+        : RGB(255, 255, 255);
+    HBRUSH knobBrush = CreateSolidBrush(knobColor);
+    HPEN knobPen = CreatePen(PS_SOLID, 1, BlendColor(knobColor, RGB(0, 0, 0), 25));
+    oldPen = SelectObject(hdc, knobPen);
+    oldBrush = SelectObject(hdc, knobBrush);
+    Ellipse(hdc, knob.left, knob.top, knob.right, knob.bottom);
+    SelectObject(hdc, oldBrush);
+    SelectObject(hdc, oldPen);
+    DeleteObject(knobBrush);
+    DeleteObject(knobPen);
+
+    if (focused)
+    {
+        RECT focusRc = track;
+        InflateRect(&focusRc, 2, 2);
+        DrawFocusRect(hdc, &focusRc);
+    }
+}
+
 LRESULT CALLBACK SettingsWindow::WndProcStatic(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     SettingsWindow* self = nullptr;
@@ -2029,6 +2984,13 @@ LRESULT CALLBACK SettingsWindow::WndProcStatic(HWND hwnd, UINT msg, WPARAM wPara
 
 LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+    if (msg == ThemePlatform::GetThemeChangedMessageId())
+    {
+        RefreshTheme();
+        ShowSelectedPluginTab();
+        return 0;
+    }
+
     switch (msg)
     {
     case WM_CREATE:
@@ -2386,6 +3348,15 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         {
             DrawNavItem(drawInfo);
             return TRUE;
+        }
+        if (drawInfo && drawInfo->CtlType == ODT_BUTTON)
+        {
+            const auto it = m_controlFieldMap.find(static_cast<int>(drawInfo->CtlID));
+            if (it != m_controlFieldMap.end() && it->second.type == SettingsFieldType::Bool)
+            {
+                DrawToggleControl(drawInfo);
+                return TRUE;
+            }
         }
         break;
     }

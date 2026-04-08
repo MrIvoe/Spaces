@@ -416,31 +416,31 @@ public:
         pluginsPage.fields = {
             SettingsFieldDescriptor{
                 L"settings.plugins.hub_repo_url",
-                L"Plugin hub repository URL",
-                L"Git repository used to download plugin folders.",
+                L"Plugin hub repository URL (developer fallback)",
+                L"Optional git-based sync source for development workflows. Marketplace is the default end-user path.",
                 SettingsFieldType::String,
                 L"https://github.com/MrIvoe/Simple-Spaces-Plugins.git",
                 {},
-                10},
+                80},
             SettingsFieldDescriptor{
                 L"settings.plugins.hub_branch",
-                L"Plugin hub branch",
-                L"Branch to pull plugin updates from.",
+                L"Plugin hub branch (developer fallback)",
+                L"Branch used by git sync fallback mode.",
                 SettingsFieldType::String,
                 L"main",
                 {},
-                20},
+                90},
             SettingsFieldDescriptor{
                 L"settings.plugins.hub_action",
-                L"Plugin hub action",
-                L"Select 'Sync now' to pull from the repo and copy into the local plugins folder.",
+                L"Plugin hub action (developer fallback)",
+                L"Use only for development fallback. End users should use Marketplace pages.",
                 SettingsFieldType::Enum,
                 L"idle",
                 {
                     SettingsEnumOption{L"idle", L"Idle"},
                     SettingsEnumOption{L"sync_now", L"Sync now"}
                 },
-                30},
+                100},
             SettingsFieldDescriptor{
                 L"settings.plugins.manager_filter_status",
                 L"Plugin manager status filter",
@@ -489,12 +489,13 @@ public:
 
         context.settingsRegistry->RegisterPage(PluginSettingsPage{L"builtin.settings", L"diagnostics", L"Diagnostics", 30});
 
-        PluginSettingsPage appearancePage;
-        appearancePage.pluginId = L"builtin.settings";
-        appearancePage.pageId = L"appearance";
-        appearancePage.title = L"Appearance";
-        appearancePage.order = 40;
-        appearancePage.fields = {
+        // === Appearance: Core Theme Settings ===
+        PluginSettingsPage appearanceCorePage;
+        appearanceCorePage.pluginId = L"builtin.settings";
+        appearanceCorePage.pageId = L"appearance.core";
+        appearanceCorePage.title = L"Appearance";
+        appearanceCorePage.order = 40;
+        appearanceCorePage.fields = {
             SettingsFieldDescriptor{
                 L"appearance.theme.mode",
                 L"Theme mode",
@@ -572,7 +573,194 @@ public:
                 {},
                 80}
         };
-        context.settingsRegistry->RegisterPage(std::move(appearancePage));
+        context.settingsRegistry->RegisterPage(std::move(appearanceCorePage));
+
+        // === Appearance: Transparency & Opacity ===
+        PluginSettingsPage appearanceTransparencyPage;
+        appearanceTransparencyPage.pluginId = L"builtin.settings";
+        appearanceTransparencyPage.pageId = L"appearance.transparency";
+        appearanceTransparencyPage.title = L"Transparency";
+        appearanceTransparencyPage.order = 41;
+        appearanceTransparencyPage.fields = {
+            SettingsFieldDescriptor{
+                L"appearance.ui.settings_window_opacity_percent",
+                L"Settings window opacity (%)",
+                L"Translucency level for settings shell background (5-100). Set to 100 for fully solid, 99 for first slight transparency.",
+                SettingsFieldType::Int,
+                L"94",
+                {},
+                10},
+            SettingsFieldDescriptor{
+                L"appearance.ui.settings_window_blur_enabled",
+                L"Settings backdrop blur",
+                L"Enable acrylic-like blur effect behind the translucent settings window.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                20},
+            SettingsFieldDescriptor{
+                L"appearance.ui.space_titlebar_opacity_percent",
+                L"Space title bar opacity (%)",
+                L"Translucency level for space title bars (5-100). Set to 100 for fully solid.",
+                SettingsFieldType::Int,
+                L"88",
+                {},
+                30},
+            SettingsFieldDescriptor{
+                L"appearance.ui.space_idle_opacity_percent",
+                L"Space idle opacity (%)",
+                L"Opacity when space is transparent and not hovered (5-100). Set to 100 for fully solid.",
+                SettingsFieldType::Int,
+                L"84",
+                {},
+                40}
+        };
+        context.settingsRegistry->RegisterPage(std::move(appearanceTransparencyPage));
+
+        // === Appearance: Layout & Sizing ===
+        PluginSettingsPage appearanceLayoutPage;
+        appearanceLayoutPage.pluginId = L"builtin.settings";
+        appearanceLayoutPage.pageId = L"appearance.layout";
+        appearanceLayoutPage.title = L"Layout & Sizing";
+        appearanceLayoutPage.order = 42;
+        appearanceLayoutPage.fields = {
+            SettingsFieldDescriptor{
+                L"appearance.ui.settings_row_height_px",
+                L"Settings row height",
+                L"Height of each settings row in pixels.",
+                SettingsFieldType::Int,
+                L"34",
+                {},
+                10},
+            SettingsFieldDescriptor{
+                L"appearance.ui.settings_row_gap_px",
+                L"Settings row gap",
+                L"Vertical spacing between settings rows in pixels.",
+                SettingsFieldType::Int,
+                L"6",
+                {},
+                20},
+            SettingsFieldDescriptor{
+                L"appearance.ui.settings_section_gap_px",
+                L"Settings section gap",
+                L"Vertical spacing between settings sections in pixels.",
+                SettingsFieldType::Int,
+                L"22",
+                {},
+                30},
+            SettingsFieldDescriptor{
+                L"appearance.ui.settings_toggle_width_px",
+                L"Settings toggle width",
+                L"Width of settings toggle controls in pixels.",
+                SettingsFieldType::Int,
+                L"62",
+                {},
+                40},
+            SettingsFieldDescriptor{
+                L"appearance.ui.settings_toggle_height_px",
+                L"Settings toggle height",
+                L"Height of settings toggle controls in pixels.",
+                SettingsFieldType::Int,
+                L"28",
+                {},
+                50},
+            SettingsFieldDescriptor{
+                L"appearance.ui.tray_menu_min_width_px",
+                L"Tray menu minimum width",
+                L"Minimum width for tray menu rows in pixels.",
+                SettingsFieldType::Int,
+                L"220",
+                {},
+                60},
+            SettingsFieldDescriptor{
+                L"appearance.ui.tray_menu_row_height_px",
+                L"Tray menu row height",
+                L"Base height for tray menu rows in pixels.",
+                SettingsFieldType::Int,
+                L"24",
+                {},
+                70}
+        };
+        context.settingsRegistry->RegisterPage(std::move(appearanceLayoutPage));
+
+        // === Appearance: Icons & Visual Pack ===
+        PluginSettingsPage appearanceIconsPage;
+        appearanceIconsPage.pluginId = L"builtin.settings";
+        appearanceIconsPage.pageId = L"appearance.icons";
+        appearanceIconsPage.title = L"Icons";
+        appearanceIconsPage.order = 43;
+        appearanceIconsPage.fields = {
+            SettingsFieldDescriptor{
+                L"appearance.icons.pack",
+                L"Icon pack",
+                L"Preferred icon pack for host surfaces (settings and tray).",
+                SettingsFieldType::Enum,
+                L"tabler",
+                {
+                    SettingsEnumOption{L"tabler", L"Tabler"},
+                    SettingsEnumOption{L"lucide", L"Lucide"},
+                    SettingsEnumOption{L"heroicons", L"Heroicons"},
+                    SettingsEnumOption{L"bootstrap-icons", L"Bootstrap Icons"}
+                },
+                10},
+            SettingsFieldDescriptor{
+                L"appearance.icons.glyph.settings.overview",
+                L"Override glyph: settings.overview",
+                L"Optional glyph override for icon key settings.overview (leave blank for pack/default mapping).",
+                SettingsFieldType::String,
+                L"",
+                {},
+                20},
+            SettingsFieldDescriptor{
+                L"appearance.icons.glyph.settings.general",
+                L"Override glyph: settings.general",
+                L"Optional glyph override for icon key settings.general.",
+                SettingsFieldType::String,
+                L"",
+                {},
+                30},
+            SettingsFieldDescriptor{
+                L"appearance.icons.glyph.settings.appearance",
+                L"Override glyph: settings.appearance",
+                L"Optional glyph override for icon key settings.appearance.",
+                SettingsFieldType::String,
+                L"",
+                {},
+                40},
+            SettingsFieldDescriptor{
+                L"appearance.icons.glyph.settings.plugins",
+                L"Override glyph: settings.plugins",
+                L"Optional glyph override for icon key settings.plugins.",
+                SettingsFieldType::String,
+                L"",
+                {},
+                50},
+            SettingsFieldDescriptor{
+                L"appearance.icons.glyph.settings.tray.behavior",
+                L"Override glyph: settings.tray.behavior",
+                L"Optional glyph override for icon key settings.tray.behavior.",
+                SettingsFieldType::String,
+                L"",
+                {},
+                60},
+            SettingsFieldDescriptor{
+                L"appearance.icons.glyph.actions.space.create",
+                L"Override glyph: actions.space.create",
+                L"Optional glyph override for tray action icon key actions.space.create.",
+                SettingsFieldType::String,
+                L"",
+                {},
+                70},
+            SettingsFieldDescriptor{
+                L"appearance.icons.glyph.actions.app.exit",
+                L"Override glyph: actions.app.exit",
+                L"Optional glyph override for tray action icon key actions.app.exit.",
+                SettingsFieldType::String,
+                L"",
+                {},
+                80}
+        };
+        context.settingsRegistry->RegisterPage(std::move(appearanceIconsPage));
 
         PluginSettingsPage spacesPage;
         spacesPage.pluginId = L"builtin.settings";
@@ -731,6 +919,14 @@ public:
                 {},
                 30},
             SettingsFieldDescriptor{
+                L"settings.plugins.show_incompatible",
+                L"Show incompatible plugins",
+                L"Display marketplace plugins that do not match current host/API compatibility.",
+                SettingsFieldType::Bool,
+                L"false",
+                {},
+                35},
+            SettingsFieldDescriptor{
                 L"settings.plugins.load_timeout_ms",
                 L"Plugin load timeout (ms)",
                 L"Maximum startup wait time per plugin before marking as failed.",
@@ -740,6 +936,245 @@ public:
                 40}
         };
         context.settingsRegistry->RegisterPage(std::move(pluginManagerPage));
+
+        PluginSettingsPage marketplaceDiscoverPage;
+        marketplaceDiscoverPage.pluginId = L"builtin.settings";
+        marketplaceDiscoverPage.pageId = L"marketplace.discover";
+        marketplaceDiscoverPage.title = L"Marketplace - Discover";
+        marketplaceDiscoverPage.order = 81;
+        marketplaceDiscoverPage.fields = {
+            SettingsFieldDescriptor{
+                L"settings.plugins.marketplace.search_query",
+                L"Search plugins",
+                L"Filter discover results by id, name, author, description, or capability.",
+                SettingsFieldType::String,
+                L"",
+                {},
+                10},
+            SettingsFieldDescriptor{
+                L"settings.plugins.marketplace.category_filter",
+                L"Category filter",
+                L"Filter discover results by category.",
+                SettingsFieldType::Enum,
+                L"all",
+                {
+                    SettingsEnumOption{L"all", L"All"},
+                    SettingsEnumOption{L"appearance", L"Appearance"},
+                    SettingsEnumOption{L"widgets", L"Widgets"},
+                    SettingsEnumOption{L"automation", L"Automation"},
+                    SettingsEnumOption{L"commands", L"Commands"},
+                    SettingsEnumOption{L"providers", L"Providers"}
+                },
+                20},
+            SettingsFieldDescriptor{
+                L"settings.plugins.marketplace.selected_plugin_id",
+                L"Selected plugin id",
+                L"Target plugin id for marketplace action commands.",
+                SettingsFieldType::String,
+                L"",
+                {},
+                30},
+            SettingsFieldDescriptor{
+                L"settings.plugins.marketplace.action",
+                L"Marketplace action",
+                L"Apply install/update/enable/disable/uninstall/view actions to selected plugin id.",
+                SettingsFieldType::Enum,
+                L"idle",
+                {
+                    SettingsEnumOption{L"idle", L"Idle"},
+                    SettingsEnumOption{L"install", L"Install selected"},
+                    SettingsEnumOption{L"update", L"Update selected"},
+                    SettingsEnumOption{L"enable", L"Enable selected"},
+                    SettingsEnumOption{L"disable", L"Disable selected"},
+                    SettingsEnumOption{L"uninstall", L"Uninstall selected"},
+                    SettingsEnumOption{L"view_details", L"View details"}
+                },
+                40}
+        };
+        context.settingsRegistry->RegisterPage(std::move(marketplaceDiscoverPage));
+
+        PluginSettingsPage marketplaceInstalledPage;
+        marketplaceInstalledPage.pluginId = L"builtin.settings";
+        marketplaceInstalledPage.pageId = L"marketplace.installed";
+        marketplaceInstalledPage.title = L"Marketplace - Installed";
+        marketplaceInstalledPage.order = 82;
+        marketplaceInstalledPage.fields = {
+            SettingsFieldDescriptor{
+                L"settings.plugins.marketplace.installed_filter",
+                L"Installed filter",
+                L"Filter installed plugins by state.",
+                SettingsFieldType::Enum,
+                L"all",
+                {
+                    SettingsEnumOption{L"all", L"All"},
+                    SettingsEnumOption{L"enabled", L"Enabled"},
+                    SettingsEnumOption{L"disabled", L"Disabled"},
+                    SettingsEnumOption{L"requires_restart", L"Requires restart"}
+                },
+                10},
+            SettingsFieldDescriptor{
+                L"settings.plugins.marketplace.installed_action",
+                L"Installed action",
+                L"Run enable/disable/uninstall/reload commands for selected plugin id.",
+                SettingsFieldType::Enum,
+                L"idle",
+                {
+                    SettingsEnumOption{L"idle", L"Idle"},
+                    SettingsEnumOption{L"enable_selected", L"Enable selected"},
+                    SettingsEnumOption{L"disable_selected", L"Disable selected"},
+                    SettingsEnumOption{L"uninstall_selected", L"Uninstall selected"},
+                    SettingsEnumOption{L"apply_now", L"Apply now (reload plugin host)"}
+                },
+                20}
+        };
+        context.settingsRegistry->RegisterPage(std::move(marketplaceInstalledPage));
+
+        PluginSettingsPage marketplaceUpdatesPage;
+        marketplaceUpdatesPage.pluginId = L"builtin.settings";
+        marketplaceUpdatesPage.pageId = L"marketplace.updates";
+        marketplaceUpdatesPage.title = L"Marketplace - Updates";
+        marketplaceUpdatesPage.order = 83;
+        marketplaceUpdatesPage.fields = {
+            SettingsFieldDescriptor{
+                L"settings.plugins.marketplace.update_scope",
+                L"Update scope",
+                L"Choose whether to update selected plugin or all compatible installed plugins.",
+                SettingsFieldType::Enum,
+                L"selected",
+                {
+                    SettingsEnumOption{L"selected", L"Selected plugin"},
+                    SettingsEnumOption{L"all_compatible", L"All compatible plugins"}
+                },
+                10},
+            SettingsFieldDescriptor{
+                L"settings.plugins.marketplace.updates_action",
+                L"Updates action",
+                L"Run update actions based on update scope and selected plugin id.",
+                SettingsFieldType::Enum,
+                L"idle",
+                {
+                    SettingsEnumOption{L"idle", L"Idle"},
+                    SettingsEnumOption{L"update_now", L"Update now"},
+                    SettingsEnumOption{L"apply_now", L"Apply now (reload plugin host)"}
+                },
+                20}
+        };
+        context.settingsRegistry->RegisterPage(std::move(marketplaceUpdatesPage));
+
+        PluginSettingsPage marketplaceDisabledPage;
+        marketplaceDisabledPage.pluginId = L"builtin.settings";
+        marketplaceDisabledPage.pageId = L"marketplace.disabled";
+        marketplaceDisabledPage.title = L"Marketplace - Disabled";
+        marketplaceDisabledPage.order = 84;
+        marketplaceDisabledPage.fields = {
+            SettingsFieldDescriptor{
+                L"settings.plugins.marketplace.show_disabled_reason",
+                L"Show disable reason",
+                L"Display policy/compatibility reason for disabled plugins when available.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                10}
+        };
+        context.settingsRegistry->RegisterPage(std::move(marketplaceDisabledPage));
+
+        // === App & Updates ===
+        PluginSettingsPage appUpdatePage;
+        appUpdatePage.pluginId = L"builtin.settings";
+        appUpdatePage.pageId = L"app.updates";
+        appUpdatePage.title = L"App & Updates";
+        appUpdatePage.order = 85;
+        appUpdatePage.fields = {
+            SettingsFieldDescriptor{
+                L"settings.app.auto_check_updates",
+                L"Check for app updates",
+                L"Automatically check for application updates (downloaded separately).",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                10},
+            SettingsFieldDescriptor{
+                L"settings.plugins.marketplace_enabled",
+                L"Enable plugin marketplace",
+                L"Allow in-app discovery and installation from marketplace catalogs.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                5},
+            SettingsFieldDescriptor{
+                L"settings.app.launch_on_startup",
+                L"Launch on startup",
+                L"Start Spaces automatically when Windows starts.",
+                SettingsFieldType::Bool,
+                L"false",
+                {},
+                20},
+            SettingsFieldDescriptor{
+                L"settings.plugins.catalog_url",
+                L"Plugin catalog URL",
+                L"Source URL or path for plugin catalog (JSON). Leave empty for default.",
+                SettingsFieldType::String,
+                L"",
+                {},
+                30},
+            SettingsFieldDescriptor{
+                L"settings.plugins.cache_path",
+                L"Plugin cache location",
+                L"Folder for downloaded plugin packages. Leave empty for default.",
+                SettingsFieldType::String,
+                L"",
+                {},
+                40},
+            SettingsFieldDescriptor{
+                L"settings.plugins.clear_cache_on_exit",
+                L"Clear plugin cache on exit",
+                L"Automatically delete downloaded plugin .zip files when closing Spaces.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                50},
+            SettingsFieldDescriptor{
+                L"settings.plugins.background_update_checks",
+                L"Background plugin update checks",
+                L"Check for plugin updates in the background (requires re-enable after settings reload).",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                60},
+            SettingsFieldDescriptor{
+                L"settings.plugins.auto_update_installed",
+                L"Auto-update installed plugins",
+                L"Automatically download and queue compatible plugin updates.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                70},
+            SettingsFieldDescriptor{
+                L"settings.plugins.check_on_startup",
+                L"Check marketplace on startup",
+                L"Fetch the marketplace catalog when the app starts.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                80},
+            SettingsFieldDescriptor{
+                L"settings.plugins.apply_updates_on_restart",
+                L"Apply updates on restart",
+                L"Apply downloaded plugin updates at next restart.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                90},
+            SettingsFieldDescriptor{
+                L"settings.plugins.keep_backup_versions",
+                L"Keep backup plugin versions",
+                L"Keep prior plugin version files to support rollback-safe updates.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                100}
+        };
+        context.settingsRegistry->RegisterPage(std::move(appUpdatePage));
 
         PluginSettingsPage diagnosticsPage;
         diagnosticsPage.pluginId = L"builtin.settings";
