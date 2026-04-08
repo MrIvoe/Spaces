@@ -1,0 +1,3 @@
+#include "AppResources.h"
+
+IDI_SPACES_APP ICON "../Space1.ico"

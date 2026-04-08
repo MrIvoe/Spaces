@@ -5,6 +5,7 @@
 #include "core/ThemePackageValidator.h"
 #include "core/ThemePlatform.h"
 #include "extensions/PluginSettingsRegistry.h"
+#include "AppResources.h"
 #include "Win32Helpers.h"
 
 #include <algorithm>
@@ -237,6 +238,7 @@ bool SettingsWindow::EnsureWindow()
     wc.hInstance = GetModuleHandleW(nullptr);
     wc.lpszClassName = kClassName;
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    wc.hIcon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_SPACES_APP));
     wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
 
     if (!RegisterClassW(&wc))
@@ -283,6 +285,24 @@ bool SettingsWindow::EnsureWindow()
     {
         Win32Helpers::LogError(L"Settings window CreateWindowEx failed");
         return false;
+    }
+
+    const HINSTANCE hInstance = GetModuleHandleW(nullptr);
+    const HICON bigIcon = LoadIconW(hInstance, MAKEINTRESOURCEW(IDI_SPACES_APP));
+    const HICON smallIcon = static_cast<HICON>(LoadImageW(
+        hInstance,
+        MAKEINTRESOURCEW(IDI_SPACES_APP),
+        IMAGE_ICON,
+        GetSystemMetrics(SM_CXSMICON),
+        GetSystemMetrics(SM_CYSMICON),
+        LR_DEFAULTCOLOR | LR_SHARED));
+    if (bigIcon)
+    {
+        SendMessageW(m_hwnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(bigIcon));
+    }
+    if (smallIcon)
+    {
+        SendMessageW(m_hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(smallIcon));
     }
 
     return true;

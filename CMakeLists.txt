@@ -15,6 +15,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Main executable
 add_executable(Spaces WIN32
+    src/AppResources.h
+    src/Spaces.rc
     src/main.cpp
     src/App.h
     src/App.cpp

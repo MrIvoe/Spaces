@@ -1,5 +1,6 @@
 #include "TrayMenu.h"
 #include "App.h"
+#include "AppResources.h"
 #include "SpaceManager.h"
 #include "Win32Helpers.h"
 #include "core/ThemePlatform.h"
@@ -76,7 +77,17 @@ bool TrayMenu::Create(HINSTANCE hInstance)
     m_nid.uID = 1;
     m_nid.uFlags = NIF_MESSAGE | NIF_TIP | NIF_ICON;
     m_nid.uCallbackMessage = WMAPP_TRAYICON;
-    m_nid.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+    m_nid.hIcon = static_cast<HICON>(LoadImageW(
+        GetModuleHandleW(nullptr),
+        MAKEINTRESOURCEW(IDI_SPACES_APP),
+        IMAGE_ICON,
+        GetSystemMetrics(SM_CXSMICON),
+        GetSystemMetrics(SM_CYSMICON),
+        LR_DEFAULTCOLOR | LR_SHARED));
+    if (!m_nid.hIcon)
+    {
+        m_nid.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+    }
     lstrcpyW(m_nid.szTip, L"SimpleSpaces");
 
     if (!Shell_NotifyIconW(NIM_ADD, &m_nid))

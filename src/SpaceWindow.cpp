@@ -1,5 +1,6 @@
 #include "SpaceWindow.h"
 #include "SpaceManager.h"
+#include "AppResources.h"
 #include "Win32Helpers.h"
 #include "core/ThemePlatform.h"
 #include <commctrl.h>
@@ -97,6 +98,7 @@ bool SpaceWindow::Create(HWND parent)
         wc.hInstance = GetModuleHandleW(nullptr);
         wc.lpszClassName = kSpaceWindowClass;
         wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+        wc.hIcon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_SPACES_APP));
         wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
         wc.style = CS_VREDRAW | CS_HREDRAW;
 
@@ -125,6 +127,24 @@ bool SpaceWindow::Create(HWND parent)
 
     if (!m_hwnd)
         return false;
+
+    const HINSTANCE hInstance = GetModuleHandleW(nullptr);
+    const HICON bigIcon = LoadIconW(hInstance, MAKEINTRESOURCEW(IDI_SPACES_APP));
+    const HICON smallIcon = static_cast<HICON>(LoadImageW(
+        hInstance,
+        MAKEINTRESOURCEW(IDI_SPACES_APP),
+        IMAGE_ICON,
+        GetSystemMetrics(SM_CXSMICON),
+        GetSystemMetrics(SM_CYSMICON),
+        LR_DEFAULTCOLOR | LR_SHARED));
+    if (bigIcon)
+    {
+        SendMessageW(m_hwnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(bigIcon));
+    }
+    if (smallIcon)
+    {
+        SendMessageW(m_hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(smallIcon));
+    }
 
     m_expandedHeight = height;
     SetTimer(m_hwnd, kIdleStateTimerId, kIdleStateTimerMs, nullptr);
@@ -1108,6 +1128,7 @@ void SpaceWindow::ShowSettingsPanel()
         wc.hInstance = GetModuleHandleW(nullptr);
         wc.lpszClassName = kSpaceSettingsClass;
         wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+        wc.hIcon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_SPACES_APP));
         wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
         RegisterClassW(&wc);
         registered = true;
