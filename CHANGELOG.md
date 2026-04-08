@@ -15,6 +15,7 @@
 - Added Plugin Manager `apply_now` action to safely reload plugin host and apply overrides immediately.
 - Added plugin host reload summary visibility in diagnostics and re-enable reload test coverage.
 - Added last plugin host reload UTC timestamp visibility in settings diagnostics.
+- Added shared cross-repo theme contract documentation with explicit namespace, compatibility, fallback, and error-handling rules.
 
 ## Notes
 

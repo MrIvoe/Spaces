@@ -12,6 +12,7 @@ Theme architecture note:
 - Themes repo is the source of truth for universal design tokens.
 - Spaces consumes exported tokens and semantic mappings from Themes.
 - Direct palette literals are only used for app-specific fallback/override behavior.
+- Cross-repo contract is documented in `docs/THEME_CONTRACT.md`.
 
 Spaces is focused on a clear, predictable model:
 
