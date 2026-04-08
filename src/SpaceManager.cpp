@@ -234,6 +234,11 @@ std::wstring SpaceManager::CreateSpaceAt(int x, int y, const SpaceCreateRequest&
     return space.id;
 }
 
+void SpaceManager::SetSettingReader(std::function<std::wstring(const std::wstring&, const std::wstring&)> reader)
+{
+    m_settingReader = std::move(reader);
+}
+
 void SpaceManager::DeleteSpace(const std::wstring& spaceId, const std::wstring& correlationId)
 {
     Win32Helpers::LogInfo(CorrelationPrefix(correlationId) +
@@ -241,6 +246,29 @@ void SpaceManager::DeleteSpace(const std::wstring& spaceId, const std::wstring& 
 
     // Find and restore items to original locations
     auto space = FindSpace(spaceId);
+    if (!space)
+    {
+        return;
+    }
+
+    const auto getSetting = [this](const std::wstring& key, const std::wstring& fallback) -> std::wstring {
+        return m_settingReader ? m_settingReader(key, fallback) : fallback;
+    };
+
+    const bool requireConfirm = (getSetting(L"spaces.files.confirm_delete_space", L"true") == L"true");
+    if (requireConfirm)
+    {
+        const std::wstring message =
+            L"Delete space '" + (space->title.empty() ? L"(untitled)" : space->title) +
+            L"'?\n\nItems will be restored from the backing folder when possible.";
+        const int decision = MessageBoxW(nullptr, message.c_str(), L"Delete Space", MB_OKCANCEL | MB_ICONQUESTION);
+        if (decision != IDOK)
+        {
+            Win32Helpers::LogInfo(CorrelationPrefix(correlationId) + L"[SpaceManager] DeleteSpace canceled by user.");
+            return;
+        }
+    }
+
     if (space)
     {
         if (!space->backingFolder.empty())
@@ -397,10 +425,16 @@ bool SpaceManager::HandleDrop(const std::wstring& spaceId,
     const SpaceContentProviderCallbacks* callbacks = m_spaceExtensionRegistry
         ? m_spaceExtensionRegistry->ResolveCallbacks(space->contentType, space->contentPluginId)
         : nullptr;
+
+    const auto getSetting = [this](const std::wstring& key, const std::wstring& fallback) -> std::wstring {
+        return m_settingReader ? m_settingReader(key, fallback) : fallback;
+    };
+    const bool autoRefresh = (getSetting(L"spaces.files.auto_refresh", L"true") == L"true");
+
     if (callbacks && callbacks->handleDrop)
     {
         const bool handled = callbacks->handleDrop(BuildSpaceMetadata(*space), paths);
-        if (handled)
+        if (handled && autoRefresh)
         {
             RefreshSpace(spaceId);
         }
@@ -458,7 +492,10 @@ bool SpaceManager::HandleDrop(const std::wstring& spaceId,
         return false;
     }
 
-    RefreshSpace(spaceId);
+    if (autoRefresh)
+    {
+        RefreshSpace(spaceId);
+    }
     return !result.HasFailures();
 }
 
@@ -470,13 +507,30 @@ bool SpaceManager::DeleteItem(const std::wstring& spaceId, const SpaceItem& item
         return false;
     }
 
+    const auto getSetting = [this](const std::wstring& key, const std::wstring& fallback) -> std::wstring {
+        return m_settingReader ? m_settingReader(key, fallback) : fallback;
+    };
+
+    const bool requireConfirm = (getSetting(L"spaces.files.confirm_delete_item", L"true") == L"true");
+    if (requireConfirm)
+    {
+        const std::wstring itemLabel = item.name.empty() ? item.fullPath : item.name;
+        const std::wstring message = L"Delete item '" + itemLabel + L"' from this space?";
+        const int decision = MessageBoxW(nullptr, message.c_str(), L"Delete Item", MB_OKCANCEL | MB_ICONQUESTION);
+        if (decision != IDOK)
+        {
+            return false;
+        }
+    }
+
     const SpaceContentProviderCallbacks* callbacks = m_spaceExtensionRegistry
         ? m_spaceExtensionRegistry->ResolveCallbacks(space->contentType, space->contentPluginId)
         : nullptr;
     const bool ok = (callbacks && callbacks->deleteItem)
         ? callbacks->deleteItem(BuildSpaceMetadata(*space), item)
         : m_storage->DeleteItem(space->backingFolder, item);
-    if (ok)
+    const bool autoRefresh = (getSetting(L"spaces.files.auto_refresh", L"true") == L"true");
+    if (ok && autoRefresh)
     {
         RefreshSpace(spaceId);
     }

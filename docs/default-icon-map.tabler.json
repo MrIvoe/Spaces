@@ -1,0 +1,47 @@
+{
+  "meta": {
+    "source": "tabler-icons",
+    "sourceUrl": "https://github.com/tabler/tabler-icons",
+    "version": "0.0.001",
+    "purpose": "Default icon keys for host settings and built-in plugin surfaces; designed for themed icon replacement."
+  },
+  "settings": {
+    "overview": "layout-dashboard",
+    "general": "settings",
+    "appearance": "palette",
+    "spaces.defaults": "layout-grid",
+    "files.safety": "shield-lock",
+    "window.behavior": "app-window",
+    "plugins": "puzzle",
+    "plugins.behavior": "plug-connected",
+    "diagnostics": "activity",
+    "diagnostics.behavior": "bug",
+    "accessibility": "accessibility",
+    "tray.behavior": "bell",
+    "core.behavior": "adjustments",
+    "core.provider": "database",
+    "appearance.theme": "brush",
+    "appearance.visual_modes": "sparkles"
+  },
+  "plugins": {
+    "builtin.settings": "settings",
+    "builtin.tray": "bell",
+    "builtin.core_commands": "command",
+    "builtin.explorer_portal": "folder",
+    "builtin.widgets": "layout-cards",
+    "builtin.desktop_context": "click",
+    "builtin.space_organizer": "sort-ascending-shapes",
+    "community.visual_modes": "palette"
+  },
+  "actions": {
+    "space.create": "plus",
+    "space.rename": "edit",
+    "space.delete": "trash",
+    "item.open": "external-link",
+    "item.delete": "trash-x",
+    "portal.create": "folder-plus",
+    "portal.reconnect": "refresh",
+    "plugin.openSettings": "settings",
+    "app.exit": "power"
+  }
+}

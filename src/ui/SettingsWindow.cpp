@@ -2452,8 +2452,19 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         return 1;
     }
     case WM_CLOSE:
+    {
+        const bool closeToTray = m_settingsRegistry
+            ? (m_settingsRegistry->GetValue(L"spaces.window.close_to_tray", L"true") == L"true")
+            : true;
+        if (closeToTray)
+        {
+            ShowWindow(hwnd, SW_HIDE);
+            return 0;
+        }
+
         DestroyWindow(hwnd);
         return 0;
+    }
     case WM_DESTROY:
         DestroyThemeBrushes();
         DestroyFonts();

@@ -62,6 +62,7 @@ public:
     void SetMenuContributionRegistry(const MenuContributionRegistry* registry);
     void SetCommandExecutor(std::function<bool(const std::wstring&, const CommandContext&)> executor);
     void SetThemePlatform(const ThemePlatform* themePlatform);
+    void SetSettingReader(std::function<std::wstring(const std::wstring&, const std::wstring&)> reader);
     bool SetSpaceContentSource(const std::wstring& spaceId, const std::wstring& contentSource);
     void SetSpaceContentState(const std::wstring& spaceId,
                               const std::wstring& state,
@@ -84,5 +85,6 @@ private:
     const MenuContributionRegistry* m_menuRegistry = nullptr;
     const ThemePlatform* m_themePlatform = nullptr;
     std::function<bool(const std::wstring&, const CommandContext&)> m_commandExecutor;
+    std::function<std::wstring(const std::wstring&, const std::wstring&)> m_settingReader;
     bool m_allSpacesHidden = false;
 };

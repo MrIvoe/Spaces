@@ -6,6 +6,7 @@
 #include "TrayMenu.h"
 #include "Win32Helpers.h"
 #include "core/AppKernel.h"
+#include "extensions/PluginSettingsRegistry.h"
 #include "ui/SettingsWindow.h"
 #include <commctrl.h>
 
@@ -64,6 +65,14 @@ bool App::Initialize(HINSTANCE hInstance)
         m_manager->SetCommandExecutor([this](const std::wstring& commandId, const CommandContext& context) {
             return ExecuteCommand(commandId, context);
         });
+        m_manager->SetSettingReader([this](const std::wstring& key, const std::wstring& fallback) {
+            if (!m_kernel || !m_kernel->GetSettingsRegistry())
+            {
+                return fallback;
+            }
+
+            return m_kernel->GetSettingsRegistry()->GetValue(key, fallback);
+        });
         m_manager->SetThemePlatform(m_kernel->GetThemePlatform());
     }
 
@@ -75,12 +84,23 @@ bool App::Initialize(HINSTANCE hInstance)
         return false;
     }
 
-    Win32Helpers::LogInfo(L"Loading persisted spaces");
-    // Load persisted spaces
-    if (!m_manager->LoadAll())
+    const bool restoreOnStartup = (!m_kernel || !m_kernel->GetSettingsRegistry())
+        ? true
+        : (m_kernel->GetSettingsRegistry()->GetValue(L"spaces.window.restore_on_startup", L"true") == L"true");
+
+    if (restoreOnStartup)
     {
-        Win32Helpers::LogError(L"LoadAll failed");
-        return false;
+        Win32Helpers::LogInfo(L"Loading persisted spaces");
+        // Load persisted spaces
+        if (!m_manager->LoadAll())
+        {
+            Win32Helpers::LogError(L"LoadAll failed");
+            return false;
+        }
+    }
+    else
+    {
+        Win32Helpers::LogInfo(L"Startup restore disabled (spaces.window.restore_on_startup=false)");
     }
 
     Win32Helpers::LogInfo(L"Initialize completed successfully");

@@ -376,6 +376,10 @@ bool AppKernel::Initialize(App* app)
     m_settingsStore = std::make_unique<SettingsStore>();
     const auto settingsPath = Win32Helpers::GetSpacesRoot() / L"settings.json";
     m_settingsStore->Load(settingsPath);
+    if (m_diagnostics)
+    {
+        m_diagnostics->SetStore(m_settingsStore.get());
+    }
 
     // Run idempotent theme migration before any theme rendering.
     ThemeMigrationService themeMigration(m_settingsStore.get());
