@@ -299,7 +299,11 @@ int ThemePlatform::GetTextScalePercent() const
     int textScale = 115;
     if (m_store)
     {
-        const std::wstring raw = m_store->Get(L"appearance.theme.text_scale_percent", L"115");
+        std::wstring raw = m_store->Get(L"appearance.text.scale_percent", L"");
+        if (raw.empty())
+        {
+            raw = m_store->Get(L"appearance.theme.text_scale_percent", L"115");
+        }
         try
         {
             textScale = std::stoi(raw);
@@ -565,7 +569,9 @@ bool ThemePlatform::ImportCustomPreset(const std::wstring& filePath) const
         }
         if (root.contains("textScalePercent") && root["textScalePercent"].is_number_integer())
         {
-            m_store->Set(L"appearance.theme.text_scale_percent", std::to_wstring(root["textScalePercent"].get<int>()));
+            const std::wstring scale = std::to_wstring(root["textScalePercent"].get<int>());
+            m_store->Set(L"appearance.theme.text_scale_percent", scale);
+            m_store->Set(L"appearance.text.scale_percent", scale);
         }
 
         importColor("window", L"appearance.theme.custom.window");

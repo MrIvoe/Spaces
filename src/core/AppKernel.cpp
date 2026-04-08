@@ -374,6 +374,39 @@ bool AppKernel::Initialize(App* app)
                 return;
             }
 
+            if (key == L"appearance.text.scale_percent")
+            {
+                const std::wstring legacy = m_settingsRegistry->GetValue(L"appearance.theme.text_scale_percent", L"115");
+                if (legacy != value)
+                {
+                    m_settingsRegistry->SetValue(L"appearance.theme.text_scale_percent", value);
+                }
+            }
+            else if (key == L"spaces.files.show_hidden")
+            {
+                const std::wstring legacy = m_settingsRegistry->GetValue(L"explorer.portal.show_hidden", L"false");
+                if (legacy != value)
+                {
+                    m_settingsRegistry->SetValue(L"explorer.portal.show_hidden", value);
+                }
+            }
+            else if (key == L"spaces.window.close_to_tray")
+            {
+                const std::wstring legacy = m_settingsRegistry->GetValue(L"tray.behavior.close_to_tray", L"true");
+                if (legacy != value)
+                {
+                    m_settingsRegistry->SetValue(L"tray.behavior.close_to_tray", value);
+                }
+            }
+            else if (key == L"spaces.create.auto_focus")
+            {
+                const std::wstring legacy = m_settingsRegistry->GetValue(L"core.behavior.auto_focus_on_create", L"true");
+                if (legacy != value)
+                {
+                    m_settingsRegistry->SetValue(L"core.behavior.auto_focus_on_create", value);
+                }
+            }
+
             if (key == L"settings.plugins.manager_action" && value == L"apply_now")
             {
                 if (!m_pluginHost)
@@ -438,7 +471,13 @@ bool AppKernel::Initialize(App* app)
                 return;
             }
 
-            if (key != L"theme.win32.theme_id" && key != L"theme.win32.display_name" && key != L"theme.source" && key != L"theme.preset")
+            if (key != L"theme.win32.theme_id" &&
+                key != L"theme.win32.display_name" &&
+                key != L"theme.source" &&
+                key != L"theme.preset" &&
+                key != L"appearance.theme.mode" &&
+                key != L"appearance.theme.text_scale_percent" &&
+                key != L"appearance.text.scale_percent")
             {
                 return;
             }

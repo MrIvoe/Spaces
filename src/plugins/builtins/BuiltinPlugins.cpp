@@ -489,6 +489,202 @@ public:
 
         context.settingsRegistry->RegisterPage(PluginSettingsPage{L"builtin.settings", L"diagnostics", L"Diagnostics", 30});
 
+        PluginSettingsPage appearancePage;
+        appearancePage.pluginId = L"builtin.settings";
+        appearancePage.pageId = L"appearance";
+        appearancePage.title = L"Appearance";
+        appearancePage.order = 40;
+        appearancePage.fields = {
+            SettingsFieldDescriptor{
+                L"appearance.theme.mode",
+                L"Theme mode",
+                L"Follow system, or force light/dark mode.",
+                SettingsFieldType::Enum,
+                L"system",
+                {
+                    SettingsEnumOption{L"system", L"Follow system"},
+                    SettingsEnumOption{L"light", L"Light"},
+                    SettingsEnumOption{L"dark", L"Dark"}
+                },
+                10},
+            SettingsFieldDescriptor{
+                L"appearance.text.scale_percent",
+                L"Text scale (%)",
+                L"Global UI text scale percentage (90-150).",
+                SettingsFieldType::Int,
+                L"115",
+                {},
+                20},
+            SettingsFieldDescriptor{
+                L"appearance.ui.icon_size",
+                L"Icon size",
+                L"Base icon size used by host UI surfaces.",
+                SettingsFieldType::Enum,
+                L"md",
+                {
+                    SettingsEnumOption{L"sm", L"Small"},
+                    SettingsEnumOption{L"md", L"Medium"},
+                    SettingsEnumOption{L"lg", L"Large"}
+                },
+                30},
+            SettingsFieldDescriptor{
+                L"appearance.ui.compact_mode",
+                L"Compact mode",
+                L"Reduce spacing and padding in settings and list surfaces.",
+                SettingsFieldType::Bool,
+                L"false",
+                {},
+                40},
+            SettingsFieldDescriptor{
+                L"appearance.ui.animations_enabled",
+                L"Enable animations",
+                L"Turn UI animations on or off.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                50}
+        };
+        context.settingsRegistry->RegisterPage(std::move(appearancePage));
+
+        PluginSettingsPage spacesPage;
+        spacesPage.pluginId = L"builtin.settings";
+        spacesPage.pageId = L"spaces.defaults";
+        spacesPage.title = L"Spaces Defaults";
+        spacesPage.order = 50;
+        spacesPage.fields = {
+            SettingsFieldDescriptor{
+                L"spaces.create.default_width",
+                L"Default space width",
+                L"Preferred width for newly created spaces.",
+                SettingsFieldType::Int,
+                L"320",
+                {},
+                10},
+            SettingsFieldDescriptor{
+                L"spaces.create.default_height",
+                L"Default space height",
+                L"Preferred height for newly created spaces.",
+                SettingsFieldType::Int,
+                L"240",
+                {},
+                20},
+            SettingsFieldDescriptor{
+                L"spaces.create.auto_focus",
+                L"Auto-focus on create",
+                L"Focus new spaces immediately after they are created.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                30}
+        };
+        context.settingsRegistry->RegisterPage(std::move(spacesPage));
+
+        PluginSettingsPage filesPage;
+        filesPage.pluginId = L"builtin.settings";
+        filesPage.pageId = L"files.safety";
+        filesPage.title = L"Files & Safety";
+        filesPage.order = 60;
+        filesPage.fields = {
+            SettingsFieldDescriptor{
+                L"spaces.files.confirm_delete_space",
+                L"Confirm before deleting space",
+                L"Show a confirmation prompt before deleting a space.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                10},
+            SettingsFieldDescriptor{
+                L"spaces.files.show_hidden",
+                L"Show hidden files",
+                L"Display hidden files when supported by the active content provider.",
+                SettingsFieldType::Bool,
+                L"false",
+                {},
+                20}
+        };
+        context.settingsRegistry->RegisterPage(std::move(filesPage));
+
+        PluginSettingsPage windowPage;
+        windowPage.pluginId = L"builtin.settings";
+        windowPage.pageId = L"window.behavior";
+        windowPage.title = L"Window Behavior";
+        windowPage.order = 70;
+        windowPage.fields = {
+            SettingsFieldDescriptor{
+                L"spaces.window.close_to_tray",
+                L"Close to tray",
+                L"When enabled, close requests minimize to tray instead of exiting.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                10},
+            SettingsFieldDescriptor{
+                L"spaces.window.restore_on_startup",
+                L"Restore spaces on startup",
+                L"Restore previously open spaces when the app starts.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                20}
+        };
+        context.settingsRegistry->RegisterPage(std::move(windowPage));
+
+        PluginSettingsPage pluginManagerPage;
+        pluginManagerPage.pluginId = L"builtin.settings";
+        pluginManagerPage.pageId = L"plugins.behavior";
+        pluginManagerPage.title = L"Plugin Manager";
+        pluginManagerPage.order = 80;
+        pluginManagerPage.fields = {
+            SettingsFieldDescriptor{
+                L"settings.plugins.auto_check_updates",
+                L"Auto-check plugin updates",
+                L"Automatically check plugin hub updates during startup.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                10}
+        };
+        context.settingsRegistry->RegisterPage(std::move(pluginManagerPage));
+
+        PluginSettingsPage diagnosticsPage;
+        diagnosticsPage.pluginId = L"builtin.settings";
+        diagnosticsPage.pageId = L"diagnostics.behavior";
+        diagnosticsPage.title = L"Diagnostics";
+        diagnosticsPage.order = 90;
+        diagnosticsPage.fields = {
+            SettingsFieldDescriptor{
+                L"settings.diagnostics.log_level",
+                L"Log level",
+                L"Controls diagnostics verbosity.",
+                SettingsFieldType::Enum,
+                L"info",
+                {
+                    SettingsEnumOption{L"error", L"Error"},
+                    SettingsEnumOption{L"warn", L"Warning"},
+                    SettingsEnumOption{L"info", L"Info"},
+                    SettingsEnumOption{L"debug", L"Debug"}
+                },
+                10}
+        };
+        context.settingsRegistry->RegisterPage(std::move(diagnosticsPage));
+
+        PluginSettingsPage accessibilityPage;
+        accessibilityPage.pluginId = L"builtin.settings";
+        accessibilityPage.pageId = L"accessibility";
+        accessibilityPage.title = L"Accessibility";
+        accessibilityPage.order = 100;
+        accessibilityPage.fields = {
+            SettingsFieldDescriptor{
+                L"settings.accessibility.reduced_motion",
+                L"Reduced motion",
+                L"Reduce non-essential motion and animation effects.",
+                SettingsFieldType::Bool,
+                L"false",
+                {},
+                10}
+        };
+        context.settingsRegistry->RegisterPage(std::move(accessibilityPage));
+
         if (context.menuRegistry)
         {
             context.menuRegistry->Register(MenuContribution{MenuSurface::Tray, L"Settings", L"plugin.openSettings", 900, false});

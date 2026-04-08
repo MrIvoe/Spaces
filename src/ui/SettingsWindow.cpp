@@ -1775,7 +1775,10 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
             PostMessageW(m_hwnd, kMsgApplyNavCollapsed, desiredCollapsed ? 1 : 0, 0);
         }
 
-        if (StartsWith(changedKey, L"appearance.theme.") || StartsWith(changedKey, L"theme.win32.") || changedKey == L"theme.source")
+        if (StartsWith(changedKey, L"appearance.theme.") ||
+            changedKey == L"appearance.text.scale_percent" ||
+            StartsWith(changedKey, L"theme.win32.") ||
+            changedKey == L"theme.source")
         {
             RefreshTheme();
             ShowSelectedPluginTab();
