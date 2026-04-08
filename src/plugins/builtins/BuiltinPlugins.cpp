@@ -542,7 +542,35 @@ public:
                 SettingsFieldType::Bool,
                 L"true",
                 {},
-                50}
+                50},
+            SettingsFieldDescriptor{
+                L"appearance.ui.animation_speed",
+                L"Animation speed",
+                L"Controls transition speed for animated surfaces.",
+                SettingsFieldType::Enum,
+                L"normal",
+                {
+                    SettingsEnumOption{L"slow", L"Slow"},
+                    SettingsEnumOption{L"normal", L"Normal"},
+                    SettingsEnumOption{L"fast", L"Fast"}
+                },
+                60},
+            SettingsFieldDescriptor{
+                L"appearance.ui.high_contrast",
+                L"High contrast mode",
+                L"Increase contrast in host controls and text rendering.",
+                SettingsFieldType::Bool,
+                L"false",
+                {},
+                70},
+            SettingsFieldDescriptor{
+                L"appearance.settings.nav_default_collapsed",
+                L"Settings nav collapsed by default",
+                L"Start the settings shell with icon-only navigation.",
+                SettingsFieldType::Bool,
+                L"false",
+                {},
+                80}
         };
         context.settingsRegistry->RegisterPage(std::move(appearancePage));
 
@@ -575,7 +603,15 @@ public:
                 SettingsFieldType::Bool,
                 L"true",
                 {},
-                30}
+                30},
+            SettingsFieldDescriptor{
+                L"spaces.create.title_template",
+                L"Default title template",
+                L"Default title used by New Space command.",
+                SettingsFieldType::String,
+                L"New Space",
+                {},
+                40}
         };
         context.settingsRegistry->RegisterPage(std::move(spacesPage));
 
@@ -600,7 +636,23 @@ public:
                 SettingsFieldType::Bool,
                 L"false",
                 {},
-                20}
+                20},
+            SettingsFieldDescriptor{
+                L"spaces.files.confirm_delete_item",
+                L"Confirm before deleting item",
+                L"Require confirmation before deleting files/folders from a space.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                30},
+            SettingsFieldDescriptor{
+                L"spaces.files.auto_refresh",
+                L"Auto-refresh after file actions",
+                L"Refresh the space view after move/delete operations.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                40}
         };
         context.settingsRegistry->RegisterPage(std::move(filesPage));
 
@@ -625,7 +677,23 @@ public:
                 SettingsFieldType::Bool,
                 L"true",
                 {},
-                20}
+                20},
+            SettingsFieldDescriptor{
+                L"spaces.window.launch_on_startup",
+                L"Launch on Windows startup",
+                L"Start Spaces automatically when signing in.",
+                SettingsFieldType::Bool,
+                L"false",
+                {},
+                30},
+            SettingsFieldDescriptor{
+                L"spaces.window.snap_enabled",
+                L"Snap while dragging",
+                L"Enable desktop-edge snapping while moving spaces.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                40}
         };
         context.settingsRegistry->RegisterPage(std::move(windowPage));
 
@@ -642,7 +710,34 @@ public:
                 SettingsFieldType::Bool,
                 L"true",
                 {},
-                10}
+                10},
+            SettingsFieldDescriptor{
+                L"settings.plugins.update_channel",
+                L"Plugin update channel",
+                L"Choose stable-only or preview-inclusive plugin channel.",
+                SettingsFieldType::Enum,
+                L"stable",
+                {
+                    SettingsEnumOption{L"stable", L"Stable"},
+                    SettingsEnumOption{L"preview", L"Preview"}
+                },
+                20},
+            SettingsFieldDescriptor{
+                L"settings.plugins.allow_preview",
+                L"Allow preview plugins",
+                L"Show and allow install of preview/experimental plugins.",
+                SettingsFieldType::Bool,
+                L"false",
+                {},
+                30},
+            SettingsFieldDescriptor{
+                L"settings.plugins.load_timeout_ms",
+                L"Plugin load timeout (ms)",
+                L"Maximum startup wait time per plugin before marking as failed.",
+                SettingsFieldType::Int,
+                L"5000",
+                {},
+                40}
         };
         context.settingsRegistry->RegisterPage(std::move(pluginManagerPage));
 
@@ -664,7 +759,23 @@ public:
                     SettingsEnumOption{L"info", L"Info"},
                     SettingsEnumOption{L"debug", L"Debug"}
                 },
-                10}
+                10},
+            SettingsFieldDescriptor{
+                L"settings.diagnostics.logging_enabled",
+                L"Enable logging",
+                L"Master switch for runtime diagnostics logging.",
+                SettingsFieldType::Bool,
+                L"true",
+                {},
+                20},
+            SettingsFieldDescriptor{
+                L"settings.diagnostics.max_log_mb",
+                L"Max log file size (MB)",
+                L"Rotate logs when they exceed this size.",
+                SettingsFieldType::Int,
+                L"20",
+                {},
+                30}
         };
         context.settingsRegistry->RegisterPage(std::move(diagnosticsPage));
 
@@ -681,7 +792,23 @@ public:
                 SettingsFieldType::Bool,
                 L"false",
                 {},
-                10}
+                10},
+            SettingsFieldDescriptor{
+                L"settings.accessibility.large_text_mode",
+                L"Large text mode",
+                L"Increase baseline typography size in host-managed UI.",
+                SettingsFieldType::Bool,
+                L"false",
+                {},
+                20},
+            SettingsFieldDescriptor{
+                L"settings.accessibility.keyboard_first",
+                L"Keyboard-first navigation",
+                L"Prioritize keyboard interactions and focus affordances.",
+                SettingsFieldType::Bool,
+                L"false",
+                {},
+                30}
         };
         context.settingsRegistry->RegisterPage(std::move(accessibilityPage));
 
@@ -932,6 +1059,22 @@ public:
                 L"Watch interval (s)",
                 L"Polling interval for portal reconnect and refresh detection. Lower values react faster but cost more IO.",
                 SettingsFieldType::Int, L"2", {}, 30});
+            portalPage.fields.push_back(SettingsFieldDescriptor{
+                L"explorer.portal.pin_roots",
+                L"Pin portal roots",
+                L"Keep recent portal root folders pinned for quick reuse.",
+                SettingsFieldType::Bool, L"true", {}, 40});
+            portalPage.fields.push_back(SettingsFieldDescriptor{
+                L"explorer.portal.open_folder_behavior",
+                L"Open folder behavior",
+                L"Choose how folder actions are opened from portal spaces.",
+                SettingsFieldType::Enum,
+                L"explorer",
+                {
+                    SettingsEnumOption{L"explorer", L"Open in Explorer"},
+                    SettingsEnumOption{L"space", L"Open inside Space"}
+                },
+                50});
 
             context.settingsRegistry->RegisterPage(std::move(portalPage));
         }
@@ -1381,6 +1524,23 @@ public:
                 L"Pause on battery",
                 L"Stop automatic refreshes when the device is running on battery power.",
                 SettingsFieldType::Bool, L"true", {}, 20});
+            refreshPage.fields.push_back(SettingsFieldDescriptor{
+                L"widgets.refresh.refresh_on_focus",
+                L"Refresh on focus",
+                L"Refresh widgets whenever their space regains focus.",
+                SettingsFieldType::Bool, L"true", {}, 30});
+            refreshPage.fields.push_back(SettingsFieldDescriptor{
+                L"widgets.density",
+                L"Widget density",
+                L"Choose compact/comfortable spacing for widget containers.",
+                SettingsFieldType::Enum,
+                L"comfortable",
+                {
+                    SettingsEnumOption{L"compact", L"Compact"},
+                    SettingsEnumOption{L"comfortable", L"Comfortable"},
+                    SettingsEnumOption{L"spacious", L"Spacious"}
+                },
+                40});
 
             context.settingsRegistry->RegisterPage(std::move(refreshPage));
         }
@@ -1428,6 +1588,22 @@ public:
                 L"Confirm destructive actions",
                 L"Ask for confirmation before deleting or clearing a space.",
                 SettingsFieldType::Bool, L"true", {}, 20});
+            ctxPage.fields.push_back(SettingsFieldDescriptor{
+                L"desktop.context.advanced_actions_visible",
+                L"Show advanced actions",
+                L"Expose advanced context actions in space and item menus.",
+                SettingsFieldType::Bool, L"false", {}, 30});
+            ctxPage.fields.push_back(SettingsFieldDescriptor{
+                L"desktop.context.grouping_mode",
+                L"Action grouping mode",
+                L"Group context actions by section or show as a flat list.",
+                SettingsFieldType::Enum,
+                L"grouped",
+                {
+                    SettingsEnumOption{L"grouped", L"Grouped"},
+                    SettingsEnumOption{L"flat", L"Flat"}
+                },
+                40});
 
             context.settingsRegistry->RegisterPage(std::move(ctxPage));
         }

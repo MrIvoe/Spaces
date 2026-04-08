@@ -58,6 +58,30 @@ namespace
         return buffer;
     }
 
+    int ParseIntClamped(const std::wstring& value, int fallback, int minValue, int maxValue)
+    {
+        int parsed = fallback;
+        try
+        {
+            parsed = std::stoi(value);
+        }
+        catch (...)
+        {
+            parsed = fallback;
+        }
+
+        if (parsed < minValue)
+        {
+            parsed = minValue;
+        }
+        if (parsed > maxValue)
+        {
+            parsed = maxValue;
+        }
+
+        return parsed;
+    }
+
     namespace Win32ThemeSystem
     {
         std::wstring NormalizeThemeId(std::wstring themeId)
@@ -495,8 +519,30 @@ bool AppKernel::Initialize(App* app)
             SendNotifyMessageW(HWND_BROADCAST, ThemePlatform::GetThemeChangedMessageId(), 0, 0);
         });
 
-    const bool createRegistered = m_commandDispatcher->RegisterCommand(L"space.create", [commands = m_appCommands.get()]() {
-        commands->CreateSpaceNearCursor();
+    const bool createRegistered = m_commandDispatcher->RegisterCommand(L"space.create", [commands = m_appCommands.get(), settings = m_settingsRegistry.get()]() {
+        SpaceCreateRequest request;
+        if (settings)
+        {
+            std::wstring title = settings->GetValue(L"spaces.create.title_template", L"");
+            if (title.empty())
+            {
+                title = settings->GetValue(L"core.behavior.default_title", L"New Space");
+            }
+            request.title = Trim(title);
+
+            request.width = ParseIntClamped(
+                settings->GetValue(L"spaces.create.default_width", L"320"),
+                320,
+                120,
+                2400);
+            request.height = ParseIntClamped(
+                settings->GetValue(L"spaces.create.default_height", L"240"),
+                240,
+                60,
+                1800);
+        }
+
+        commands->CreateSpaceNearCursor(request);
     });
     const bool exitRegistered = m_commandDispatcher->RegisterCommand(L"app.exit", [commands = m_appCommands.get()]() {
         commands->ExitApplication();

@@ -46,6 +46,8 @@ struct CommandContext
 struct SpaceCreateRequest
 {
     std::wstring title;
+    int width = 320;
+    int height = 240;
     std::wstring contentType = L"file_collection";
     std::wstring contentPluginId = L"core.file_collection";
     std::wstring contentSource;

@@ -196,8 +196,9 @@ std::wstring SpaceManager::CreateSpaceAt(int x, int y, const SpaceCreateRequest&
     space.title = request.title.empty() ? L"New Space" : request.title;
     space.x = x;
     space.y = y;
-    space.width = 320;
-    space.height = 240;
+    space.width = request.width;
+    space.height = request.height;
+    ClampSpaceGeometry(space);
     space.backingFolder = m_storage->EnsureSpaceFolder(space.id);
     m_storage->ClearSpaceDeletedMarker(space.backingFolder);
     space.contentType = request.contentType.empty() ? L"file_collection" : request.contentType;
