@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 
 #include <cwctype>
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <optional>
@@ -300,6 +301,93 @@ namespace
         const auto it = kAssetGlyphs.find(assetName);
         return (it != kAssetGlyphs.end()) ? it->second : L"";
     }
+
+    std::optional<std::string> FindResolvedValue(const std::unordered_map<std::string, std::string>& map,
+                                                 const std::string& key)
+    {
+        const auto it = map.find(key);
+        if (it == map.end())
+        {
+            return std::nullopt;
+        }
+
+        return it->second;
+    }
+
+    std::optional<int> ParseThemeInt(const std::string& raw)
+    {
+        try
+        {
+            size_t consumed = 0;
+            const double value = std::stod(raw, &consumed);
+            if (consumed == 0)
+            {
+                return std::nullopt;
+            }
+
+            return static_cast<int>(std::lround(value));
+        }
+        catch (...)
+        {
+            return std::nullopt;
+        }
+    }
+
+    std::optional<COLORREF> ResolveComponentColor(const UniversalThemeData& theme, const std::string& componentPath)
+    {
+        const std::optional<std::string> raw = FindResolvedValue(theme.components, componentPath);
+        if (!raw.has_value())
+        {
+            return std::nullopt;
+        }
+
+        return ParseHexColor(Utf8ToWString(*raw));
+    }
+
+    std::optional<int> ResolveComponentInt(const UniversalThemeData& theme, const std::string& componentPath)
+    {
+        const std::optional<std::string> raw = FindResolvedValue(theme.components, componentPath);
+        if (!raw.has_value())
+        {
+            return std::nullopt;
+        }
+
+        return ParseThemeInt(*raw);
+    }
+
+    int ResolveThemeMetric(const SettingsStore* store,
+                           const UniversalThemeData* theme,
+                           const wchar_t* storeKey,
+                           const char* componentPath,
+                           int fallback,
+                           int minValue,
+                           int maxValue)
+    {
+        int value = fallback;
+        if (theme && componentPath)
+        {
+            const std::optional<int> themed = ResolveComponentInt(*theme, componentPath);
+            if (themed.has_value())
+            {
+                value = *themed;
+            }
+        }
+
+        if (store)
+        {
+            try
+            {
+                value = std::stoi(store->Get(storeKey, std::to_wstring(value)));
+            }
+            catch (...)
+            {
+            }
+        }
+
+        if (value < minValue) value = minValue;
+        if (value > maxValue) value = maxValue;
+        return value;
+    }
 }
 
 ThemePlatform::ThemePlatform(SettingsStore* store)
@@ -310,6 +398,7 @@ ThemePlatform::ThemePlatform(SettingsStore* store)
 void ThemePlatform::SetStore(SettingsStore* store)
 {
     m_store = store;
+    m_cachedTheme.reset();
 }
 
 ThemeMode ThemePlatform::DetectSystemMode()
@@ -401,16 +490,16 @@ int ThemePlatform::GetTextScalePercent() const
 
 int ThemePlatform::GetSpaceIdleOpacityPercent() const
 {
-    int value = 84;
+    int value = 92;
     if (m_store)
     {
         try
         {
-            value = std::stoi(m_store->Get(L"appearance.ui.space_idle_opacity_percent", L"84"));
+            value = std::stoi(m_store->Get(L"appearance.ui.space_idle_opacity_percent", L"92"));
         }
         catch (...)
         {
-            value = 84;
+            value = 92;
         }
     }
 
@@ -421,16 +510,16 @@ int ThemePlatform::GetSpaceIdleOpacityPercent() const
 
 int ThemePlatform::GetSpaceTitleBarOpacityPercent() const
 {
-    int value = 88;
+    int value = 96;
     if (m_store)
     {
         try
         {
-            value = std::stoi(m_store->Get(L"appearance.ui.space_titlebar_opacity_percent", L"88"));
+            value = std::stoi(m_store->Get(L"appearance.ui.space_titlebar_opacity_percent", L"96"));
         }
         catch (...)
         {
-            value = 88;
+            value = 96;
         }
     }
 
@@ -441,20 +530,20 @@ int ThemePlatform::GetSpaceTitleBarOpacityPercent() const
 
 int ThemePlatform::GetSettingsWindowOpacityPercent() const
 {
-    int value = 94;
+    int value = 100;
     if (m_store)
     {
         try
         {
-            value = std::stoi(m_store->Get(L"appearance.ui.settings_window_opacity_percent", L"94"));
+            value = std::stoi(m_store->Get(L"appearance.ui.settings_window_opacity_percent", L"100"));
         }
         catch (...)
         {
-            value = 94;
+            value = 100;
         }
     }
 
-    if (value < 5) value = 5;
+    if (value < 85) value = 85;
     if (value > 100) value = 100;
     return value;
 }
@@ -463,101 +552,126 @@ bool ThemePlatform::IsSettingsWindowBlurEnabled() const
 {
     if (!m_store)
     {
-        return true;
+        return false;
     }
 
-    return m_store->Get(L"appearance.ui.settings_window_blur_enabled", L"true") == L"true";
+    return m_store->Get(L"appearance.ui.settings_window_blur_enabled", L"false") == L"true";
 }
 
 int ThemePlatform::GetSettingsRowHeightPx() const
 {
-    int value = 34;
-    if (m_store)
-    {
-        try { value = std::stoi(m_store->Get(L"appearance.ui.settings_row_height_px", L"34")); }
-        catch (...) { value = 34; }
-    }
-    if (value < 20) value = 20;
-    if (value > 72) value = 72;
-    return value;
+    std::shared_ptr<UniversalThemeData> universalTheme;
+    return ResolveThemeMetric(m_store,
+                              TryLoadUniversalTheme(universalTheme) ? universalTheme.get() : nullptr,
+                              L"appearance.ui.settings_row_height_px",
+                              "settings.default.rowHeight",
+                              34,
+                              20,
+                              72);
 }
 
 int ThemePlatform::GetSettingsRowGapPx() const
 {
-    int value = 6;
-    if (m_store)
-    {
-        try { value = std::stoi(m_store->Get(L"appearance.ui.settings_row_gap_px", L"6")); }
-        catch (...) { value = 6; }
-    }
-    if (value < 0) value = 0;
-    if (value > 32) value = 32;
-    return value;
+    std::shared_ptr<UniversalThemeData> universalTheme;
+    return ResolveThemeMetric(m_store,
+                              TryLoadUniversalTheme(universalTheme) ? universalTheme.get() : nullptr,
+                              L"appearance.ui.settings_row_gap_px",
+                              "settings.default.rowGap",
+                              6,
+                              0,
+                              32);
 }
 
 int ThemePlatform::GetSettingsSectionGapPx() const
 {
-    int value = 22;
-    if (m_store)
-    {
-        try { value = std::stoi(m_store->Get(L"appearance.ui.settings_section_gap_px", L"22")); }
-        catch (...) { value = 22; }
-    }
-    if (value < 0) value = 0;
-    if (value > 72) value = 72;
-    return value;
+    std::shared_ptr<UniversalThemeData> universalTheme;
+    return ResolveThemeMetric(m_store,
+                              TryLoadUniversalTheme(universalTheme) ? universalTheme.get() : nullptr,
+                              L"appearance.ui.settings_section_gap_px",
+                              "settings.default.sectionGap",
+                              22,
+                              0,
+                              72);
 }
 
 int ThemePlatform::GetSettingsToggleWidthPx() const
 {
-    int value = 62;
-    if (m_store)
-    {
-        try { value = std::stoi(m_store->Get(L"appearance.ui.settings_toggle_width_px", L"62")); }
-        catch (...) { value = 62; }
-    }
-    if (value < 36) value = 36;
-    if (value > 220) value = 220;
-    return value;
+    std::shared_ptr<UniversalThemeData> universalTheme;
+    return ResolveThemeMetric(m_store,
+                              TryLoadUniversalTheme(universalTheme) ? universalTheme.get() : nullptr,
+                              L"appearance.ui.settings_toggle_width_px",
+                              "toggle.default.trackWidth",
+                              62,
+                              36,
+                              220);
 }
 
 int ThemePlatform::GetSettingsToggleHeightPx() const
 {
-    int value = 28;
-    if (m_store)
-    {
-        try { value = std::stoi(m_store->Get(L"appearance.ui.settings_toggle_height_px", L"28")); }
-        catch (...) { value = 28; }
-    }
-    if (value < 14) value = 14;
-    if (value > 64) value = 64;
-    return value;
+    std::shared_ptr<UniversalThemeData> universalTheme;
+    return ResolveThemeMetric(m_store,
+                              TryLoadUniversalTheme(universalTheme) ? universalTheme.get() : nullptr,
+                              L"appearance.ui.settings_toggle_height_px",
+                              "toggle.default.trackHeight",
+                              28,
+                              14,
+                              64);
 }
 
 int ThemePlatform::GetTrayMenuMinWidthPx() const
 {
-    int value = 220;
-    if (m_store)
-    {
-        try { value = std::stoi(m_store->Get(L"appearance.ui.tray_menu_min_width_px", L"220")); }
-        catch (...) { value = 220; }
-    }
-    if (value < 140) value = 140;
-    if (value > 520) value = 520;
-    return value;
+    std::shared_ptr<UniversalThemeData> universalTheme;
+    return ResolveThemeMetric(m_store,
+                              TryLoadUniversalTheme(universalTheme) ? universalTheme.get() : nullptr,
+                              L"appearance.ui.tray_menu_min_width_px",
+                              "tray.default.minWidth",
+                              220,
+                              140,
+                              520);
 }
 
 int ThemePlatform::GetTrayMenuRowHeightPx() const
 {
-    int value = 28;
-    if (m_store)
+    std::shared_ptr<UniversalThemeData> universalTheme;
+    return ResolveThemeMetric(m_store,
+                              TryLoadUniversalTheme(universalTheme) ? universalTheme.get() : nullptr,
+                              L"appearance.ui.tray_menu_row_height_px",
+                              "tray.default.itemHeight",
+                              28,
+                              18,
+                              72);
+}
+
+int ThemePlatform::GetFenceTitleBarHeightPx() const
+{
+    std::shared_ptr<UniversalThemeData> universalTheme;
+    return ResolveThemeMetric(m_store,
+                              TryLoadUniversalTheme(universalTheme) ? universalTheme.get() : nullptr,
+                              L"appearance.ui.space_titlebar_height_px",
+                              "fence.default.titlebarHeight",
+                              28,
+                              20,
+                              72);
+}
+
+int ThemePlatform::GetMotionDurationMs(const std::wstring& motionKey, int fallbackMs) const
+{
+    std::shared_ptr<UniversalThemeData> universalTheme;
+    if (TryLoadUniversalTheme(universalTheme))
     {
-        try { value = std::stoi(m_store->Get(L"appearance.ui.tray_menu_row_height_px", L"28")); }
-        catch (...) { value = 28; }
+        const std::string key = WStringToUtf8(motionKey);
+        const auto it = universalTheme->motion.find(key);
+        if (it != universalTheme->motion.end())
+        {
+            const std::optional<int> resolved = ParseThemeInt(it->second);
+            if (resolved.has_value())
+            {
+                return *resolved;
+            }
+        }
     }
-    if (value < 18) value = 18;
-    if (value > 72) value = 72;
-    return value;
+
+    return fallbackMs;
 }
 
 SpacePolicyDefaults ThemePlatform::ResolveSpacePolicyDefaults() const
@@ -702,14 +816,23 @@ ThemePalette ThemePlatform::BuildPalette() const
             *universalTheme, "core.ui.accent", RGB(88, 101, 242));
         palette.borderColor = UniversalThemeLoader::ResolveSemanticColorRef(
             *universalTheme, "core.border.default", RGB(72, 72, 72));
-        palette.spaceTitleBarColor = UniversalThemeLoader::ResolveSemanticColorRef(
+        const COLORREF defaultSpaceTitleBarColor = UniversalThemeLoader::ResolveSemanticColorRef(
             *universalTheme, "space.titlebar.background", RGB(58, 58, 58));
-        palette.spaceTitleTextColor = UniversalThemeLoader::ResolveSemanticColorRef(
+        const COLORREF defaultSpaceTitleTextColor = UniversalThemeLoader::ResolveSemanticColorRef(
             *universalTheme, "space.titlebar.text", RGB(239, 239, 239));
-        palette.spaceItemTextColor = UniversalThemeLoader::ResolveSemanticColorRef(
+        const COLORREF defaultSpaceItemTextColor = UniversalThemeLoader::ResolveSemanticColorRef(
             *universalTheme, "space.item.text", RGB(210, 210, 210));
-        palette.spaceItemHoverColor = UniversalThemeLoader::ResolveSemanticColorRef(
+        const COLORREF defaultSpaceItemHoverColor = UniversalThemeLoader::ResolveSemanticColorRef(
             *universalTheme, "space.item.hover", RGB(82, 82, 82));
+
+        palette.spaceTitleBarColor = ResolveComponentColor(*universalTheme, "fence.default.titlebarBg")
+            .value_or(defaultSpaceTitleBarColor);
+        palette.spaceTitleTextColor = ResolveComponentColor(*universalTheme, "fence.default.titlebarText")
+            .value_or(defaultSpaceTitleTextColor);
+        palette.spaceItemTextColor = ResolveComponentColor(*universalTheme, "fence.default.itemAreaText")
+            .value_or(defaultSpaceItemTextColor);
+        palette.spaceItemHoverColor = ResolveComponentColor(*universalTheme, "fence.default.itemAreaHoverBg")
+            .value_or(defaultSpaceItemHoverColor);
 
         return palette;
     }

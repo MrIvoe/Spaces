@@ -81,6 +81,8 @@ add_executable(Spaces WIN32
     src/TrayMenu.cpp
     src/Win32Helpers.h
     src/Win32Helpers.cpp
+    src/ui/SwitchControl.h
+    src/ui/SwitchControl.cpp
     src/ui/SettingsWindow.h
     src/ui/SettingsWindow.cpp
     src/Models.h

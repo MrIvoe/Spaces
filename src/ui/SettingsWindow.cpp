@@ -1,4 +1,5 @@
 #include "ui/SettingsWindow.h"
+#include "ui/SwitchControl.h"
 
 #include "core/PluginCatalogFetcher.h"
 #include "core/PluginHubSync.h"
@@ -372,6 +373,11 @@ bool SettingsWindow::EnsureWindow()
         }
     }
 
+    if (!SwitchControl::Register(GetModuleHandleW(nullptr)))
+    {
+        Win32Helpers::LogError(L"Settings switch control class registration failed: " + std::to_wstring(GetLastError()));
+    }
+
     m_hwnd = CreateWindowExW(
         0,
         kClassName,
@@ -568,6 +574,15 @@ void SettingsWindow::ApplyWindowTranslucency()
     {
         opacityPercent = m_themePlatform->GetSettingsWindowOpacityPercent();
         blurEnabled = m_themePlatform->IsSettingsWindowBlurEnabled();
+    }
+
+    const bool interactivePaneVisible = m_rightScrollPanel && IsWindowVisible(m_rightScrollPanel);
+    if (interactivePaneVisible)
+    {
+        // Layered/blurred top-level windows interact badly with many child HWNDs during scroll.
+        // Force a solid window while the interactive settings pane is active.
+        opacityPercent = 100;
+        blurEnabled = false;
     }
 
     LONG_PTR exStyle = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
@@ -952,6 +967,8 @@ void SettingsWindow::ShowSelectedPluginTab()
         ShowWindow(m_pageView, SW_SHOW);
         SetWindowTextW(m_pageView, BuildSelectedTabContent(tabIndex).c_str());
     }
+
+    ApplyWindowTranslucency();
 
 
     // Force an immediate, complete repaint of whichever pane is now active.
@@ -1607,9 +1624,12 @@ void SettingsWindow::ClearFieldControls()
         }
     }
     m_fieldControls.clear();
+    m_fieldControlLayouts.clear();
     m_controlFieldMap.clear();
     m_sectionCardRects.clear();
     m_rightPaneTextStatics.clear();
+    m_rightPaneScrollY = 0;
+    m_rightPaneContentHeight = 0;
     // Reset ID counter so IDs don't climb unboundedly across tab switches.
     m_nextControlId = 2000;
 }
@@ -1849,12 +1869,37 @@ LRESULT CALLBACK SettingsWindow::ScrollPanelProc(HWND hwnd, UINT msg, WPARAM wPa
     case WM_ERASEBKGND:
         if (self)
         {
-            return self->DrawScrollPanelBkgnd(reinterpret_cast<HDC>(wParam));
+            return 1;
+        }
+        break;
+    case WM_PAINT:
+        if (self)
+        {
+            PAINTSTRUCT ps{};
+            HDC hdc = BeginPaint(hwnd, &ps);
+            const LRESULT result = self->DrawScrollPanelBkgnd(hdc);
+            EndPaint(hwnd, &ps);
+            return result;
         }
         break;
     case WM_MOUSEWHEEL:
         if (self)
         {
+            HWND focus = GetFocus();
+            if (focus)
+            {
+                wchar_t className[32]{};
+                GetClassNameW(focus, className, static_cast<int>(std::size(className)));
+                if (_wcsicmp(className, L"ComboBox") == 0)
+                {
+                    const LRESULT dropped = SendMessageW(focus, CB_GETDROPPEDSTATE, 0, 0);
+                    if (dropped != 0)
+                    {
+                        return DefWindowProcW(hwnd, msg, wParam, lParam);
+                    }
+                }
+            }
+
             const int delta = GET_WHEEL_DELTA_WPARAM(wParam);
             self->ApplyScrollPanelScroll(delta);
             return 0;
@@ -1884,8 +1929,10 @@ LRESULT CALLBACK SettingsWindow::ScrollPanelProc(HWND hwnd, UINT msg, WPARAM wPa
                 newPos += static_cast<int>(si.nPage);
                 break;
             case SB_THUMBPOSITION:
-            case SB_THUMBTRACK:
                 newPos = HIWORD(wParam);
+                break;
+            case SB_THUMBTRACK:
+                newPos = si.nTrackPos;
                 break;
             default:
                 break;
@@ -1893,15 +1940,10 @@ LRESULT CALLBACK SettingsWindow::ScrollPanelProc(HWND hwnd, UINT msg, WPARAM wPa
 
             const int maxPos = (std::max)(0, si.nMax - static_cast<int>(si.nPage) + 1);
             newPos = (std::max)(0, (std::min)(newPos, maxPos));
-            if (newPos != si.nPos)
+            if (newPos != self->m_rightPaneScrollY)
             {
-                    const int oldVScrollPos = si.nPos;
-                si.fMask = SIF_POS;
-                si.nPos = newPos;
-                SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
-                    const int scrollAmount = oldVScrollPos - newPos;
-                    ScrollWindowEx(hwnd, 0, scrollAmount, nullptr, nullptr, nullptr, nullptr, SW_SCROLLCHILDREN);
-                InvalidateRect(hwnd, nullptr, TRUE);
+                self->m_rightPaneScrollY = newPos;
+                self->RelayoutScrollPanelChildren();
             }
             return 0;
         }
@@ -1958,17 +2000,91 @@ void SettingsWindow::ApplyScrollPanelScroll(int delta)
     int newPos = si.nPos - ((delta * 48) / WHEEL_DELTA);
     const int maxPos = (std::max)(0, si.nMax - static_cast<int>(si.nPage) + 1);
     newPos = (std::max)(0, (std::min)(newPos, maxPos));
-    if (newPos == si.nPos)
+    if (newPos == m_rightPaneScrollY)
     {
         return;
     }
 
-    const int scrollAmount = si.nPos - newPos;
-    si.fMask = SIF_POS;
-    si.nPos = newPos;
+    m_rightPaneScrollY = newPos;
+    RelayoutScrollPanelChildren();
+}
+
+void SettingsWindow::RelayoutScrollPanelChildren()
+{
+    if (!m_rightScrollPanel)
+    {
+        return;
+    }
+
+    RECT panelClient{};
+    GetClientRect(m_rightScrollPanel, &panelClient);
+
+    const int panelWidth = static_cast<int>(panelClient.right - panelClient.left);
+    const int panelHeight = (std::max)(1, static_cast<int>(panelClient.bottom - panelClient.top));
+    const int maxPos = (std::max)(0, m_rightPaneContentHeight - panelHeight);
+    m_rightPaneScrollY = (std::max)(0, (std::min)(m_rightPaneScrollY, maxPos));
+
+    SCROLLINFO si{};
+    si.cbSize = sizeof(si);
+    si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    si.nMin = 0;
+    si.nMax = (std::max)(0, m_rightPaneContentHeight - 1);
+    si.nPage = static_cast<UINT>(panelHeight);
+    si.nPos = m_rightPaneScrollY;
     SetScrollInfo(m_rightScrollPanel, SB_VERT, &si, TRUE);
-    ScrollWindowEx(m_rightScrollPanel, 0, scrollAmount, nullptr, nullptr, nullptr, nullptr, SW_SCROLLCHILDREN);
-    InvalidateRect(m_rightScrollPanel, nullptr, TRUE);
+
+    HDWP defer = BeginDeferWindowPos(static_cast<int>(m_fieldControlLayouts.size()));
+
+    for (const auto& item : m_fieldControlLayouts)
+    {
+        if (!item.hwnd)
+        {
+            continue;
+        }
+
+        const int width = item.stretchToRight
+            ? (std::max)(1, panelWidth - item.baseX - item.rightMargin)
+            : item.width;
+        const int y = item.baseY - m_rightPaneScrollY;
+        const bool isVisible = (y + item.height > 0) && (y < panelHeight);
+
+        if (defer)
+        {
+            defer = DeferWindowPos(
+                defer,
+                item.hwnd,
+                nullptr,
+                item.baseX,
+                y,
+                width,
+                item.height,
+                SWP_NOZORDER |
+                SWP_NOACTIVATE |
+                SWP_DEFERERASE |
+                SWP_NOCOPYBITS |
+                (isVisible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW));
+            continue;
+        }
+
+        SetWindowPos(
+            item.hwnd,
+            nullptr,
+            item.baseX,
+            y,
+            width,
+            item.height,
+                SWP_NOZORDER |
+                SWP_NOACTIVATE |
+                SWP_NOCOPYBITS |
+                (isVisible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW));
+    }
+
+    if (defer)
+    {
+        EndDeferWindowPos(defer);
+    }
+
+            InvalidateRect(m_rightScrollPanel, nullptr, FALSE);
 }
 
 LRESULT SettingsWindow::DrawScrollPanelBkgnd(HDC hdc)
@@ -1984,39 +2100,6 @@ LRESULT SettingsWindow::DrawScrollPanelBkgnd(HDC hdc)
     HBRUSH surfaceBrush = CreateSolidBrush(m_surfaceColor);
     FillRect(hdc, &client, surfaceBrush);
     DeleteObject(surfaceBrush);
-
-    // Get current scroll position so section cards are drawn at correct screen positions.
-    int scrollY = 0;
-    {
-        SCROLLINFO si{};
-        si.cbSize = sizeof(si);
-        si.fMask = SIF_POS;
-        GetScrollInfo(m_rightScrollPanel, SB_VERT, &si);
-        scrollY = si.nPos;
-    }
-
-    const COLORREF cardFill = BlendColor(m_surfaceColor, m_windowColor, 84);
-    const COLORREF cardBorder = BlendColor(m_accentColor, m_windowColor, 48);
-    HBRUSH cardBrush = CreateSolidBrush(cardFill);
-    HPEN cardPen = CreatePen(PS_SOLID, 1, cardBorder);
-    HPEN oldPen = reinterpret_cast<HPEN>(SelectObject(hdc, cardPen));
-    HBRUSH oldBrush = reinterpret_cast<HBRUSH>(SelectObject(hdc, cardBrush));
-
-    for (const RECT& cardRect : m_sectionCardRects)
-    {
-        RECT adjusted = cardRect;
-        adjusted.top -= scrollY;
-        adjusted.bottom -= scrollY;
-        if (adjusted.bottom > 0 && adjusted.top < client.bottom)
-        {
-            Rectangle(hdc, adjusted.left, adjusted.top, adjusted.right, adjusted.bottom);
-        }
-    }
-
-    SelectObject(hdc, oldBrush);
-    SelectObject(hdc, oldPen);
-    DeleteObject(cardBrush);
-    DeleteObject(cardPen);
     return 1;
 }
 
@@ -2035,6 +2118,10 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
     (void)rightX;
     (void)rightY;
     (void)rightW;
+
+    m_fieldControlLayouts.clear();
+    m_rightPaneScrollY = 0;
+    m_rightPaneContentHeight = 0;
 
     const int leftPad = 12;
     const int topPad = 12;
@@ -2077,15 +2164,6 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
             continue;
         }
 
-        const int sectionStartY = y;
-        const int sectionHeight = rowH + 4 + (static_cast<int>(page.fields.size()) * (rowH + rowGap)) + sectionGap;
-        RECT cardRect{};
-        cardRect.left = leftPad - 14;
-        cardRect.top = sectionStartY - 10;
-        cardRect.right = leftPad + rightPaneW;
-        cardRect.bottom = sectionStartY + sectionHeight - 6;
-        m_sectionCardRects.push_back(cardRect);
-
         // --- Section header (page title) ----------------------------------------
         HWND hHeader = CreateWindowExW(
             0, L"STATIC", page.title.c_str(),
@@ -2096,6 +2174,7 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
         {
             SendMessageW(hHeader, WM_SETFONT, reinterpret_cast<WPARAM>(hHeaderFont), TRUE);
             m_fieldControls.push_back(hHeader);
+            m_fieldControlLayouts.push_back(FieldControlLayout{hHeader, leftPad, y, rightPaneW, rowH, true, rightPad});
             m_rightPaneTextStatics.insert(hHeader);
         }
         y += rowH + 4;
@@ -2127,6 +2206,7 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
             {
                 SendMessageW(hLabel, WM_SETFONT, reinterpret_cast<WPARAM>(hFont), TRUE);
                 m_fieldControls.push_back(hLabel);
+                m_fieldControlLayouts.push_back(FieldControlLayout{hLabel, leftPad, y, labelWidth, rowH, false, 0});
                 RegisterTooltipForControl(hLabel, field.description);
                 m_rightPaneTextStatics.insert(hLabel);
             }
@@ -2150,18 +2230,21 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
                 const int normalizedToggleHeight = (std::min)(toggleHeight, rowH);
                 const int toggleY = y + ((rowH - normalizedToggleHeight) / 2);
 
-                hCtrl = CreateWindowExW(
-                    0, L"BUTTON", L"",
-                    WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX | BS_OWNERDRAW,
-                    ctrlX, toggleY, toggleWidth, normalizedToggleHeight,
+                SwitchControl::Colors switchColors;
+                switchColors.surface = m_surfaceColor;
+                switchColors.accent = m_accentColor;
+                switchColors.text = m_textColor;
+                switchColors.window = m_windowColor;
+
+                hCtrl = SwitchControl::Create(
                     m_rightScrollPanel,
-                    reinterpret_cast<HMENU>(static_cast<INT_PTR>(ctrlId)),
-                    GetModuleHandleW(nullptr), nullptr);
-                if (hCtrl)
-                {
-                    SendMessageW(hCtrl, BM_SETCHECK,
-                                 checked ? BST_CHECKED : BST_UNCHECKED, 0);
-                }
+                    ctrlX,
+                    toggleY,
+                    toggleWidth,
+                    normalizedToggleHeight,
+                    ctrlId,
+                    checked,
+                    switchColors);
             }
             else if (field.type == SettingsFieldType::Enum)
             {
@@ -2215,6 +2298,13 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
             {
                 SendMessageW(hCtrl, WM_SETFONT, reinterpret_cast<WPARAM>(hFont), TRUE);
                 m_fieldControls.push_back(hCtrl);
+                const int controlTop = (field.type == SettingsFieldType::Bool)
+                    ? (y + ((rowH - (std::min)(toggleHeight, rowH)) / 2))
+                    : y;
+                const int controlHeight = (field.type == SettingsFieldType::Bool)
+                    ? (std::min)(toggleHeight, rowH)
+                    : rowH;
+                m_fieldControlLayouts.push_back(FieldControlLayout{hCtrl, ctrlX, controlTop, ctrlWidth, controlHeight, false, 0});
                 RegisterTooltipForControl(hCtrl, field.description);
 
                 FieldControlInfo info;
@@ -2230,15 +2320,8 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
         y += sectionGap;
     }
 
-    const int contentHeight = (std::max)(y + topPad, panelHeight);
-    SCROLLINFO si{};
-    si.cbSize = sizeof(si);
-    si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
-    si.nMin = 0;
-    si.nMax = (std::max)(0, contentHeight - 1);
-    si.nPage = static_cast<UINT>((std::max)(1, panelHeight));
-    si.nPos = 0;
-    SetScrollInfo(m_rightScrollPanel, SB_VERT, &si, TRUE);
+    m_rightPaneContentHeight = (std::max)(y + topPad, panelHeight);
+    RelayoutScrollPanelChildren();
 }
 
 void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, HWND hwndCtrl)
@@ -3080,10 +3163,10 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             nullptr);
 
         m_rightScrollPanel = CreateWindowExW(
-            WS_EX_COMPOSITED,
+            0,
             L"SimpleSpaces_SettingsRightPane",
             nullptr,
-            WS_CHILD | WS_CLIPCHILDREN | WS_VSCROLL,
+            WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS | WS_VSCROLL,
             0,
             0,
             100,
@@ -3231,8 +3314,10 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             SendMessageW(m_statusBar, WM_SETFONT,
                 reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         }
-        // Re-layout dynamic field controls for the selected tab.
-        ShowSelectedPluginTab();
+        if (m_rightScrollPanel && IsWindowVisible(m_rightScrollPanel) && !m_fieldControlLayouts.empty())
+        {
+            RelayoutScrollPanelChildren();
+        }
         return 0;
     }
     case WM_GETMINMAXINFO:
@@ -3458,9 +3543,12 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         // Field control HWNDs are destroyed automatically as children of this window.
         // Just clear the tracking data.
         m_fieldControls.clear();
+        m_fieldControlLayouts.clear();
         m_controlFieldMap.clear();
         m_sectionCardRects.clear();
         m_rightPaneTextStatics.clear();
+        m_rightPaneScrollY = 0;
+        m_rightPaneContentHeight = 0;
         return 0;
     default:
         break;

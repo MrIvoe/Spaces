@@ -51,6 +51,17 @@ private:
         std::vector<SettingsEnumOption> options; // used for Enum controls
     };
 
+    struct FieldControlLayout
+    {
+        HWND hwnd = nullptr;
+        int baseX = 0;
+        int baseY = 0;
+        int width = 0;
+        int height = 0;
+        bool stretchToRight = false;
+        int rightMargin = 0;
+    };
+
     bool EnsureWindow();
     void RefreshTheme();
     void DestroyThemeBrushes();
@@ -79,6 +90,7 @@ private:
     // Interactive field controls
     void ClearFieldControls();
     void PopulateFieldControls(size_t tabIndex, int rightX, int rightY, int rightW);
+    void RelayoutScrollPanelChildren();
     void HandleFieldControlChange(int ctrlId, int notificationCode, HWND hwndCtrl);
     void RegisterTooltipForControl(HWND control, const std::wstring& tipText);
     void UpdateShellHeaderAndStatus(size_t tabIndex);
@@ -114,10 +126,13 @@ private:
 
     // Dynamically created field controls (children of m_hwnd, right pane)
     std::vector<HWND>                         m_fieldControls;
+    std::vector<FieldControlLayout>           m_fieldControlLayouts;
     std::unordered_map<int, FieldControlInfo> m_controlFieldMap;
     std::vector<RECT>                         m_sectionCardRects;
     std::unordered_set<HWND>                  m_rightPaneTextStatics;
-    int                                        m_nextControlId = 2000;
+    int                                       m_nextControlId = 2000;
+    int                                       m_rightPaneScrollY = 0;
+    int                                       m_rightPaneContentHeight = 0;
 
     // Right-pane scroll panel (parent of all field controls)
     HWND m_rightScrollPanel = nullptr;

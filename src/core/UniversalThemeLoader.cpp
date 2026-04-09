@@ -4,6 +4,8 @@
 
 #include <filesystem>
 #include <fstream>
+#include <optional>
+#include <sstream>
 
 namespace
 {
@@ -43,6 +45,34 @@ namespace
         return out;
     }
 
+    std::optional<std::string> JsonScalarToString(const nlohmann::json& value)
+    {
+        if (value.is_string())
+        {
+            return value.get<std::string>();
+        }
+        if (value.is_boolean())
+        {
+            return value.get<bool>() ? "true" : "false";
+        }
+        if (value.is_number_integer())
+        {
+            return std::to_string(value.get<long long>());
+        }
+        if (value.is_number_unsigned())
+        {
+            return std::to_string(value.get<unsigned long long>());
+        }
+        if (value.is_number_float())
+        {
+            std::ostringstream stream;
+            stream << value.get<double>();
+            return stream.str();
+        }
+
+        return std::nullopt;
+    }
+
     void FlattenObject(const nlohmann::json& value, const std::string& prefix, std::unordered_map<std::string, std::string>& out)
     {
         if (!value.is_object())
@@ -58,9 +88,11 @@ namespace
                 FlattenObject(*it, nextKey, out);
                 continue;
             }
-            if (it->is_string())
+
+            const std::optional<std::string> scalar = JsonScalarToString(*it);
+            if (scalar.has_value())
             {
-                out[nextKey] = it->get<std::string>();
+                out[nextKey] = *scalar;
             }
         }
     }
@@ -84,6 +116,72 @@ namespace
             return static_cast<COLORREF>(-1);
         }
     }
+
+    bool ResolveReferenceValue(const UniversalThemeData& theme, const std::string& rawValue, std::string& outValue)
+    {
+        const auto tokenIt = theme.tokens.find(rawValue);
+        if (tokenIt != theme.tokens.end())
+        {
+            outValue = tokenIt->second;
+            return true;
+        }
+
+        const auto scaleIt = theme.scale.find(rawValue);
+        if (scaleIt != theme.scale.end())
+        {
+            outValue = scaleIt->second;
+            return true;
+        }
+
+        const auto semanticIt = theme.semantic.find(rawValue);
+        if (semanticIt != theme.semantic.end())
+        {
+            const auto semanticTokenIt = theme.tokens.find(semanticIt->second);
+            if (semanticTokenIt != theme.tokens.end())
+            {
+                outValue = semanticTokenIt->second;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    void FlattenResolvedComponents(const nlohmann::json& value,
+                                   const std::string& prefix,
+                                   const UniversalThemeData& theme,
+                                   std::unordered_map<std::string, std::string>& out)
+    {
+        if (!value.is_object())
+        {
+            return;
+        }
+
+        for (auto it = value.begin(); it != value.end(); ++it)
+        {
+            const std::string nextKey = prefix.empty() ? it.key() : (prefix + "." + it.key());
+            if (it->is_object())
+            {
+                FlattenResolvedComponents(*it, nextKey, theme, out);
+                continue;
+            }
+
+            const std::optional<std::string> scalar = JsonScalarToString(*it);
+            if (!scalar.has_value())
+            {
+                continue;
+            }
+
+            std::string resolvedValue;
+            if (ResolveReferenceValue(theme, *scalar, resolvedValue))
+            {
+                out[nextKey] = resolvedValue;
+                continue;
+            }
+
+            out[nextKey] = *scalar;
+        }
+    }
 }
 
 bool UniversalThemeLoader::LoadFromDirectory(const std::wstring& themeDirectory, UniversalThemeData& outTheme, std::wstring* error)
@@ -91,7 +189,9 @@ bool UniversalThemeLoader::LoadFromDirectory(const std::wstring& themeDirectory,
     const std::filesystem::path base(themeDirectory);
     const std::filesystem::path themePath = base / L"theme.json";
     const std::filesystem::path semanticPath = base / L"semantic.json";
+    const std::filesystem::path componentsPath = base / L"components.json";
     const std::filesystem::path iconsPath = base / L"icons.json";
+    const std::filesystem::path resourcesPath = base / L"resources.json";
 
     if (!std::filesystem::exists(themePath) || !std::filesystem::exists(semanticPath))
     {
@@ -127,7 +227,39 @@ bool UniversalThemeLoader::LoadFromDirectory(const std::wstring& themeDirectory,
         {
             FlattenObject(themeJson["tokens"], "", outTheme.tokens);
         }
+        if (themeJson.contains("scale"))
+        {
+            FlattenObject(themeJson["scale"], "", outTheme.scale);
+
+            const auto motionIt = themeJson["scale"].find("motion");
+            if (motionIt != themeJson["scale"].end() && motionIt->is_object())
+            {
+                FlattenObject(*motionIt, "", outTheme.motion);
+            }
+        }
         FlattenObject(semanticJson, "", outTheme.semantic);
+
+        if (std::filesystem::exists(componentsPath))
+        {
+            std::ifstream componentsStream(componentsPath);
+            if (componentsStream.good())
+            {
+                nlohmann::json componentsJson;
+                componentsStream >> componentsJson;
+                FlattenResolvedComponents(componentsJson, "", outTheme, outTheme.components);
+            }
+        }
+
+        if (std::filesystem::exists(resourcesPath))
+        {
+            std::ifstream resourcesStream(resourcesPath);
+            if (resourcesStream.good())
+            {
+                nlohmann::json resourcesJson;
+                resourcesStream >> resourcesJson;
+                FlattenObject(resourcesJson, "", outTheme.resources);
+            }
+        }
 
         if (std::filesystem::exists(iconsPath))
         {

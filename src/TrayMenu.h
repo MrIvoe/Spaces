@@ -10,6 +10,12 @@
 
 class App;
 
+enum class TrayNotifyMode
+{
+    Legacy,
+    Version4
+};
+
 class TrayMenu
 {
 public:
@@ -29,6 +35,8 @@ private:
     App* m_app;
     HWND m_hwnd = nullptr;
     NOTIFYICONDATA m_nid{};
+    UINT m_taskbarCreatedMessage = 0;
+    TrayNotifyMode m_notifyMode = TrayNotifyMode::Legacy;
     std::unordered_map<UINT, std::wstring> m_commandByMenuId;
-    std::unordered_map<UINT, Win32Helpers::PopupMenuItemVisual> m_menuVisuals;
+    std::unordered_map<UINT, Win32Helpers::PopupMenuItemVisual> m_menuVisualByMenuId;
 };

@@ -587,7 +587,7 @@ public:
                 L"Settings window opacity (%)",
                 L"Translucency level for settings shell background (5-100). Set to 100 for fully solid, 99 for first slight transparency.",
                 SettingsFieldType::Int,
-                L"94",
+                L"100",
                 {},
                 10},
             SettingsFieldDescriptor{
@@ -595,7 +595,7 @@ public:
                 L"Settings backdrop blur",
                 L"Enable acrylic-like blur effect behind the translucent settings window.",
                 SettingsFieldType::Bool,
-                L"true",
+                L"false",
                 {},
                 20},
             SettingsFieldDescriptor{
@@ -603,7 +603,7 @@ public:
                 L"Space title bar opacity (%)",
                 L"Translucency level for space title bars (5-100). Set to 100 for fully solid.",
                 SettingsFieldType::Int,
-                L"88",
+                L"96",
                 {},
                 30},
             SettingsFieldDescriptor{
@@ -611,7 +611,7 @@ public:
                 L"Space idle opacity (%)",
                 L"Opacity when space is transparent and not hovered (5-100). Set to 100 for fully solid.",
                 SettingsFieldType::Int,
-                L"84",
+                L"92",
                 {},
                 40}
         };

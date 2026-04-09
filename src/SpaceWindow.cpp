@@ -37,6 +37,19 @@ namespace
 {
     std::atomic<unsigned long long> gSpaceEventSequence{1};
 
+    bool IsPopupInteractionActive()
+    {
+        GUITHREADINFO info{};
+        info.cbSize = sizeof(info);
+        if (!GetGUIThreadInfo(0, &info))
+        {
+            return false;
+        }
+
+        const DWORD popupFlags = GUI_INMENUMODE | GUI_POPUPMENUMODE | GUI_SYSTEMMENUMODE;
+        return (info.flags & popupFlags) != 0;
+    }
+
     COLORREF BlendColor(COLORREF from, COLORREF to, int alpha)
     {
         alpha = (alpha < 0) ? 0 : ((alpha > 255) ? 255 : alpha);
@@ -417,6 +430,11 @@ LRESULT SpaceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_TIMER:
         if (wParam == kIdleStateTimerId)
         {
+            if (IsPopupInteractionActive())
+            {
+                return 0;
+            }
+
             ApplyIdleVisualState();
             InvalidateRect(m_hwnd, nullptr, FALSE);
             return 0;
@@ -426,6 +444,7 @@ LRESULT SpaceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_CONTEXTMENU:
     {
         POINT screenPt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        const int titleBarHeight = m_themePlatform ? m_themePlatform->GetFenceTitleBarHeightPx() : kTitleBarHeight;
         if (screenPt.x == -1 && screenPt.y == -1)
         {
             RECT clientRc{};
@@ -436,12 +455,12 @@ LRESULT SpaceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             {
                 static constexpr int kItemHeight = 24;
                 anchor.x = 20;
-                anchor.y = kTitleBarHeight + 8 + (m_selectedItem * kItemHeight) + (kItemHeight / 2);
+                anchor.y = titleBarHeight + 8 + (m_selectedItem * kItemHeight) + (kItemHeight / 2);
             }
             else
             {
                 anchor.x = (clientRc.right - clientRc.left) / 2;
-                anchor.y = kTitleBarHeight / 2;
+                anchor.y = titleBarHeight / 2;
             }
 
             ClientToScreen(m_hwnd, &anchor);
@@ -579,6 +598,7 @@ void SpaceWindow::OnPaint()
     GetClientRect(m_hwnd, &rc);
 
     const ThemePalette palette = m_themePlatform ? m_themePlatform->BuildPalette() : ThemePalette{};
+    const int titleBarHeight = m_themePlatform ? m_themePlatform->GetFenceTitleBarHeightPx() : kTitleBarHeight;
 
     // Draw background
     HBRUSH bgBrush = CreateSolidBrush(palette.surfaceColor);
@@ -587,7 +607,7 @@ void SpaceWindow::OnPaint()
 
     // Draw title bar
     RECT titleRc = rc;
-    titleRc.bottom = kTitleBarHeight;
+    titleRc.bottom = titleBarHeight;
     int titleOpacityPercent = 88;
     if (m_themePlatform)
     {
@@ -639,7 +659,7 @@ void SpaceWindow::OnPaint()
     const EffectiveSpacePolicy policy = ResolveEffectivePolicy();
     const int iconTileSize = policy.iconTileSize;
     const int contentLeft = 8;
-    const int contentTop = kTitleBarHeight + 8;
+    const int contentTop = titleBarHeight + 8;
 
     if (textOnly)
     {
@@ -729,7 +749,8 @@ void SpaceWindow::OnPaint()
 
 void SpaceWindow::OnLButtonDown(int x, int y)
 {
-    if (y < kTitleBarHeight)
+    const int titleBarHeight = m_themePlatform ? m_themePlatform->GetFenceTitleBarHeightPx() : kTitleBarHeight;
+    if (y < titleBarHeight)
     {
         (void)x;
         ReleaseCapture();
@@ -867,6 +888,7 @@ void SpaceWindow::OnContextMenu(int x, int y)
     ClientToScreen(m_hwnd, &pt);
 
     int cmd = TrackPopupMenuEx(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, pt.x, pt.y, m_hwnd, nullptr);
+    PostMessageW(m_hwnd, WM_NULL, 0, 0);
     DestroyMenu(menu);
 
     const auto pluginCommand = m_menuCommands.find(static_cast<UINT>(cmd));
@@ -1035,13 +1057,14 @@ void SpaceWindow::OnSize(int width, int height)
 
 int SpaceWindow::GetItemAtPosition(int x, int y) const
 {
+    const int titleBarHeight = m_themePlatform ? m_themePlatform->GetFenceTitleBarHeightPx() : kTitleBarHeight;
     // Check if click is in title bar
-    if (y < kTitleBarHeight)
+    if (y < titleBarHeight)
         return -1;
 
     if (m_model.textOnlyMode)
     {
-        int itemY = kTitleBarHeight + 8;
+        int itemY = titleBarHeight + 8;
         static constexpr int kItemHeight = 24;
         for (size_t i = 0; i < m_items.size(); ++i)
         {
@@ -1058,7 +1081,7 @@ int SpaceWindow::GetItemAtPosition(int x, int y) const
     RECT rc{};
     GetClientRect(m_hwnd, &rc);
     const int contentLeft = 8;
-    const int contentTop = kTitleBarHeight + 8;
+    const int contentTop = titleBarHeight + 8;
     const int iconTileSize = policy.iconTileSize;
     const int contentWidth = max(1, (rc.right - rc.left) - (contentLeft * 2));
     const int cols = max(1, contentWidth / iconTileSize);
@@ -1121,12 +1144,13 @@ void SpaceWindow::ApplyIdleVisualState()
     desiredClient.left = 0;
     desiredClient.top = 0;
     desiredClient.right = 1;
-    desiredClient.bottom = kTitleBarHeight;
+    const int titleBarHeight = m_themePlatform ? m_themePlatform->GetFenceTitleBarHeightPx() : kTitleBarHeight;
+    desiredClient.bottom = titleBarHeight;
 
     const LONG_PTR style = GetWindowLongPtrW(m_hwnd, GWL_STYLE);
     const LONG_PTR exStyleForRect = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
     AdjustWindowRectEx(&desiredClient, static_cast<DWORD>(style), FALSE, static_cast<DWORD>(exStyleForRect));
-    const int rolledHeight = max((desiredClient.bottom - desiredClient.top), kTitleBarHeight + 16);
+    const int rolledHeight = max((desiredClient.bottom - desiredClient.top), titleBarHeight + 16);
 
     if (shouldRollup && !m_isRolledUp)
     {

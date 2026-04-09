@@ -9,6 +9,10 @@ struct UniversalThemeData
     std::string themeId;
     std::unordered_map<std::string, std::string> tokens;
     std::unordered_map<std::string, std::string> semantic;
+    std::unordered_map<std::string, std::string> scale;
+    std::unordered_map<std::string, std::string> motion;
+    std::unordered_map<std::string, std::string> components;
+    std::unordered_map<std::string, std::string> resources;
     std::unordered_map<std::string, std::unordered_map<std::string, std::string>> iconPackMappings;
 };
 

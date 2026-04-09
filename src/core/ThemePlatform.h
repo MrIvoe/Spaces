@@ -75,6 +75,8 @@ public:
     int GetSettingsToggleHeightPx() const;
     int GetTrayMenuMinWidthPx() const;
     int GetTrayMenuRowHeightPx() const;
+    int GetFenceTitleBarHeightPx() const;
+    int GetMotionDurationMs(const std::wstring& motionKey, int fallbackMs) const;
     SpacePolicyDefaults ResolveSpacePolicyDefaults() const;
 
     ThemePalette BuildPalette() const;
