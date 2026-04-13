@@ -10,6 +10,7 @@
 #include <vector>
 
 #include <windows.h>
+#include <commctrl.h>
 
 class PluginSettingsRegistry;
 
@@ -76,7 +77,6 @@ private:
     std::wstring ResolvePluginDisplayName(const std::wstring& pluginId,
                                           const std::vector<PluginStatusView>& plugins) const;
     std::wstring ResolvePluginIconKey(const PluginStatusView& plugin) const;
-
     std::wstring BuildGeneralContent(const std::vector<PluginStatusView>& plugins) const;
     std::wstring BuildPluginsContent(const std::vector<PluginStatusView>& plugins) const;
     std::wstring BuildMarketplaceDiscoverContent() const;
@@ -89,14 +89,36 @@ private:
 
     // Interactive field controls
     void ClearFieldControls();
+    void CommitPendingTextFieldEdits();
     void PopulateFieldControls(size_t tabIndex, int rightX, int rightY, int rightW);
+    bool IsFieldVisibleInBasicMode(const SettingsFieldDescriptor& field) const;
     void RelayoutScrollPanelChildren();
     void HandleFieldControlChange(int ctrlId, int notificationCode, HWND hwndCtrl);
     void RegisterTooltipForControl(HWND control, const std::wstring& tipText);
     void UpdateShellHeaderAndStatus(size_t tabIndex);
     std::wstring BuildTabHelpText(size_t tabIndex) const;
+    void ShowMenuBarPopup(int buttonId);
+    void HandleMenuBarCommand(UINT commandId);
+    bool SelectTabByPluginId(const std::wstring& pluginId);
+    HWND FindFieldControlByKey(const std::wstring& key) const;
+    void FocusPreferredSearchField();
+    bool MatchesContentSearch(const SettingsFieldDescriptor& field) const;
+    bool MatchesContentChipFilter(const SettingsFieldDescriptor& field) const;
+    bool IsBuiltinPluginsTabSelected() const;
+    bool ShouldShowMarketplacePage(const std::wstring& pageId) const;
+    void PopulatePluginTree(size_t tabIndex);
+    void ClearPluginTree();
+    bool ShouldShowPluginTree() const;
     void DrawNavItem(const DRAWITEMSTRUCT* drawInfo);
     void DrawToggleControl(const DRAWITEMSTRUCT* drawInfo);
+    void DrawShellButton(const DRAWITEMSTRUCT* drawInfo);
+    void DrawFieldSurfaceFrame(HWND control);
+    void UpdateMarketplaceStatusState(size_t tabIndex);
+    void InvalidateNavTransitionRegion(int oldNavWidth, int newNavWidth);
+    void StartNavCollapseAnimation(bool requestedCollapsed);
+    void StepNavCollapseAnimation();
+    static LRESULT CALLBACK FieldSurfaceSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
+                                                     UINT_PTR subclassId, DWORD_PTR refData);
     static LRESULT CALLBACK NavListSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
                                                 UINT_PTR subclassId, DWORD_PTR refData);
     // Right-pane scroll panel
@@ -110,10 +132,23 @@ private:
 private:
     HWND m_hwnd = nullptr;
     HWND m_navToggleButton = nullptr;
+    HWND m_menuFileButton = nullptr;
+    HWND m_menuEditButton = nullptr;
+    HWND m_menuViewButton = nullptr;
+    HWND m_menuPluginsButton = nullptr;
+    HWND m_contentSearchEdit = nullptr;
+    HWND m_chipAllButton = nullptr;
+    HWND m_chipToggleButton = nullptr;
+    HWND m_chipChoiceButton = nullptr;
+    HWND m_chipTextButton = nullptr;
+    HWND m_marketplaceDiscoverTabButton = nullptr;
+    HWND m_marketplaceInstalledTabButton = nullptr;
+    HWND m_pluginTreeView = nullptr;
     HWND m_headerTitle = nullptr;
     HWND m_headerSubtitle = nullptr;
     HWND m_headerHelpButton = nullptr;
-    HWND m_navList = nullptr;
+    // HWND m_navList = nullptr; // replaced by VirtualNavList
+    class VirtualNavList* m_navList = nullptr;
     HWND m_pageView = nullptr;          // multiline EDIT – used for text/overview pages
     HWND m_statusBar = nullptr;
     std::vector<UiPage> m_pages;
@@ -128,6 +163,7 @@ private:
     std::vector<HWND>                         m_fieldControls;
     std::vector<FieldControlLayout>           m_fieldControlLayouts;
     std::unordered_map<int, FieldControlInfo> m_controlFieldMap;
+    std::unordered_map<HWND, SettingsFieldType> m_fieldSurfaceTypes;
     std::vector<RECT>                         m_sectionCardRects;
     std::unordered_set<HWND>                  m_rightPaneTextStatics;
     int                                       m_nextControlId = 2000;
@@ -153,12 +189,25 @@ private:
     HFONT m_baseFont = nullptr;
     HFONT m_sectionFont = nullptr;
     HFONT m_navFont = nullptr;
+    HFONT m_iconFont = nullptr;
     HWND m_tooltip = nullptr;
 
     bool m_navCollapsed = false;
+    int m_navAnimatedWidth = 280;
+    int m_navAnimationStartWidth = 280;
+    int m_navAnimationTargetWidth = 280;
+    DWORD m_navAnimationStartTick = 0;
+    int m_navAnimationDurationMs = 180;
+    bool m_navAnimating = false;
     int m_navHoverIndex = -1;
     DWORD m_lastNavToggleTick = 0;
     bool m_pendingNavCollapsed = false;
+    bool m_marketplaceSpinnerActive = false;
+    int m_marketplaceSpinnerFrame = 0;
+    std::wstring m_marketplaceStatusChip;
+    std::wstring m_contentSearchQuery;
+    int m_activeContentChip = 0;
+    int m_marketplaceSubTab = 0; // 0=Discover, 1=Installed
 
     static constexpr int kNavToggleId = 100;
     static constexpr int kNavId  = 101;
@@ -167,6 +216,38 @@ private:
     static constexpr int kHeaderSubtitleId = 104;
     static constexpr int kStatusId = 105;
     static constexpr int kHeaderHelpId = 106;
+    static constexpr int kMenuFileId = 107;
+    static constexpr int kMenuEditId = 108;
+    static constexpr int kMenuViewId = 109;
+    static constexpr int kMenuPluginsId = 110;
+    static constexpr int kContentSearchId = 111;
+    static constexpr int kChipAllId = 112;
+    static constexpr int kChipToggleId = 113;
+    static constexpr int kChipChoiceId = 114;
+    static constexpr int kChipTextId = 115;
+    static constexpr int kMarketplaceDiscoverTabId = 116;
+    static constexpr int kMarketplaceInstalledTabId = 117;
+    static constexpr int kPluginTreeViewId = 118;
+    static constexpr UINT kMenuCmdSaveSettings = 5201;
+    static constexpr UINT kMenuCmdCloseSettings = 5202;
+    static constexpr UINT kMenuCmdUndo = 5211;
+    static constexpr UINT kMenuCmdRedo = 5212;
+    static constexpr UINT kMenuCmdFind = 5213;
+    static constexpr UINT kMenuCmdToggleSidebar = 5221;
+    static constexpr UINT kMenuCmdReloadCurrent = 5222;
+    static constexpr UINT kMenuCmdOpenPlugins = 5231;
+    static constexpr UINT kMenuCmdCheckUpdates = 5232;
+    static constexpr UINT kMenuCmdKeyboardShortcuts = 5241;
+    static constexpr UINT kMenuCmdAbout = 5242;
+    static constexpr int kHotkeyNextSectionId = 6101;
+    static constexpr int kHotkeyPrevSectionId = 6102;
+    static constexpr int kHotkeyFocusSearchId = 6103;
+    static constexpr int kHotkeyFocusNavId = 6104;
+    static constexpr int kHotkeyHelpId = 6105;
     static constexpr UINT kMsgApplyNavCollapsed = WM_APP + 41;
+    static constexpr UINT_PTR kNavAnimationTimerId = 4101;
+    static constexpr UINT_PTR kMarketplaceSpinnerTimerId = 4102;
+    static constexpr int kNavExpandedWidth = 280;
+    static constexpr int kNavCollapsedWidth = 64;
     static constexpr DWORD kNavToggleDebounceMs = 150;
 };

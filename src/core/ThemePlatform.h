@@ -54,6 +54,10 @@ struct ThemeIconMapping
     std::wstring assetName;
 };
 
+// Include ThemeResourceResolver after all struct definitions
+// to avoid circular dependency issues
+#include "core/ThemeResourceResolver.h"
+
 class ThemePlatform
 {
 public:
@@ -85,6 +89,8 @@ public:
     bool ExportCustomPreset(const std::wstring& filePath) const;
     bool ImportCustomPreset(const std::wstring& filePath) const;
 
+    ThemeResourceResolver* GetResourceResolver() const;
+
     static UINT GetThemeChangedMessageId();
 
 private:
@@ -95,5 +101,7 @@ private:
 private:
     SettingsStore* m_store = nullptr;
     mutable std::shared_ptr<UniversalThemeData> m_cachedTheme;
+    mutable std::wstring m_cachedThemeKey;
+    mutable std::unique_ptr<ThemeResourceResolver> m_resourceResolver;
 };
 

@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cwctype>
+#include <functional>
 #include <sstream>
 
 #pragma comment(lib, "Comctl32.lib")
@@ -22,8 +23,15 @@ static constexpr int kBorderSize = 1;
 static constexpr int kIconGridSize = 32;
 static constexpr UINT_PTR kIdleStateTimerId = 1;
 static constexpr UINT kIdleStateTimerMs = 100;
+static constexpr UINT_PTR kEntranceAnimTimerId = 2;
+static constexpr UINT kEntranceAnimFrameMs = 16;
+static constexpr DWORD kEntranceAnimDurationMs = 220;
+static constexpr int kExplorerHeaderHeight = 24;
 
 static constexpr int kCmdSpaceSettings = 1007;
+static constexpr int kToolbarButtonNone = 0;
+static constexpr int kToolbarButtonSettings = 1;
+static constexpr int kToolbarButtonViewToggle = 2;
 static constexpr int kCtlInheritThemePolicy = 5001;
 static constexpr int kCtlTextOnly = 5002;
 static constexpr int kCtlRollup = 5003;
@@ -32,6 +40,7 @@ static constexpr int kCtlLabelsOnHover = 5005;
 static constexpr int kCtlSpacingPreset = 5006;
 static constexpr int kCtlClose = 5007;
 static constexpr int kCtlApplyAll = 5008;
+static constexpr int kHotkeyCommandPalette = 7001;
 
 namespace
 {
@@ -73,6 +82,11 @@ namespace
         default:
             return false;
         }
+    }
+
+    bool IsSettingsActionButtonId(int controlId)
+    {
+        return controlId == kCtlClose || controlId == kCtlApplyAll;
     }
 
     void DrawSettingsToggleControl(const DRAWITEMSTRUCT* drawInfo, COLORREF backgroundColor, COLORREF accentColor)
@@ -160,6 +174,89 @@ namespace
         }
     }
 
+    void DrawSettingsActionButton(const DRAWITEMSTRUCT* drawInfo,
+                                  COLORREF windowColor,
+                                  COLORREF surfaceColor,
+                                  COLORREF textColor,
+                                  COLORREF accentColor,
+                                  const std::wstring& buttonFamily)
+    {
+        if (!drawInfo || !drawInfo->hwndItem)
+        {
+            return;
+        }
+
+        const bool pressed = (drawInfo->itemState & ODS_SELECTED) != 0;
+        const bool focused = (drawInfo->itemState & ODS_FOCUS) != 0;
+        const bool hovered = (drawInfo->itemState & ODS_HOTLIGHT) != 0;
+        const bool disabled = (drawInfo->itemState & ODS_DISABLED) != 0;
+
+        COLORREF bg = BlendColor(surfaceColor, accentColor, 18);
+        COLORREF border = BlendColor(surfaceColor, textColor, 44);
+        COLORREF fg = textColor;
+
+        if (buttonFamily == L"outlined")
+        {
+            bg = BlendColor(windowColor, surfaceColor, hovered ? 24 : 12);
+            border = hovered ? accentColor : BlendColor(surfaceColor, textColor, 56);
+        }
+        else if (buttonFamily == L"high-contrast")
+        {
+            bg = hovered ? accentColor : BlendColor(surfaceColor, textColor, 105);
+            border = hovered ? accentColor : BlendColor(surfaceColor, textColor, 120);
+            fg = hovered ? RGB(255, 255, 255) : textColor;
+        }
+        else if (buttonFamily == L"compact")
+        {
+            bg = BlendColor(surfaceColor, windowColor, hovered ? 36 : 16);
+        }
+
+        if (pressed)
+        {
+            bg = BlendColor(bg, textColor, 24);
+        }
+        if (disabled)
+        {
+            bg = BlendColor(surfaceColor, windowColor, 60);
+            border = BlendColor(surfaceColor, textColor, 24);
+            fg = BlendColor(textColor, surfaceColor, 120);
+        }
+
+        HDC hdc = drawInfo->hDC;
+        RECT rc = drawInfo->rcItem;
+        InflateRect(&rc, -1, -1);
+
+        const int radius = (buttonFamily == L"soft") ? 9 : 6;
+        HPEN pen = CreatePen(PS_SOLID, 1, border);
+        HBRUSH brush = CreateSolidBrush(bg);
+        HGDIOBJ oldPen = SelectObject(hdc, pen);
+        HGDIOBJ oldBrush = SelectObject(hdc, brush);
+        RoundRect(hdc, rc.left, rc.top, rc.right, rc.bottom, radius, radius);
+        SelectObject(hdc, oldBrush);
+        SelectObject(hdc, oldPen);
+        DeleteObject(brush);
+        DeleteObject(pen);
+
+        wchar_t label[128]{};
+        GetWindowTextW(drawInfo->hwndItem, label, static_cast<int>(std::size(label)));
+        RECT textRc = rc;
+        if (pressed)
+        {
+            OffsetRect(&textRc, 1, 1);
+        }
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, fg);
+        SelectObject(hdc, GetStockObject(DEFAULT_GUI_FONT));
+        DrawTextW(hdc, label, -1, &textRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+        if (focused)
+        {
+            RECT focusRc = rc;
+            InflateRect(&focusRc, -3, -3);
+            DrawFocusRect(hdc, &focusRc);
+        }
+    }
+
     std::wstring BoolText(bool value)
     {
         return value ? L"true" : L"false";
@@ -198,6 +295,283 @@ namespace
         }
 
         return input.substr(start, end - start);
+    }
+
+    std::wstring ToLower(const std::wstring& value)
+    {
+        std::wstring lowered = value;
+        std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](wchar_t c) {
+            return static_cast<wchar_t>(std::towlower(c));
+        });
+        return lowered;
+    }
+
+    int FuzzyScore(const std::wstring& queryRaw, const std::wstring& candidateRaw)
+    {
+        if (queryRaw.empty())
+        {
+            return 1;
+        }
+
+        const std::wstring query = ToLower(queryRaw);
+        const std::wstring candidate = ToLower(candidateRaw);
+        if (candidate.find(query) != std::wstring::npos)
+        {
+            return static_cast<int>(200 + query.size());
+        }
+
+        size_t qi = 0;
+        int score = 0;
+        for (size_t ci = 0; ci < candidate.size() && qi < query.size(); ++ci)
+        {
+            if (candidate[ci] == query[qi])
+            {
+                ++qi;
+                score += 8;
+                if (ci == 0 || candidate[ci - 1] == L' ' || candidate[ci - 1] == L'.' || candidate[ci - 1] == L'-')
+                {
+                    score += 4;
+                }
+            }
+        }
+
+        return (qi == query.size()) ? score : -1;
+    }
+
+    bool IsLoadingContentState(const std::wstring& stateRaw)
+    {
+        const std::wstring state = ToLower(stateRaw);
+        return state.find(L"loading") != std::wstring::npos ||
+               state.find(L"refresh") != std::wstring::npos ||
+               state.find(L"pending") != std::wstring::npos ||
+               state.find(L"sync") != std::wstring::npos ||
+               state.find(L"install") != std::wstring::npos ||
+               state.find(L"updat") != std::wstring::npos;
+    }
+
+    int EstimateBadgeWidth(const std::wstring& text)
+    {
+        const int perChar = 7;
+        return (std::max)(52, static_cast<int>(text.size() * perChar) + 18);
+    }
+
+    void DrawTitleBadge(HDC hdc,
+                        RECT rc,
+                        const std::wstring& text,
+                        COLORREF fill,
+                        COLORREF border,
+                        COLORREF fg)
+    {
+        HPEN pen = CreatePen(PS_SOLID, 1, border);
+        HBRUSH brush = CreateSolidBrush(fill);
+        HGDIOBJ oldPen = SelectObject(hdc, pen);
+        HGDIOBJ oldBrush = SelectObject(hdc, brush);
+        RoundRect(hdc, rc.left, rc.top, rc.right, rc.bottom, 7, 7);
+        SelectObject(hdc, oldBrush);
+        SelectObject(hdc, oldPen);
+        DeleteObject(brush);
+        DeleteObject(pen);
+
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, fg);
+        RECT textRc = rc;
+        textRc.left += 8;
+        textRc.right -= 8;
+        DrawTextW(hdc, text.c_str(), -1, &textRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    }
+
+    void ResolveGridLayout(int contentWidth, int preferredTileSize, int& outCols, int& outTileSize)
+    {
+        outTileSize = (std::max)(44, preferredTileSize);
+        // Add a small bias so columns increase a bit earlier on resize.
+        outCols = (std::max)(1, (contentWidth + (outTileSize / 3)) / outTileSize);
+        if (outCols > 1)
+        {
+            outTileSize = (std::max)(44, contentWidth / outCols);
+        }
+    }
+
+    bool MoveItemInVector(std::vector<SpaceItem>& items, int fromIndex, int toIndex)
+    {
+        if (fromIndex < 0 || toIndex < 0 ||
+            fromIndex >= static_cast<int>(items.size()) ||
+            toIndex >= static_cast<int>(items.size()) ||
+            fromIndex == toIndex)
+        {
+            return false;
+        }
+
+        SpaceItem moved = items[static_cast<size_t>(fromIndex)];
+        items.erase(items.begin() + fromIndex);
+        items.insert(items.begin() + toIndex, std::move(moved));
+        return true;
+    }
+
+    RECT GetToolbarButtonRect(const RECT& clientRc, int titleBarHeight, int buttonId)
+    {
+        RECT buttonRc{};
+        const int buttonSize = (std::max)(20, titleBarHeight - 8);
+        const int top = (titleBarHeight - buttonSize) / 2;
+        const int rightPad = 8;
+        const int gap = 6;
+
+        if (buttonId == kToolbarButtonSettings)
+        {
+            buttonRc.right = clientRc.right - rightPad;
+            buttonRc.left = buttonRc.right - buttonSize;
+            buttonRc.top = top;
+            buttonRc.bottom = top + buttonSize;
+        }
+        else if (buttonId == kToolbarButtonViewToggle)
+        {
+            buttonRc.right = clientRc.right - rightPad - buttonSize - gap;
+            buttonRc.left = buttonRc.right - buttonSize;
+            buttonRc.top = top;
+            buttonRc.bottom = top + buttonSize;
+        }
+
+        return buttonRc;
+    }
+
+    int HitTestToolbarButton(const RECT& clientRc, int titleBarHeight, int x, int y)
+    {
+        if (y < 0 || y >= titleBarHeight)
+        {
+            return kToolbarButtonNone;
+        }
+
+        const RECT settingsRc = GetToolbarButtonRect(clientRc, titleBarHeight, kToolbarButtonSettings);
+        if (x >= settingsRc.left && x < settingsRc.right && y >= settingsRc.top && y < settingsRc.bottom)
+        {
+            return kToolbarButtonSettings;
+        }
+
+        const RECT viewRc = GetToolbarButtonRect(clientRc, titleBarHeight, kToolbarButtonViewToggle);
+        if (x >= viewRc.left && x < viewRc.right && y >= viewRc.top && y < viewRc.bottom)
+        {
+            return kToolbarButtonViewToggle;
+        }
+
+        return kToolbarButtonNone;
+    }
+
+    void DrawTitleToolbarButton(HDC hdc,
+                                const RECT& buttonRc,
+                                const std::wstring& glyph,
+                                bool hovered,
+                                bool active,
+                                const ThemePalette& palette)
+    {
+        const COLORREF fill = active
+            ? BlendColor(palette.accentColor, palette.spaceTitleBarColor, 72)
+            : (hovered
+                ? BlendColor(palette.spaceTitleBarColor, palette.spaceTitleTextColor, 36)
+                : BlendColor(palette.spaceTitleBarColor, palette.surfaceColor, 22));
+        const COLORREF border = active
+            ? palette.accentColor
+            : BlendColor(palette.spaceTitleBarColor, palette.spaceTitleTextColor, 60);
+        const COLORREF text = active ? RGB(255, 255, 255) : palette.spaceTitleTextColor;
+
+        HPEN pen = CreatePen(PS_SOLID, 1, border);
+        HBRUSH brush = CreateSolidBrush(fill);
+        HGDIOBJ oldPen = SelectObject(hdc, pen);
+        HGDIOBJ oldBrush = SelectObject(hdc, brush);
+        RoundRect(hdc, buttonRc.left, buttonRc.top, buttonRc.right, buttonRc.bottom, 6, 6);
+        SelectObject(hdc, oldBrush);
+        SelectObject(hdc, oldPen);
+        DeleteObject(brush);
+        DeleteObject(pen);
+
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, text);
+        HFONT iconFont = CreateFontW(-13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                     DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                     CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe MDL2 Assets");
+        HGDIOBJ oldFont = SelectObject(hdc, iconFont ? iconFont : GetStockObject(DEFAULT_GUI_FONT));
+        DrawTextW(hdc, glyph.c_str(), -1, const_cast<RECT*>(&buttonRc), DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(hdc, oldFont);
+        if (iconFont)
+        {
+            DeleteObject(iconFont);
+        }
+    }
+
+    int GetContentTop(int titleBarHeight)
+    {
+        // Keep content close to the title bar for a cleaner, classic fence look.
+        return titleBarHeight + 8;
+    }
+
+    std::wstring BuildBreadcrumbText(const SpaceModel& model)
+    {
+        if (!model.backingFolder.empty())
+        {
+            const std::wstring& path = model.backingFolder;
+            size_t end = path.size();
+            while (end > 0 && (path[end - 1] == L'\\' || path[end - 1] == L'/'))
+            {
+                --end;
+            }
+
+            const size_t lastSep = path.find_last_of(L"\\/", end == 0 ? 0 : end - 1);
+            std::wstring leaf = (lastSep == std::wstring::npos)
+                ? path.substr(0, end)
+                : path.substr(lastSep + 1, end - lastSep - 1);
+            if (!leaf.empty())
+            {
+                return L"Spaces > " + leaf;
+            }
+        }
+
+        if (!model.contentSource.empty())
+        {
+            return L"Spaces > " + model.contentSource;
+        }
+
+        return L"Spaces > " + model.title;
+    }
+
+    RECT GetDensitySliderRect(const RECT& clientRc, int titleBarHeight)
+    {
+        RECT sliderRc{};
+        sliderRc.right = clientRc.right - 10;
+        sliderRc.left = sliderRc.right - 130;
+        sliderRc.top = titleBarHeight + 4;
+        sliderRc.bottom = sliderRc.top + 14;
+        return sliderRc;
+    }
+
+    int DensityStepFromPolicy(const EffectiveSpacePolicy& policy)
+    {
+        if (policy.iconTileSize <= 50)
+        {
+            return 0;
+        }
+        if (policy.iconTileSize >= 64)
+        {
+            return 2;
+        }
+        return 1;
+    }
+
+    int HitTestDensitySliderStep(const RECT& sliderRc, int x, int y)
+    {
+        if (x < sliderRc.left || x >= sliderRc.right || y < sliderRc.top || y >= sliderRc.bottom)
+        {
+            return -1;
+        }
+
+        const int width = (std::max)(1, static_cast<int>(sliderRc.right - sliderRc.left));
+        const int localX = x - sliderRc.left;
+        if (localX < width / 3)
+        {
+            return 0;
+        }
+        if (localX < (2 * width) / 3)
+        {
+            return 1;
+        }
+        return 2;
     }
 }
 
@@ -271,6 +645,11 @@ bool SpaceWindow::Create(HWND parent)
 
     m_expandedHeight = height;
     SetTimer(m_hwnd, kIdleStateTimerId, kIdleStateTimerMs, nullptr);
+    m_introAnimActive = true;
+    m_introAnimStartTick = GetTickCount();
+    m_introAnimProgress = 0.0f;
+    m_introAnimAlpha = 150;
+    SetTimer(m_hwnd, kEntranceAnimTimerId, kEntranceAnimFrameMs, nullptr);
 
     // Seed hover state from real cursor position to prevent immediate roll-up
     // when a space is created under the mouse.
@@ -291,6 +670,8 @@ bool SpaceWindow::Create(HWND parent)
                createCid);
     ApplyIdleVisualState();
 
+    RegisterHotKey(m_hwnd, kHotkeyCommandPalette, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, 'P');
+
     return true;
 }
 
@@ -309,7 +690,9 @@ void SpaceWindow::Destroy()
     {
         const std::wstring destroyCid = NewCorrelationId(L"destroy");
         TraceDebug(L"Destroy window", destroyCid);
+        UnregisterHotKey(m_hwnd, kHotkeyCommandPalette);
         KillTimer(m_hwnd, kIdleStateTimerId);
+        KillTimer(m_hwnd, kEntranceAnimTimerId);
         DragAcceptFiles(m_hwnd, FALSE);
         DestroyWindow(m_hwnd);
         m_hwnd = nullptr;
@@ -329,8 +712,8 @@ void SpaceWindow::UpdateModel(const SpaceModel& model)
     if (m_hwnd)
     {
         SetWindowTextW(m_hwnd, m_model.title.c_str());
-        ApplyIdleVisualState();
-        InvalidateRect(m_hwnd, nullptr, TRUE);
+        const bool visualChanged = ApplyIdleVisualState();
+        InvalidateRect(m_hwnd, nullptr, visualChanged ? FALSE : FALSE);
     }
 }
 
@@ -339,7 +722,7 @@ void SpaceWindow::SetItems(const std::vector<SpaceItem>& items)
     m_items = items;
     if (m_hwnd)
     {
-        InvalidateRect(m_hwnd, nullptr, TRUE);
+        InvalidateRect(m_hwnd, nullptr, FALSE);
     }
 }
 
@@ -384,8 +767,7 @@ LRESULT SpaceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     if (msg == ThemePlatform::GetThemeChangedMessageId())
     {
         ApplyIdleVisualState();
-        InvalidateRect(m_hwnd, nullptr, TRUE);
-        UpdateWindow(m_hwnd);
+        InvalidateRect(m_hwnd, nullptr, FALSE);
         return 0;
     }
 
@@ -394,8 +776,7 @@ LRESULT SpaceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_SETTINGCHANGE:
     case WM_THEMECHANGED:
         ApplyIdleVisualState();
-        InvalidateRect(m_hwnd, nullptr, TRUE);
-        UpdateWindow(m_hwnd);
+        InvalidateRect(m_hwnd, nullptr, FALSE);
         return 0;
 
     case WM_PAINT:
@@ -422,21 +803,54 @@ LRESULT SpaceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         m_activeCorrelationId = NewCorrelationId(L"hover");
         m_mouseInside = false;
         m_selectedItem = -1;
+        m_titleBarHoverButton = kToolbarButtonNone;
         TraceDebug(L"Mouse leave", m_activeCorrelationId);
-        ApplyIdleVisualState();
-        InvalidateRect(m_hwnd, nullptr, FALSE);
+        if (ApplyIdleVisualState())
+        {
+            InvalidateRect(m_hwnd, nullptr, FALSE);
+        }
         return 0;
 
     case WM_TIMER:
         if (wParam == kIdleStateTimerId)
         {
+            if (IsLoadingContentState(m_model.contentState))
+            {
+                m_loadingSpinnerFrame = (m_loadingSpinnerFrame + 1) % 4;
+                InvalidateRect(m_hwnd, nullptr, FALSE);
+            }
+
             if (IsPopupInteractionActive())
             {
                 return 0;
             }
 
+            if (ApplyIdleVisualState())
+            {
+                InvalidateRect(m_hwnd, nullptr, FALSE);
+            }
+            return 0;
+        }
+        if (wParam == kEntranceAnimTimerId)
+        {
+            const DWORD elapsed = GetTickCount() - m_introAnimStartTick;
+            const float t = (kEntranceAnimDurationMs == 0)
+                ? 1.0f
+                : (std::min)(1.0f, static_cast<float>(elapsed) / static_cast<float>(kEntranceAnimDurationMs));
+            // Smoothstep easing for subtle ease-in/out motion.
+            m_introAnimProgress = t * t * (3.0f - (2.0f * t));
+            m_introAnimAlpha = static_cast<BYTE>(150 + static_cast<int>(105.0f * m_introAnimProgress));
+
             ApplyIdleVisualState();
             InvalidateRect(m_hwnd, nullptr, FALSE);
+
+            if (t >= 1.0f)
+            {
+                m_introAnimActive = false;
+                m_introAnimProgress = 1.0f;
+                m_introAnimAlpha = 255;
+                KillTimer(m_hwnd, kEntranceAnimTimerId);
+            }
             return 0;
         }
         break;
@@ -455,7 +869,7 @@ LRESULT SpaceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             {
                 static constexpr int kItemHeight = 24;
                 anchor.x = 20;
-                anchor.y = titleBarHeight + 8 + (m_selectedItem * kItemHeight) + (kItemHeight / 2);
+                anchor.y = GetContentTop(titleBarHeight) + (m_selectedItem * kItemHeight) + (kItemHeight / 2);
             }
             else
             {
@@ -531,6 +945,14 @@ LRESULT SpaceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         OnSize(width, height);
         return 0;
     }
+
+    case WM_HOTKEY:
+        if (wParam == kHotkeyCommandPalette)
+        {
+            ShowCommandPalette();
+            return 0;
+        }
+        break;
 
     case WM_SYSCOMMAND:
     {
@@ -609,9 +1031,19 @@ void SpaceWindow::OnPaint()
     RECT titleRc = rc;
     titleRc.bottom = titleBarHeight;
     int titleOpacityPercent = 88;
+    int idleOpacityPercent = 92;
     if (m_themePlatform)
     {
         titleOpacityPercent = m_themePlatform->GetSpaceTitleBarOpacityPercent();
+        idleOpacityPercent = m_themePlatform->GetSpaceIdleOpacityPercent();
+    }
+    if (!m_mouseInside)
+    {
+        const EffectiveSpacePolicy effectivePolicy = ResolveEffectivePolicy();
+        if (effectivePolicy.transparentWhenNotHovered)
+        {
+            titleOpacityPercent = (std::min)(titleOpacityPercent, idleOpacityPercent);
+        }
     }
     const COLORREF translucentTitleColor = BlendColor(
         palette.surfaceColor,
@@ -621,25 +1053,39 @@ void SpaceWindow::OnPaint()
     FillRect(hdc, &titleRc, titleBrush);
     DeleteObject(titleBrush);
 
-    // Apply title bar opacity: at 100%, window is fully solid; below 100%, apply blending
-    if (titleOpacityPercent < 100)
+    // Apply fence shell style-specific styling
+    std::wstring fenceStyle = L"window-frame";
+    if (m_themePlatform)
     {
-        LONG_PTR exStyle = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
-        if ((exStyle & WS_EX_LAYERED) == 0)
+        ThemeResourceResolver* resolver = m_themePlatform->GetResourceResolver();
+        if (resolver)
         {
-            SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+            fenceStyle = resolver->GetSelectedFenceStyle();
         }
     }
-    else
+
+    // Draw fence style-specific border/accent
+    if (fenceStyle == L"card-container")
     {
-        // At 100% opacity, fully remove layered window style for true solidity
-        LONG_PTR exStyle = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
-        if ((exStyle & WS_EX_LAYERED) != 0)
-        {
-            SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle & ~WS_EX_LAYERED);
-            SetWindowPos(m_hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
-        }
+        // For card-container style, add bottom border to title bar
+        HPEN borderPen = CreatePen(PS_SOLID, 2, palette.borderColor);
+        HPEN oldPen = reinterpret_cast<HPEN>(SelectObject(hdc, borderPen));
+        MoveToEx(hdc, titleRc.left, titleRc.bottom - 1, nullptr);
+        LineTo(hdc, titleRc.right, titleRc.bottom - 1);
+        SelectObject(hdc, oldPen);
+        DeleteObject(borderPen);
     }
+    else if (fenceStyle == L"embedded")
+    {
+        // For embedded style, add subtle side accent bar
+        RECT accentRc = titleRc;
+        accentRc.right = accentRc.left + 3;
+        HBRUSH accentBrush = CreateSolidBrush(palette.accentColor);
+        FillRect(hdc, &accentRc, accentBrush);
+        DeleteObject(accentBrush);
+    }
+
+    // Do not toggle WS_EX_LAYERED during paint; style thrash here causes visible flashing.
 
     // Draw title text
     SetBkMode(hdc, TRANSPARENT);
@@ -648,18 +1094,26 @@ void SpaceWindow::OnPaint()
     textRc.left += 8;
     textRc.top += 4;
     std::wstring titleText = m_model.title;
-    if (!m_model.contentState.empty() && m_model.contentState != L"ready")
-    {
-        titleText += L" [" + m_model.contentState + L"]";
-    }
-    DrawTextW(hdc, titleText.c_str(), -1, &textRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+    textRc.right -= 8;
+    DrawTextW(hdc, titleText.c_str(), -1, &textRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+    const int introSlidePx = m_introAnimActive
+        ? static_cast<int>((1.0f - m_introAnimProgress) * 10.0f)
+        : 0;
+    const int introColorAlpha = m_introAnimActive
+        ? static_cast<int>(m_introAnimProgress * 255.0f)
+        : 255;
+
+    // Draw explorer header row (breadcrumbs + density slider)
+    const EffectiveSpacePolicy policy = ResolveEffectivePolicy();
+    (void)introColorAlpha;
 
     // Draw items
     const bool textOnly = m_model.textOnlyMode;
-    const EffectiveSpacePolicy policy = ResolveEffectivePolicy();
     const int iconTileSize = policy.iconTileSize;
     const int contentLeft = 8;
-    const int contentTop = titleBarHeight + 8;
+    const int contentTop = GetContentTop(titleBarHeight) + introSlidePx;
 
     if (textOnly)
     {
@@ -691,13 +1145,26 @@ void SpaceWindow::OnPaint()
             RECT itemTextRc = itemRc;
             itemTextRc.left += 4;
             DrawTextW(hdc, item.name.c_str(), -1, &itemTextRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+            if (m_itemDragActive && m_itemDragTargetIndex == i && m_itemDragSourceIndex != i)
+            {
+                HPEN targetPen = CreatePen(PS_DASH, 1, palette.accentColor);
+                HPEN oldTargetPen = reinterpret_cast<HPEN>(SelectObject(hdc, targetPen));
+                HBRUSH oldTargetBrush = reinterpret_cast<HBRUSH>(SelectObject(hdc, GetStockObject(HOLLOW_BRUSH)));
+                Rectangle(hdc, itemRc.left + 2, itemRc.top + 2, itemRc.right - 2, itemRc.bottom - 2);
+                SelectObject(hdc, oldTargetBrush);
+                SelectObject(hdc, oldTargetPen);
+                DeleteObject(targetPen);
+            }
             itemY += kItemHeight;
         }
     }
     else
     {
         const int contentWidth = max(1, (rc.right - rc.left) - (contentLeft * 2));
-        const int cols = max(1, contentWidth / iconTileSize);
+        int cols = 1;
+        int responsiveTileSize = iconTileSize;
+        ResolveGridLayout(contentWidth, iconTileSize, cols, responsiveTileSize);
 
         for (int i = 0; i < static_cast<int>(m_items.size()); ++i)
         {
@@ -706,10 +1173,10 @@ void SpaceWindow::OnPaint()
             const int col = i % cols;
 
             RECT tileRc{};
-            tileRc.left = contentLeft + (col * iconTileSize);
-            tileRc.top = contentTop + (row * iconTileSize);
-            tileRc.right = tileRc.left + iconTileSize;
-            tileRc.bottom = tileRc.top + iconTileSize;
+            tileRc.left = contentLeft + (col * responsiveTileSize);
+            tileRc.top = contentTop + (row * responsiveTileSize);
+            tileRc.right = tileRc.left + responsiveTileSize;
+            tileRc.bottom = tileRc.top + responsiveTileSize;
 
             if (i == m_selectedItem)
             {
@@ -718,18 +1185,18 @@ void SpaceWindow::OnPaint()
                 DeleteObject(hiBrush);
 
                 HPEN ringPen = CreatePen(PS_SOLID, 2, palette.accentColor);
-                HPEN oldPen = reinterpret_cast<HPEN>(SelectObject(hdc, ringPen));
-                HBRUSH oldBrush = reinterpret_cast<HBRUSH>(SelectObject(hdc, GetStockObject(HOLLOW_BRUSH)));
+                HPEN oldRingPen = reinterpret_cast<HPEN>(SelectObject(hdc, ringPen));
+                HBRUSH oldRingBrush = reinterpret_cast<HBRUSH>(SelectObject(hdc, GetStockObject(HOLLOW_BRUSH)));
                 Rectangle(hdc, tileRc.left + 1, tileRc.top + 1, tileRc.right - 1, tileRc.bottom - 1);
-                SelectObject(hdc, oldBrush);
-                SelectObject(hdc, oldPen);
+                SelectObject(hdc, oldRingBrush);
+                SelectObject(hdc, oldRingPen);
                 DeleteObject(ringPen);
             }
 
             if (item.iconIndex >= 0 && m_imageList != nullptr)
             {
-                const int iconX = tileRc.left + ((iconTileSize - kIconGridSize) / 2);
-                const int iconY = tileRc.top + ((iconTileSize - kIconGridSize) / 2) - (policy.labelsOnHover ? 6 : 0);
+                const int iconX = tileRc.left + ((responsiveTileSize - kIconGridSize) / 2);
+                const int iconY = tileRc.top + ((responsiveTileSize - kIconGridSize) / 2) - (policy.labelsOnHover ? 6 : 0);
                 ImageList_DrawEx(m_imageList, item.iconIndex, hdc, iconX, iconY, kIconGridSize, kIconGridSize, CLR_NONE, CLR_NONE, ILD_TRANSPARENT);
             }
 
@@ -741,6 +1208,17 @@ void SpaceWindow::OnPaint()
                 SetTextColor(hdc, palette.spaceTitleTextColor);
                 DrawTextW(hdc, item.name.c_str(), -1, &labelRc, DT_CENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
             }
+
+            if (m_itemDragActive && m_itemDragTargetIndex == i && m_itemDragSourceIndex != i)
+            {
+                HPEN targetPen = CreatePen(PS_DASH, 1, palette.accentColor);
+                HPEN oldTargetPen = reinterpret_cast<HPEN>(SelectObject(hdc, targetPen));
+                HBRUSH oldTargetBrush = reinterpret_cast<HBRUSH>(SelectObject(hdc, GetStockObject(HOLLOW_BRUSH)));
+                Rectangle(hdc, tileRc.left + 2, tileRc.top + 2, tileRc.right - 2, tileRc.bottom - 2);
+                SelectObject(hdc, oldTargetBrush);
+                SelectObject(hdc, oldTargetPen);
+                DeleteObject(targetPen);
+            }
         }
     }
 
@@ -750,11 +1228,25 @@ void SpaceWindow::OnPaint()
 void SpaceWindow::OnLButtonDown(int x, int y)
 {
     const int titleBarHeight = m_themePlatform ? m_themePlatform->GetFenceTitleBarHeightPx() : kTitleBarHeight;
+
     if (y < titleBarHeight)
     {
         (void)x;
         ReleaseCapture();
         SendMessageW(m_hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+        return;
+    }
+
+    const int itemIndex = GetItemAtPosition(x, y);
+    if (itemIndex >= 0)
+    {
+        m_itemDragPending = true;
+        m_itemDragActive = false;
+        m_itemDragSourceIndex = itemIndex;
+        m_itemDragTargetIndex = itemIndex;
+        m_dragStart.x = x;
+        m_dragStart.y = y;
+        SetCapture(m_hwnd);
     }
 }
 
@@ -776,9 +1268,45 @@ void SpaceWindow::OnMouseMove(int x, int y, WPARAM flags)
     tme.hwndTrack = m_hwnd;
     TrackMouseEvent(&tme);
 
-    // Track item under cursor for highlight
+    m_titleBarHoverButton = kToolbarButtonNone;
+
+    if ((m_itemDragPending || m_itemDragActive) && (flags & MK_LBUTTON) == 0)
+    {
+        m_itemDragPending = false;
+        m_itemDragActive = false;
+        m_itemDragSourceIndex = -1;
+        m_itemDragTargetIndex = -1;
+        ReleaseCapture();
+    }
+
+    if (m_itemDragPending && !m_itemDragActive)
+    {
+        const int dx = std::abs(x - m_dragStart.x);
+        const int dy = std::abs(y - m_dragStart.y);
+        if (dx >= 4 || dy >= 4)
+        {
+            m_itemDragActive = true;
+        }
+    }
+
+    if (m_itemDragActive)
+    {
+        int hoverIndex = GetItemAtPosition(x, y);
+        if (hoverIndex < 0 && !m_items.empty())
+        {
+            hoverIndex = static_cast<int>(m_items.size()) - 1;
+        }
+
+        if (hoverIndex != m_itemDragTargetIndex)
+        {
+            m_itemDragTargetIndex = hoverIndex;
+            InvalidateRect(m_hwnd, nullptr, FALSE);
+        }
+    }
+
+    // Track item under cursor for highlight (when not dragging reorder)
     const int item = GetItemAtPosition(x, y);
-    if (item != m_selectedItem)
+    if (!m_itemDragActive && item != m_selectedItem)
     {
         m_selectedItem = item;
         InvalidateRect(m_hwnd, nullptr, FALSE);
@@ -787,7 +1315,23 @@ void SpaceWindow::OnMouseMove(int x, int y, WPARAM flags)
 
 void SpaceWindow::OnLButtonUp()
 {
-    // Native drag move path (WM_NCLBUTTONDOWN + HTCAPTION) handles release for us.
+    if (m_itemDragActive)
+    {
+        const bool moved = MoveItemInVector(m_items, m_itemDragSourceIndex, m_itemDragTargetIndex);
+        if (moved)
+        {
+            m_selectedItem = m_itemDragTargetIndex;
+            TraceDebug(L"Reordered item from " + std::to_wstring(m_itemDragSourceIndex) +
+                       L" to " + std::to_wstring(m_itemDragTargetIndex));
+        }
+    }
+
+    m_itemDragPending = false;
+    m_itemDragActive = false;
+    m_itemDragSourceIndex = -1;
+    m_itemDragTargetIndex = -1;
+    ReleaseCapture();
+    InvalidateRect(m_hwnd, nullptr, FALSE);
 }
 
 void SpaceWindow::OnContextMenu(int x, int y)
@@ -820,15 +1364,46 @@ void SpaceWindow::OnContextMenu(int x, int y)
 
     UINT decorationId = 3000;
     UINT pluginCommandId = 4000;
+
+    int menuWidthPx = 220;
+    int menuRowHeightPx = 28;
+    if (m_themePlatform)
+    {
+        menuWidthPx = m_themePlatform->GetTrayMenuMinWidthPx();
+        menuRowHeightPx = m_themePlatform->GetTrayMenuRowHeightPx();
+
+        ThemeResourceResolver* resolver = m_themePlatform->GetResourceResolver();
+        if (resolver)
+        {
+            const std::wstring menuStyle = resolver->GetSelectedMenuStyle();
+            if (menuStyle == L"compact")
+            {
+                menuWidthPx = (std::max)(180, menuWidthPx - 20);
+                menuRowHeightPx = (std::max)(24, menuRowHeightPx - 4);
+            }
+            else if (menuStyle == L"hierarchical")
+            {
+                menuWidthPx = (std::max)(240, menuWidthPx + 20);
+                menuRowHeightPx = (std::max)(30, menuRowHeightPx + 2);
+            }
+        }
+    }
+
     auto appendSeparator = [&]() {
         AppendMenuW(menu, MF_OWNERDRAW | MF_DISABLED, decorationId, nullptr);
-        m_menuVisuals.emplace(decorationId, Win32Helpers::PopupMenuItemVisual{L"", L"", L"", true, false});
+        Win32Helpers::PopupMenuItemVisual visual{L"", L"", L"", true, false};
+        visual.preferredWidthPx = menuWidthPx;
+        visual.preferredHeightPx = menuRowHeightPx;
+        m_menuVisuals.emplace(decorationId, visual);
         ++decorationId;
     };
 
     auto appendItem = [&](const std::wstring& text, UINT commandId) {
         AppendMenuW(menu, MF_OWNERDRAW | MF_STRING, commandId, nullptr);
-        m_menuVisuals.emplace(commandId, Win32Helpers::PopupMenuItemVisual{text, L"", L"", false, true});
+        Win32Helpers::PopupMenuItemVisual visual{text, L"", L"", false, true};
+        visual.preferredWidthPx = menuWidthPx;
+        visual.preferredHeightPx = menuRowHeightPx;
+        m_menuVisuals.emplace(commandId, visual);
     };
 
     auto appendPluginItems = [&](MenuSurface surface) {
@@ -846,7 +1421,10 @@ void SpaceWindow::OnContextMenu(int x, int y)
             }
 
             AppendMenuW(menu, MF_OWNERDRAW | MF_STRING, pluginCommandId, nullptr);
-            m_menuVisuals.emplace(pluginCommandId, Win32Helpers::PopupMenuItemVisual{contribution.title, L"", L"", false, true});
+            Win32Helpers::PopupMenuItemVisual visual{contribution.title, L"", L"", false, true};
+            visual.preferredWidthPx = menuWidthPx;
+            visual.preferredHeightPx = menuRowHeightPx;
+            m_menuVisuals.emplace(pluginCommandId, visual);
             m_menuCommands.emplace(pluginCommandId, contribution.commandId);
             ++pluginCommandId;
         }
@@ -1064,7 +1642,7 @@ int SpaceWindow::GetItemAtPosition(int x, int y) const
 
     if (m_model.textOnlyMode)
     {
-        int itemY = titleBarHeight + 8;
+        int itemY = GetContentTop(titleBarHeight);
         static constexpr int kItemHeight = 24;
         for (size_t i = 0; i < m_items.size(); ++i)
         {
@@ -1081,10 +1659,12 @@ int SpaceWindow::GetItemAtPosition(int x, int y) const
     RECT rc{};
     GetClientRect(m_hwnd, &rc);
     const int contentLeft = 8;
-    const int contentTop = titleBarHeight + 8;
+    const int contentTop = GetContentTop(titleBarHeight);
     const int iconTileSize = policy.iconTileSize;
     const int contentWidth = max(1, (rc.right - rc.left) - (contentLeft * 2));
-    const int cols = max(1, contentWidth / iconTileSize);
+    int cols = 1;
+    int responsiveTileSize = iconTileSize;
+    ResolveGridLayout(contentWidth, iconTileSize, cols, responsiveTileSize);
 
     const int localX = x - contentLeft;
     const int localY = y - contentTop;
@@ -1093,8 +1673,8 @@ int SpaceWindow::GetItemAtPosition(int x, int y) const
         return -1;
     }
 
-    const int col = localX / iconTileSize;
-    const int row = localY / iconTileSize;
+    const int col = localX / responsiveTileSize;
+    const int row = localY / responsiveTileSize;
     if (col < 0 || col >= cols)
     {
         return -1;
@@ -1106,9 +1686,9 @@ int SpaceWindow::GetItemAtPosition(int x, int y) const
         return -1;
     }
 
-    const int insideTileX = localX % iconTileSize;
-    const int insideTileY = localY % iconTileSize;
-    if (insideTileX < 0 || insideTileY < 0 || insideTileX >= iconTileSize || insideTileY >= iconTileSize)
+    const int insideTileX = localX % responsiveTileSize;
+    const int insideTileY = localY % responsiveTileSize;
+    if (insideTileX < 0 || insideTileY < 0 || insideTileX >= responsiveTileSize || insideTileY >= responsiveTileSize)
     {
         return -1;
     }
@@ -1116,11 +1696,11 @@ int SpaceWindow::GetItemAtPosition(int x, int y) const
     return index;
 }
 
-void SpaceWindow::ApplyIdleVisualState()
+bool SpaceWindow::ApplyIdleVisualState()
 {
     if (!m_hwnd)
     {
-        return;
+        return false;
     }
 
     const bool previousHover = m_mouseInside;
@@ -1202,23 +1782,85 @@ void SpaceWindow::ApplyIdleVisualState()
     }
     
     LONG_PTR exStyle = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
-    if (shouldBeTransparent && idleOpacityPercent < 100)
+    const bool wantsLayered = shouldBeTransparent && idleOpacityPercent < 100;
+    BYTE desiredAlpha = wantsLayered
+        ? static_cast<BYTE>((idleOpacityPercent * 255) / 100)
+        : static_cast<BYTE>(255);
+
+    if (m_introAnimActive)
     {
-        const BYTE idleAlpha = static_cast<BYTE>((idleOpacityPercent * 255) / 100);
-        if ((exStyle & WS_EX_LAYERED) == 0)
-        {
-            SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
-        }
-        SetLayeredWindowAttributes(m_hwnd, 0, idleAlpha, LWA_ALPHA);
+        desiredAlpha = (std::min)(desiredAlpha, m_introAnimAlpha);
+    }
+
+    if (!m_alphaInitialized)
+    {
+        m_currentAlpha = desiredAlpha;
+        m_targetAlpha = desiredAlpha;
+        m_alphaInitialized = true;
     }
     else
     {
-        // When not transparent or idle opacity is 100%, fully remove layered window style
-        if ((exStyle & WS_EX_LAYERED) != 0)
+        m_targetAlpha = desiredAlpha;
+    }
+
+    int motionDurationMs = 220;
+    if (m_themePlatform)
+    {
+        ThemeResourceResolver* resolver = m_themePlatform->GetResourceResolver();
+        if (resolver)
         {
-            SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle & ~WS_EX_LAYERED);
-            SetWindowPos(m_hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+            motionDurationMs = resolver->GetMotionDurationMs(resolver->GetSelectedMotionPreset(), 220);
         }
+    }
+
+    if (motionDurationMs <= 0)
+    {
+        m_currentAlpha = m_targetAlpha;
+    }
+    else
+    {
+        const int steps = (std::max)(1, motionDurationMs / static_cast<int>(kIdleStateTimerMs));
+        const int delta = static_cast<int>(m_targetAlpha) - static_cast<int>(m_currentAlpha);
+        if (delta != 0)
+        {
+            const int stepAbs = (std::max)(1, (std::abs(delta) + steps - 1) / steps);
+            if (delta > 0)
+            {
+                m_currentAlpha = static_cast<BYTE>((std::min)(255, static_cast<int>(m_currentAlpha) + stepAbs));
+                if (m_currentAlpha > m_targetAlpha)
+                {
+                    m_currentAlpha = m_targetAlpha;
+                }
+            }
+            else
+            {
+                m_currentAlpha = static_cast<BYTE>((std::max)(0, static_cast<int>(m_currentAlpha) - stepAbs));
+                if (m_currentAlpha < m_targetAlpha)
+                {
+                    m_currentAlpha = m_targetAlpha;
+                }
+            }
+        }
+    }
+
+    // Use layered mode only while translucency is active or a fade is in flight.
+    const bool alphaInFlight = m_currentAlpha != m_targetAlpha;
+    const bool needsLayeredNow = wantsLayered || alphaInFlight || m_currentAlpha < 255;
+    if (needsLayeredNow)
+    {
+        if ((exStyle & WS_EX_LAYERED) == 0)
+        {
+            SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+            exStyle |= WS_EX_LAYERED;
+        }
+        SetLayeredWindowAttributes(m_hwnd, 0, m_currentAlpha, LWA_ALPHA);
+    }
+    else if ((exStyle & WS_EX_LAYERED) != 0)
+    {
+        // Switch back to fully opaque non-layered once transition completes.
+        SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle & ~WS_EX_LAYERED);
+        SetWindowPos(m_hwnd, nullptr, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
     }
 
     ++m_idleStateEvalCount;
@@ -1242,6 +1884,9 @@ void SpaceWindow::ApplyIdleVisualState()
 
     m_lastLoggedTransparent = shouldBeTransparent;
     m_hasLastLoggedTransparent = true;
+
+    const bool alphaChanged = (m_currentAlpha != m_targetAlpha) || (m_targetAlpha != desiredAlpha);
+    return hoverChanged || rollChanged || transparencyChanged || alphaChanged;
 }
 
 std::wstring SpaceWindow::NewCorrelationId(const wchar_t* action) const
@@ -1329,6 +1974,122 @@ void SpaceWindow::ShowSettingsPanel()
     }
 }
 
+void SpaceWindow::ShowCommandPalette()
+{
+    struct PaletteCommand
+    {
+        std::wstring label;
+        std::function<void()> execute;
+    };
+
+    std::vector<PaletteCommand> commands;
+    commands.push_back(PaletteCommand{L"New Space", [this]() {
+        if (m_manager)
+        {
+            RECT rc{};
+            GetWindowRect(m_hwnd, &rc);
+            m_manager->CreateSpaceAt(rc.left + 28, rc.top + 36);
+        }
+    }});
+    commands.push_back(PaletteCommand{L"Rename Space", [this]() {
+        if (!m_manager)
+        {
+            return;
+        }
+
+        std::wstring newTitle;
+        if (Win32Helpers::PromptTextInput(m_hwnd, L"Rename Space", L"Space title:", m_model.title, newTitle))
+        {
+            newTitle = TrimWhitespace(newTitle);
+            if (!newTitle.empty() && newTitle.size() <= 128)
+            {
+                m_manager->RenameSpace(m_model.id, newTitle);
+            }
+        }
+    }});
+    commands.push_back(PaletteCommand{L"Space Settings", [this]() { ShowSettingsPanel(); }});
+    commands.push_back(PaletteCommand{L"Toggle Text Only Mode", [this]() {
+        if (m_manager)
+        {
+            m_manager->SetSpaceTextOnlyMode(m_model.id, !m_model.textOnlyMode);
+        }
+    }});
+    commands.push_back(PaletteCommand{L"Toggle Roll Up", [this]() {
+        if (m_manager)
+        {
+            m_manager->SetSpaceRollupWhenNotHovered(m_model.id, !m_model.rollupWhenNotHovered, NewCorrelationId(L"palette_rollup"));
+        }
+    }});
+    commands.push_back(PaletteCommand{L"Toggle Transparency", [this]() {
+        if (m_manager)
+        {
+            m_manager->SetSpaceTransparentWhenNotHovered(m_model.id, !m_model.transparentWhenNotHovered, NewCorrelationId(L"palette_transparency"));
+        }
+    }});
+    commands.push_back(PaletteCommand{L"Density Compact", [this]() {
+        if (m_manager)
+        {
+            m_manager->SetSpaceThemePolicyInheritance(m_model.id, false);
+            m_manager->SetSpaceIconSpacingPreset(m_model.id, L"compact");
+        }
+    }});
+    commands.push_back(PaletteCommand{L"Density Comfortable", [this]() {
+        if (m_manager)
+        {
+            m_manager->SetSpaceThemePolicyInheritance(m_model.id, false);
+            m_manager->SetSpaceIconSpacingPreset(m_model.id, L"comfortable");
+        }
+    }});
+    commands.push_back(PaletteCommand{L"Density Spacious", [this]() {
+        if (m_manager)
+        {
+            m_manager->SetSpaceThemePolicyInheritance(m_model.id, false);
+            m_manager->SetSpaceIconSpacingPreset(m_model.id, L"spacious");
+        }
+    }});
+    commands.push_back(PaletteCommand{L"Refresh Space", [this]() {
+        if (m_manager)
+        {
+            m_manager->RefreshSpace(m_model.id);
+        }
+    }});
+
+    std::wstring query;
+    if (!Win32Helpers::PromptTextInput(
+            m_hwnd,
+            L"Command Palette",
+            L"Type command (fuzzy):",
+            L"",
+            query))
+    {
+        return;
+    }
+
+    query = TrimWhitespace(query);
+
+    int bestIndex = -1;
+    int bestScore = -1;
+    for (int i = 0; i < static_cast<int>(commands.size()); ++i)
+    {
+        const int score = FuzzyScore(query, commands[static_cast<size_t>(i)].label);
+        if (score > bestScore)
+        {
+            bestScore = score;
+            bestIndex = i;
+        }
+    }
+
+    if (bestIndex < 0)
+    {
+        Win32Helpers::ShowUserWarning(m_hwnd, L"Command Palette", L"No matching command found.");
+        return;
+    }
+
+    TraceDebug(L"Command palette executed: " + commands[static_cast<size_t>(bestIndex)].label,
+               NewCorrelationId(L"palette"));
+    commands[static_cast<size_t>(bestIndex)].execute();
+}
+
 LRESULT CALLBACK SpaceWindow::SettingsPanelWndProcStatic(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     SpaceWindow* self = nullptr;
@@ -1404,13 +2165,13 @@ LRESULT SpaceWindow::SettingsPanelWndProc(HWND hwnd, UINT msg, WPARAM wParam, LP
         SendMessageW(combo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"Spacious"));
 
         CreateWindowExW(0, L"BUTTON", L"Close",
-                        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                        WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
                         240, 220, 90, 28, hwnd,
                         reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCtlClose)),
                         GetModuleHandleW(nullptr), nullptr);
 
         CreateWindowExW(0, L"BUTTON", L"Apply to all spaces",
-                        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                        WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
                         16, 220, 150, 28, hwnd,
                         reinterpret_cast<HMENU>(static_cast<INT_PTR>(kCtlApplyAll)),
                         GetModuleHandleW(nullptr), nullptr);
@@ -1426,11 +2187,6 @@ LRESULT SpaceWindow::SettingsPanelWndProc(HWND hwnd, UINT msg, WPARAM wParam, LP
         else if (effectivePolicy.iconTileSize >= 68) spacingSel = 2;
         SendMessageW(combo, CB_SETCURSEL, spacingSel, 0);
 
-        const BOOL customEnabled = m_model.inheritThemePolicy ? FALSE : TRUE;
-        EnableWindow(GetDlgItem(hwnd, kCtlRollup), customEnabled);
-        EnableWindow(GetDlgItem(hwnd, kCtlTransparent), customEnabled);
-        EnableWindow(GetDlgItem(hwnd, kCtlLabelsOnHover), customEnabled);
-        EnableWindow(GetDlgItem(hwnd, kCtlSpacingPreset), customEnabled);
         return 0;
     }
     case WM_COMMAND:
@@ -1460,11 +2216,6 @@ LRESULT SpaceWindow::SettingsPanelWndProc(HWND hwnd, UINT msg, WPARAM wParam, LP
         {
             const bool enabled = (SendMessageW(GetDlgItem(hwnd, kCtlInheritThemePolicy), BM_GETCHECK, 0, 0) == BST_CHECKED);
             m_manager->SetSpaceThemePolicyInheritance(m_model.id, enabled);
-            const BOOL customEnabled = enabled ? FALSE : TRUE;
-            EnableWindow(GetDlgItem(hwnd, kCtlRollup), customEnabled);
-            EnableWindow(GetDlgItem(hwnd, kCtlTransparent), customEnabled);
-            EnableWindow(GetDlgItem(hwnd, kCtlLabelsOnHover), customEnabled);
-            EnableWindow(GetDlgItem(hwnd, kCtlSpacingPreset), customEnabled);
             return 0;
         }
 
@@ -1477,6 +2228,11 @@ LRESULT SpaceWindow::SettingsPanelWndProc(HWND hwnd, UINT msg, WPARAM wParam, LP
 
         if (id == kCtlRollup && code == BN_CLICKED)
         {
+            if (SendMessageW(GetDlgItem(hwnd, kCtlInheritThemePolicy), BM_GETCHECK, 0, 0) == BST_CHECKED)
+            {
+                SendMessageW(GetDlgItem(hwnd, kCtlInheritThemePolicy), BM_SETCHECK, BST_UNCHECKED, 0);
+                m_manager->SetSpaceThemePolicyInheritance(m_model.id, false);
+            }
             const bool enabled = (SendMessageW(GetDlgItem(hwnd, kCtlRollup), BM_GETCHECK, 0, 0) == BST_CHECKED);
             const std::wstring cid = NewCorrelationId(L"rollup_setting");
             TraceDebug(L"Settings panel roll-up toggle", cid);
@@ -1486,6 +2242,11 @@ LRESULT SpaceWindow::SettingsPanelWndProc(HWND hwnd, UINT msg, WPARAM wParam, LP
 
         if (id == kCtlTransparent && code == BN_CLICKED)
         {
+            if (SendMessageW(GetDlgItem(hwnd, kCtlInheritThemePolicy), BM_GETCHECK, 0, 0) == BST_CHECKED)
+            {
+                SendMessageW(GetDlgItem(hwnd, kCtlInheritThemePolicy), BM_SETCHECK, BST_UNCHECKED, 0);
+                m_manager->SetSpaceThemePolicyInheritance(m_model.id, false);
+            }
             const bool enabled = (SendMessageW(GetDlgItem(hwnd, kCtlTransparent), BM_GETCHECK, 0, 0) == BST_CHECKED);
             const std::wstring cid = NewCorrelationId(L"transparency_setting");
             TraceDebug(L"Settings panel transparency toggle", cid);
@@ -1495,6 +2256,11 @@ LRESULT SpaceWindow::SettingsPanelWndProc(HWND hwnd, UINT msg, WPARAM wParam, LP
 
         if (id == kCtlLabelsOnHover && code == BN_CLICKED)
         {
+            if (SendMessageW(GetDlgItem(hwnd, kCtlInheritThemePolicy), BM_GETCHECK, 0, 0) == BST_CHECKED)
+            {
+                SendMessageW(GetDlgItem(hwnd, kCtlInheritThemePolicy), BM_SETCHECK, BST_UNCHECKED, 0);
+                m_manager->SetSpaceThemePolicyInheritance(m_model.id, false);
+            }
             const bool enabled = (SendMessageW(GetDlgItem(hwnd, kCtlLabelsOnHover), BM_GETCHECK, 0, 0) == BST_CHECKED);
             m_manager->SetSpaceLabelsOnHover(m_model.id, enabled);
             return 0;
@@ -1502,6 +2268,11 @@ LRESULT SpaceWindow::SettingsPanelWndProc(HWND hwnd, UINT msg, WPARAM wParam, LP
 
         if (id == kCtlSpacingPreset && code == CBN_SELCHANGE)
         {
+            if (SendMessageW(GetDlgItem(hwnd, kCtlInheritThemePolicy), BM_GETCHECK, 0, 0) == BST_CHECKED)
+            {
+                SendMessageW(GetDlgItem(hwnd, kCtlInheritThemePolicy), BM_SETCHECK, BST_UNCHECKED, 0);
+                m_manager->SetSpaceThemePolicyInheritance(m_model.id, false);
+            }
             const LRESULT sel = SendMessageW(GetDlgItem(hwnd, kCtlSpacingPreset), CB_GETCURSEL, 0, 0);
             std::wstring preset = L"comfortable";
             if (sel == 0) preset = L"compact";
@@ -1520,7 +2291,66 @@ LRESULT SpaceWindow::SettingsPanelWndProc(HWND hwnd, UINT msg, WPARAM wParam, LP
             DrawSettingsToggleControl(drawInfo, RGB(248, 248, 248), RGB(114, 99, 255));
             return TRUE;
         }
+
+        if (drawInfo && drawInfo->CtlType == ODT_BUTTON &&
+            IsSettingsActionButtonId(static_cast<int>(drawInfo->CtlID)))
+        {
+            const ThemePalette palette = m_themePlatform ? m_themePlatform->BuildPalette() : ThemePalette{};
+            std::wstring buttonFamily = L"compact";
+            if (m_themePlatform)
+            {
+                ThemeResourceResolver* resolver = m_themePlatform->GetResourceResolver();
+                if (resolver)
+                {
+                    buttonFamily = resolver->GetSelectedButtonFamily();
+                }
+            }
+
+            DrawSettingsActionButton(drawInfo,
+                                     palette.windowColor,
+                                     palette.surfaceColor,
+                                     palette.textColor,
+                                     palette.accentColor,
+                                     buttonFamily);
+            return TRUE;
+        }
         break;
+    }
+    case WM_ERASEBKGND:
+    {
+        HDC hdc = reinterpret_cast<HDC>(wParam);
+        RECT rc{};
+        GetClientRect(hwnd, &rc);
+        const ThemePalette palette = m_themePlatform ? m_themePlatform->BuildPalette() : ThemePalette{};
+        HBRUSH bg = CreateSolidBrush(palette.windowColor);
+        FillRect(hdc, &rc, bg);
+        DeleteObject(bg);
+
+        HPEN dividerPen = CreatePen(PS_SOLID, 1, BlendColor(palette.windowColor, palette.textColor, 26));
+        HPEN oldPen = reinterpret_cast<HPEN>(SelectObject(hdc, dividerPen));
+        MoveToEx(hdc, 16, 206, nullptr);
+        LineTo(hdc, rc.right - 16, 206);
+        SelectObject(hdc, oldPen);
+        DeleteObject(dividerPen);
+        return 1;
+    }
+    case WM_CTLCOLORSTATIC:
+    case WM_CTLCOLORBTN:
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORLISTBOX:
+    {
+        HDC hdc = reinterpret_cast<HDC>(wParam);
+        const ThemePalette palette = m_themePlatform ? m_themePlatform->BuildPalette() : ThemePalette{};
+        SetTextColor(hdc, palette.textColor);
+        SetBkColor(hdc, palette.windowColor);
+        static HBRUSH sPanelBrush = nullptr;
+        if (sPanelBrush)
+        {
+            DeleteObject(sPanelBrush);
+            sPanelBrush = nullptr;
+        }
+        sPanelBrush = CreateSolidBrush(palette.windowColor);
+        return reinterpret_cast<INT_PTR>(sPanelBrush);
     }
     case WM_CLOSE:
         DestroyWindow(hwnd);

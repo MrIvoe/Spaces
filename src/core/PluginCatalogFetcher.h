@@ -50,9 +50,19 @@ namespace PluginCatalog
         CatalogFetcher() = default;
         ~CatalogFetcher();
 
+        // Resolve installer-provided or side-by-side local catalog path.
+        static std::wstring GetDefaultCatalogSource();
+
         // Fetch catalog from URL or local file
         // Returns true on success
         bool FetchCatalog(const std::wstring& source);
+
+        // Fetch from preferred source and fall back to local source when needed.
+        // If preferredSource is empty, fallbackSource is used directly.
+        bool FetchCatalogWithFallback(const std::wstring& preferredSource,
+                          const std::wstring& fallbackSource,
+                          std::wstring* resolvedSource = nullptr,
+                          bool* usedFallback = nullptr);
 
         // Get the loaded catalog
         const Catalog& GetCatalog() const { return m_catalog; }
@@ -63,12 +73,16 @@ namespace PluginCatalog
         // Get last error message
         std::wstring GetLastError() const { return m_lastError; }
 
+        // Get resolved source used by the most recent successful fetch.
+        std::wstring GetLastResolvedSource() const { return m_lastResolvedSource; }
+
         // Check if a plugin is compatible with current host
         bool IsPluginCompatible(const PluginEntry& entry) const;
 
     private:
         Catalog m_catalog;
         std::wstring m_lastError;
+        std::wstring m_lastResolvedSource;
 
         // Parse JSON catalog
         bool ParseCatalog(const json& j);

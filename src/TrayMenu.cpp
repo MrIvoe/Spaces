@@ -155,8 +155,49 @@ void TrayMenu::ShowContextMenu(POINT pt)
     UINT menuId = ID_TRAY_COMMAND_BASE;
     const ThemePlatform* themePlatform = m_app ? m_app->GetThemePlatform() : nullptr;
     const ThemePalette palette = themePlatform ? themePlatform->BuildPalette() : ThemePalette{};
-    const int minWidthPx = themePlatform ? themePlatform->GetTrayMenuMinWidthPx() : 220;
-    const int rowHeightPx = themePlatform ? themePlatform->GetTrayMenuRowHeightPx() : 28;
+    int minWidthPx = themePlatform ? themePlatform->GetTrayMenuMinWidthPx() : 220;
+    int rowHeightPx = themePlatform ? themePlatform->GetTrayMenuRowHeightPx() : 28;
+
+    if (themePlatform)
+    {
+        ThemeResourceResolver* resolver = themePlatform->GetResourceResolver();
+        if (resolver)
+        {
+            const std::wstring menuStyle = resolver->GetSelectedMenuStyle();
+            if (menuStyle == L"compact")
+            {
+                minWidthPx = (std::max)(180, minWidthPx - 20);
+                rowHeightPx = (std::max)(24, rowHeightPx - 4);
+            }
+            else if (menuStyle == L"hierarchical")
+            {
+                minWidthPx = (std::max)(240, minWidthPx + 20);
+                rowHeightPx = (std::max)(30, rowHeightPx + 2);
+            }
+        }
+    }
+
+    UINT animationFlags = TPM_VERPOSANIMATION;
+    if (themePlatform)
+    {
+        ThemeResourceResolver* resolver = themePlatform->GetResourceResolver();
+        if (resolver)
+        {
+            const int motionMs = resolver->GetMotionDurationMs(resolver->GetSelectedMotionPreset(), 220);
+            if (motionMs <= 0)
+            {
+                animationFlags = TPM_NOANIMATION;
+            }
+            else if (motionMs <= 220)
+            {
+                animationFlags = TPM_HORPOSANIMATION;
+            }
+            else
+            {
+                animationFlags = TPM_VERPOSANIMATION;
+            }
+        }
+    }
 
     auto appendSeparator = [&]() {
         if (!AppendMenuW(menu, MF_SEPARATOR, 0, nullptr))
@@ -224,7 +265,7 @@ void TrayMenu::ShowContextMenu(POINT pt)
     menuInfo.hbrBack = menuBrush;
     SetMenuInfo(menu, &menuInfo);
 
-    const UINT popupFlags = TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_LEFTALIGN | TPM_BOTTOMALIGN;
+    const UINT popupFlags = TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_LEFTALIGN | TPM_BOTTOMALIGN | animationFlags;
 
     SetForegroundWindow(m_hwnd);
     const int cmd = TrackPopupMenuEx(menu,

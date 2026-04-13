@@ -51,6 +51,8 @@ add_executable(Spaces WIN32
     src/core/ThemeApplyPipeline.cpp
     src/core/ThemePlatform.h
     src/core/ThemePlatform.cpp
+    src/core/ThemeResourceResolver.h
+    src/core/ThemeResourceResolver.cpp
     src/core/PluginCatalogFetcher.h
     src/core/PluginCatalogFetcher.cpp
     src/core/PluginPackageInstaller.h
@@ -83,6 +85,8 @@ add_executable(Spaces WIN32
     src/Win32Helpers.cpp
     src/ui/SwitchControl.h
     src/ui/SwitchControl.cpp
+    src/ui/VirtualNavList.h
+    src/ui/VirtualNavList.cpp
     src/ui/SettingsWindow.h
     src/ui/SettingsWindow.cpp
     src/Models.h
@@ -110,10 +114,22 @@ set_target_properties(Spaces PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
+# Always publish the latest built executable to installer/output for testing.
+set(SPACES_INSTALLER_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/installer/output")
+add_custom_command(TARGET Spaces POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${SPACES_INSTALLER_OUTPUT_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:Spaces>"
+            "${SPACES_INSTALLER_OUTPUT_DIR}/Spaces.exe"
+    VERBATIM
+)
+
 # Enable Unicode
 if(MSVC)
     target_compile_options(Spaces PRIVATE /W4)
     target_compile_definitions(Spaces PRIVATE UNICODE _UNICODE)
+    target_link_options(Spaces PRIVATE /MAP)
+    target_compile_options(Spaces PRIVATE $<$<CONFIG:Release>:/Od /Ob0>)
 else()
     target_compile_options(Spaces PRIVATE -Wall -Wextra)
     target_compile_definitions(Spaces PRIVATE UNICODE _UNICODE)
@@ -151,6 +167,8 @@ add_executable(HostCoreTests
         src/core/ThemeApplyPipeline.cpp
     src/core/ThemePlatform.h
     src/core/ThemePlatform.cpp
+    src/core/ThemeResourceResolver.h
+    src/core/ThemeResourceResolver.cpp
     src/Persistence.h
     src/Persistence.cpp
     src/Models.h

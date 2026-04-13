@@ -5,6 +5,7 @@
 #include "core/CommandDispatcher.h"
 #include "core/Diagnostics.h"
 #include "core/EventBus.h"
+#include "core/PluginCatalogFetcher.h"
 #include "core/ServiceRegistry.h"
 #include "core/SettingsStore.h"
 #include "core/ThemeMigrationService.h"
@@ -17,7 +18,9 @@
 #include "Win32Helpers.h"
 
 #include <array>
+#include <cstring>
 #include <cwctype>
+#include <exception>
 
 #include <windows.h>
 
@@ -506,6 +509,12 @@ bool AppKernel::Initialize(App* app)
                 key != L"appearance.theme.mode" &&
                 key != L"appearance.theme.text_scale_percent" &&
                 key != L"appearance.text.scale_percent" &&
+                key != L"appearance.ui.icon_size" &&
+                key != L"appearance.ui.opacity_profile" &&
+                key != L"appearance.ui.transparency_enabled" &&
+                key != L"appearance.ui.settings_density" &&
+                key != L"appearance.ui.toggle_size" &&
+                key != L"appearance.ui.tray_menu_size" &&
                 key != L"appearance.ui.space_titlebar_opacity_percent" &&
                 key != L"appearance.ui.space_idle_opacity_percent" &&
                 key != L"appearance.ui.settings_window_opacity_percent" &&
@@ -517,6 +526,13 @@ bool AppKernel::Initialize(App* app)
                 key != L"appearance.ui.settings_toggle_height_px" &&
                 key != L"appearance.ui.tray_menu_min_width_px" &&
                 key != L"appearance.ui.tray_menu_row_height_px" &&
+                key != L"appearance.ui.component_family" &&
+                key != L"appearance.ui.controls_family" &&
+                key != L"appearance.ui.button_family" &&
+                key != L"appearance.ui.menu_style" &&
+                key != L"appearance.ui.fence_style" &&
+                key != L"appearance.ui.motion_preset" &&
+                key != L"appearance.ui.icon_pack" &&
                 key != L"appearance.icons.pack")
             {
                 return;
@@ -546,16 +562,41 @@ bool AppKernel::Initialize(App* app)
             }
             request.title = Trim(title);
 
-            request.width = ParseIntClamped(
-                settings->GetValue(L"spaces.create.default_width", L"320"),
-                320,
-                120,
-                2400);
-            request.height = ParseIntClamped(
-                settings->GetValue(L"spaces.create.default_height", L"240"),
-                240,
-                60,
-                1800);
+            const std::wstring sizePreset = settings->GetValue(L"spaces.create.size_preset", L"");
+            if (sizePreset == L"small")
+            {
+                request.width = 280;
+                request.height = 200;
+            }
+            else if (sizePreset == L"normal")
+            {
+                request.width = 320;
+                request.height = 240;
+            }
+            else if (sizePreset == L"large")
+            {
+                request.width = 420;
+                request.height = 300;
+            }
+            else if (sizePreset == L"xlarge")
+            {
+                request.width = 520;
+                request.height = 360;
+            }
+            else
+            {
+                // Backward compatibility: honor legacy numeric width/height keys.
+                request.width = ParseIntClamped(
+                    settings->GetValue(L"spaces.create.default_width", L"320"),
+                    320,
+                    120,
+                    2400);
+                request.height = ParseIntClamped(
+                    settings->GetValue(L"spaces.create.default_height", L"240"),
+                    240,
+                    60,
+                    1800);
+            }
         }
 
         commands->CreateSpaceNearCursor(request);
@@ -581,11 +622,26 @@ bool AppKernel::Initialize(App* app)
     context.spaceExtensionRegistry = m_spaceExtensionRegistry.get();
     context.appCommands = m_appCommands.get();
 
-    const bool loaded = m_pluginHost->LoadBuiltins(context);
+    const bool loaded = m_pluginHost ? m_pluginHost->LoadBuiltins(context) : false;
+    if (m_diagnostics)
+    {
+        if (loaded)
+        {
+            m_diagnostics->Info(L"Builtin plugins loaded during AppKernel startup.");
+        }
+        else
+        {
+            m_diagnostics->Warn(L"One or more built-in plugins failed during AppKernel startup; continuing in degraded mode.");
+        }
+    }
     if (m_diagnostics)
     {
         m_diagnostics->Info(L"AppKernel initialized with plugin host");
     }
+
+    // NOTE: Startup catalog health check is temporarily disabled because it can
+    // trigger a release-only startup crash in some environments. Marketplace
+    // checks still run from settings workflows.
 
     return loaded;
 }

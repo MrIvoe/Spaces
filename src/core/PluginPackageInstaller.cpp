@@ -280,7 +280,7 @@ namespace PluginPackage
     bool PackageInstaller::DownloadFile(const std::wstring& url, const fs::path& saveTo)
     {
         HINTERNET hInternet = InternetOpenW(
-            L"Spaces/1.01.001",
+            L"Spaces/1.01.009",
             INTERNET_OPEN_TYPE_PRECONFIG,
             nullptr,
             nullptr,

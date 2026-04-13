@@ -21,30 +21,29 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 
 # 2. Build Installer
-$env:BUILD_OUTPUT_DIR = "build\bin\Release"
-iscc.exe installer\Spaces.iss
+$env:BUILD_OUTPUT_DIR = "..\build\bin\Release"
+& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer\Spaces.iss
 ```
 
 #### Option 2: Inno Setup IDE
 
 1. Open `installer/Spaces.iss` in the Inno Setup IDE
 2. Click **Build** → **Compile**
-3. Installer will be generated to `output/Spaces-Setup-1.01.001.exe`
+3. Installer will be generated to `output/Spaces-Setup-1.01.004.exe`
 
 ### Output
 
 The generated installer will be placed in:
 
 ```
-Spaces/output/Spaces-Setup-1.01.001.exe
+Spaces/output/Spaces-Setup-1.01.004.exe
 ```
 
 ## Installer Features
 
-- ✅ Install to Program Files or per-user location
+- ✅ Version-isolated installs (each setup installs only its release version)
 - ✅ Start Menu shortcuts
 - ✅ Optional desktop shortcut
-- ✅ Optional Quick Launch icon
 - ✅ Optional launch on Windows startup
 - ✅ Professional uninstall support
 - ✅ Friendly wizard UI
@@ -53,9 +52,9 @@ Spaces/output/Spaces-Setup-1.01.001.exe
 
 ### After User Installation
 
-**Program Files:**
+**Per-user versioned install path:**
 ```
-C:\Program Files\Spaces\
+C:\Users\<user>\AppData\Local\Programs\Spaces\1.01.004\
 ├── Spaces.exe
 ├── required-runtime-files.dll
 └── assets\

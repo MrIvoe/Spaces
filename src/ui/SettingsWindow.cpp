@@ -1,4 +1,5 @@
 #include "ui/SettingsWindow.h"
+#include "ui/VirtualNavList.h"
 #include "ui/SwitchControl.h"
 
 #include "core/PluginCatalogFetcher.h"
@@ -28,10 +29,48 @@
 
 namespace
 {
+    #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
+    #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
+    #endif
+    #ifndef DWMWA_WINDOW_CORNER_PREFERENCE
+    #define DWMWA_WINDOW_CORNER_PREFERENCE 33
+    #endif
+
+    enum class DwmWindowCornerPreference
+    {
+        Default = 0,
+        DoNotRound = 1,
+        Round = 2,
+        RoundSmall = 3
+    };
+
     constexpr int kHeaderTitleHeight = 30;
     constexpr int kHeaderSubtitleHeight = 22;
     constexpr int kHeaderGap = 4;
+    constexpr int kMenuBarHeight = 28;
+    constexpr int kMenuBarGap = 8;
+    constexpr int kSearchRowHeight = 30;
+    constexpr int kSearchRowGap = 8;
     constexpr int kStatusHeight = 28;
+
+    constexpr int TopAreaHeight()
+    {
+        return kMenuBarHeight + kMenuBarGap + kHeaderTitleHeight + kHeaderSubtitleHeight + kHeaderGap + kSearchRowHeight + kSearchRowGap + 16;
+    }
+
+    void ApplyModernWindowChrome(HWND hwnd, bool darkMode)
+    {
+        if (!hwnd)
+        {
+            return;
+        }
+
+        const BOOL useDark = darkMode ? TRUE : FALSE;
+        DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &useDark, sizeof(useDark));
+
+        const auto rounded = static_cast<DWORD>(DwmWindowCornerPreference::Round);
+        DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, &rounded, sizeof(rounded));
+    }
 
     COLORREF BlendColor(COLORREF from, COLORREF to, int alpha)
     {
@@ -73,7 +112,6 @@ namespace
         {
             return L"disabled";
         }
-
         return plugin.loaded ? L"loaded" : L"failed";
     }
 
@@ -82,6 +120,11 @@ namespace
         std::transform(text.begin(), text.end(), text.begin(),
             [](wchar_t c) { return static_cast<wchar_t>(towlower(c)); });
         return text;
+    }
+
+    bool IsContentChipId(int id)
+    {
+        return id == 112 || id == 113 || id == 114 || id == 115;
     }
 
     bool MatchesPluginStatusFilter(const PluginStatusView& plugin, const std::wstring& statusFilter)
@@ -135,29 +178,10 @@ namespace
 
     std::wstring ResolveDefaultCatalogSource()
     {
-        wchar_t modulePath[MAX_PATH] = {};
-        if (GetModuleFileNameW(nullptr, modulePath, MAX_PATH) == 0)
-        {
-            return L"";
-        }
-
-        const std::filesystem::path exeDir = std::filesystem::path(modulePath).parent_path();
-        const std::filesystem::path sideBySide = exeDir / L"plugin-catalog.json";
-        if (std::filesystem::exists(sideBySide))
-        {
-            return sideBySide.wstring();
-        }
-
-        const std::filesystem::path assetsPath = exeDir / L"assets" / L"plugin-catalog.json";
-        if (std::filesystem::exists(assetsPath))
-        {
-            return assetsPath.wstring();
-        }
-
-        return L"";
+        return PluginCatalog::CatalogFetcher::GetDefaultCatalogSource();
     }
 
-    std::wstring ResolveCatalogSource(const PluginSettingsRegistry* settingsRegistry)
+    std::wstring ResolveConfiguredCatalogSource(const PluginSettingsRegistry* settingsRegistry)
     {
         if (settingsRegistry)
         {
@@ -168,7 +192,35 @@ namespace
             }
         }
 
-        return ResolveDefaultCatalogSource();
+        return L"";
+    }
+
+    bool TryFetchCatalogWithFallback(const PluginSettingsRegistry* settingsRegistry,
+                                     PluginCatalog::CatalogFetcher& fetcher,
+                                     std::wstring& resolvedSource,
+                                     std::wstring& errorText)
+    {
+        const std::wstring configured = ResolveConfiguredCatalogSource(settingsRegistry);
+        const std::wstring fallback = ResolveDefaultCatalogSource();
+
+        bool usedFallback = false;
+        if (fetcher.FetchCatalogWithFallback(configured, fallback, &resolvedSource, &usedFallback))
+        {
+            errorText.clear();
+            return true;
+        }
+
+        if (configured.empty() && fallback.empty())
+        {
+            errorText = L"No catalog source is configured and no local catalog file was found.";
+        }
+        else
+        {
+            errorText = fetcher.GetLastError();
+        }
+
+        resolvedSource.clear();
+        return false;
     }
 
     std::wstring TruncateWithEllipsis(const std::wstring& text, size_t maxLength)
@@ -323,6 +375,13 @@ bool SettingsWindow::ShowScaffold(const std::vector<SettingsPageView>& pages,
     ShowWindow(m_hwnd, SW_SHOWNORMAL);
     SetForegroundWindow(m_hwnd);
 
+    if (m_settingsRegistry &&
+        m_settingsRegistry->GetValue(L"settings.accessibility.keyboard_first", L"false") == L"true" &&
+        m_navList)
+    {
+        SetFocus(m_navList->GetHwnd());
+    }
+
     const std::wstring themeText = (m_themeMode == ThemeMode::Dark) ? L"dark" : L"light";
     Win32Helpers::LogInfo(L"Settings window opened (theme='" + themeText + L"').");
 
@@ -331,9 +390,42 @@ bool SettingsWindow::ShowScaffold(const std::vector<SettingsPageView>& pages,
 
 bool SettingsWindow::EnsureWindow()
 {
-    if (m_hwnd)
+    if (m_hwnd && IsWindow(m_hwnd))
     {
         return true;
+    }
+
+    if (m_hwnd && !IsWindow(m_hwnd))
+    {
+        Win32Helpers::LogError(L"Settings window handle was stale; recreating window.");
+        m_hwnd = nullptr;
+        m_navToggleButton = nullptr;
+        m_menuFileButton = nullptr;
+        m_menuEditButton = nullptr;
+        m_menuViewButton = nullptr;
+        m_menuPluginsButton = nullptr;
+        m_contentSearchEdit = nullptr;
+        m_chipAllButton = nullptr;
+        m_chipToggleButton = nullptr;
+        m_chipChoiceButton = nullptr;
+        m_chipTextButton = nullptr;
+        m_marketplaceDiscoverTabButton = nullptr;
+        m_marketplaceInstalledTabButton = nullptr;
+        m_pluginTreeView = nullptr;
+        m_headerTitle = nullptr;
+        m_headerSubtitle = nullptr;
+        m_headerHelpButton = nullptr;
+        delete m_navList;
+        m_navList = nullptr;
+        m_pageView = nullptr;
+        m_rightScrollPanel = nullptr;
+        m_statusBar = nullptr;
+        m_tooltip = nullptr;
+        m_fieldControls.clear();
+        m_fieldControlLayouts.clear();
+        m_controlFieldMap.clear();
+        m_sectionCardRects.clear();
+        m_rightPaneTextStatics.clear();
     }
 
     static const wchar_t* kClassName = L"SimpleSpaces_SettingsWindow";
@@ -394,7 +486,7 @@ bool SettingsWindow::EnsureWindow()
 
     if (!m_hwnd)
     {
-        Win32Helpers::LogError(L"Settings window CreateWindowEx failed");
+        Win32Helpers::LogError(L"Settings window CreateWindowEx failed: " + std::to_wstring(GetLastError()));
         return false;
     }
 
@@ -457,6 +549,11 @@ void SettingsWindow::DestroyFonts()
         DeleteObject(m_navFont);
         m_navFont = nullptr;
     }
+    if (m_iconFont)
+    {
+        DeleteObject(m_iconFont);
+        m_iconFont = nullptr;
+    }
 }
 
 void SettingsWindow::RefreshTheme()
@@ -496,10 +593,35 @@ void SettingsWindow::RefreshTheme()
     m_surfaceBrush = CreateSolidBrush(m_surfaceColor);
     m_navBrush = CreateSolidBrush(m_navColor);
     ApplyWindowTranslucency();
+    ApplyModernWindowChrome(m_hwnd, m_themeMode == ThemeMode::Dark);
 
     const int basePx = (20 * textScale) / 100;
     const int sectionPx = (24 * textScale) / 100;
     const int navPx = (22 * textScale) / 100;
+
+    int iconScalePercent = textScale;
+    if (m_settingsRegistry)
+    {
+        const std::wstring iconSize = m_settingsRegistry->GetValue(L"appearance.ui.icon_size", L"normal");
+        if (iconSize == L"smaller")
+        {
+            iconScalePercent = 85;
+        }
+        else if (iconSize == L"small" || iconSize == L"sm")
+        {
+            iconScalePercent = 95;
+        }
+        else if (iconSize == L"normal" || iconSize == L"md")
+        {
+            iconScalePercent = 100;
+        }
+        else if (iconSize == L"large" || iconSize == L"lg")
+        {
+            iconScalePercent = 115;
+        }
+    }
+
+    const int iconPx = (20 * iconScalePercent) / 100;
 
     // Larger typography for accessibility and modern app feel.
     m_baseFont = CreateFontW(-basePx, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
@@ -511,6 +633,15 @@ void SettingsWindow::RefreshTheme()
     m_navFont = CreateFontW(-navPx, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE,
                             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                             CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI Variable Text");
+    m_iconFont = CreateFontW(-iconPx, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                             CLEARTYPE_NATURAL_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe Fluent Icons");
+    if (!m_iconFont)
+    {
+        m_iconFont = CreateFontW(-iconPx, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+                                 DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                 CLEARTYPE_NATURAL_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe MDL2 Assets");
+    }
 
     if (m_pageView)
     {
@@ -520,7 +651,7 @@ void SettingsWindow::RefreshTheme()
     }
     if (m_navList)
     {
-        SendMessageW(m_navList, WM_SETFONT,
+        SendMessageW(m_navList->GetHwnd(), WM_SETFONT,
                      reinterpret_cast<WPARAM>(m_navFont ? m_navFont : GetStockObject(DEFAULT_GUI_FONT)),
                      TRUE);
     }
@@ -536,6 +667,60 @@ void SettingsWindow::RefreshTheme()
                      reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
                      TRUE);
     }
+    if (m_menuFileButton)
+    {
+        SendMessageW(m_menuFileButton, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
+                     TRUE);
+    }
+    if (m_menuEditButton)
+    {
+        SendMessageW(m_menuEditButton, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
+                     TRUE);
+    }
+    if (m_menuViewButton)
+    {
+        SendMessageW(m_menuViewButton, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
+                     TRUE);
+    }
+    if (m_menuPluginsButton)
+    {
+        SendMessageW(m_menuPluginsButton, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
+                     TRUE);
+    }
+    if (m_contentSearchEdit)
+    {
+        SendMessageW(m_contentSearchEdit, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
+                     TRUE);
+    }
+    if (m_chipAllButton)
+    {
+        SendMessageW(m_chipAllButton, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
+                     TRUE);
+    }
+    if (m_chipToggleButton)
+    {
+        SendMessageW(m_chipToggleButton, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
+                     TRUE);
+    }
+    if (m_chipChoiceButton)
+    {
+        SendMessageW(m_chipChoiceButton, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
+                     TRUE);
+    }
+    if (m_chipTextButton)
+    {
+        SendMessageW(m_chipTextButton, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
+                     TRUE);
+    }
     if (m_statusBar)
     {
         SendMessageW(m_statusBar, WM_SETFONT,
@@ -545,19 +730,19 @@ void SettingsWindow::RefreshTheme()
 
     if (m_hwnd)
     {
-        InvalidateRect(m_hwnd, nullptr, TRUE);
+        InvalidateRect(m_hwnd, nullptr, FALSE);
     }
     if (m_navList)
     {
-        InvalidateRect(m_navList, nullptr, TRUE);
+        m_navList->Invalidate();
     }
-    if (m_pageView)
+    if (m_pageView && IsWindowVisible(m_pageView))
     {
-        InvalidateRect(m_pageView, nullptr, TRUE);
+        InvalidateRect(m_pageView, nullptr, FALSE);
     }
-    if (m_rightScrollPanel)
+    if (m_rightScrollPanel && IsWindowVisible(m_rightScrollPanel))
     {
-        InvalidateRect(m_rightScrollPanel, nullptr, TRUE);
+        InvalidateRect(m_rightScrollPanel, nullptr, FALSE);
     }
 }
 
@@ -568,53 +753,27 @@ void SettingsWindow::ApplyWindowTranslucency()
         return;
     }
 
-    int opacityPercent = 94;
-    bool blurEnabled = true;
-    if (m_themePlatform)
-    {
-        opacityPercent = m_themePlatform->GetSettingsWindowOpacityPercent();
-        blurEnabled = m_themePlatform->IsSettingsWindowBlurEnabled();
-    }
-
-    const bool interactivePaneVisible = m_rightScrollPanel && IsWindowVisible(m_rightScrollPanel);
-    if (interactivePaneVisible)
-    {
-        // Layered/blurred top-level windows interact badly with many child HWNDs during scroll.
-        // Force a solid window while the interactive settings pane is active.
-        opacityPercent = 100;
-        blurEnabled = false;
-    }
-
     LONG_PTR exStyle = GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE);
-    
-    if (opacityPercent < 100)
+    if ((exStyle & WS_EX_LAYERED) != 0)
     {
-        if ((exStyle & WS_EX_LAYERED) == 0)
-        {
-            SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
-        }
-
-        const BYTE alpha = static_cast<BYTE>((opacityPercent * 255) / 100);
-        SetLayeredWindowAttributes(m_hwnd, 0, alpha, LWA_ALPHA);
-    }
-    else
-    {
-        // At 100% opacity, fully remove layered window style for true solidity
-        if ((exStyle & WS_EX_LAYERED) != 0)
-        {
-            SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle & ~WS_EX_LAYERED);
-            SetWindowPos(m_hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
-        }
+        SetWindowLongPtrW(m_hwnd, GWL_EXSTYLE, exStyle & ~WS_EX_LAYERED);
+        SetWindowPos(m_hwnd, nullptr, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
     }
 
     DWM_BLURBEHIND bb{};
     bb.dwFlags = DWM_BB_ENABLE;
-    bb.fEnable = blurEnabled ? TRUE : FALSE;
+    bb.fEnable = FALSE;
     DwmEnableBlurBehindWindow(m_hwnd, &bb);
 }
 
 std::wstring SettingsWindow::ResolvePluginDisplayName(const std::wstring& pluginId, const std::vector<PluginStatusView>& plugins) const
 {
+    if (pluginId == L"builtin.plugins")
+    {
+        return L"Plugins";
+    }
+
     for (const auto& plugin : plugins)
     {
         if (plugin.id == pluginId)
@@ -732,7 +891,7 @@ void SettingsWindow::BuildPluginTabs(const std::vector<PluginStatusView>& plugin
         {
             PluginTab tab;
             tab.pluginId = page.pluginId;
-            tab.iconKey = L"plugins.generic";
+            tab.iconKey = (page.pluginId == L"builtin.plugins") ? L"settings.plugins" : L"plugins.generic";
             if (m_themePlatform)
             {
                 const ThemeIconMapping icon = m_themePlatform->ResolveIconMapping(tab.iconKey, L"\uE943");
@@ -780,34 +939,26 @@ void SettingsWindow::BuildPluginTabs(const std::vector<PluginStatusView>& plugin
 void SettingsWindow::PopulatePluginTabs()
 {
     if (!m_navList)
-    {
         return;
-    }
 
-    const LRESULT previousSelection = SendMessageW(m_navList, LB_GETCURSEL, 0, 0);
+    // Save previous selection
+    size_t previousSelection = m_navList->GetSelectedIndex();
 
-    SendMessageW(m_navList, LB_RESETCONTENT, 0, 0);
-
-    for (const auto& tab : m_pluginTabs)
-    {
+    std::vector<VirtualNavList::Item> items;
+    for (const auto& tab : m_pluginTabs) {
         std::wstring label = m_navCollapsed ? tab.iconGlyph : (tab.iconGlyph + L"  " + tab.title);
-        SendMessageW(m_navList, LB_ADDSTRING, 0, reinterpret_cast<LPARAM>(label.c_str()));
+        items.push_back({label, tab.iconGlyph, false, true});
     }
+    m_navList->SetItems(items);
 
     m_navHoverIndex = -1;
 
-    int selectionToApply = 0;
-    if (previousSelection >= 0)
-    {
-        selectionToApply = static_cast<int>(previousSelection);
+    size_t selectionToApply = previousSelection;
+    if (selectionToApply >= m_pluginTabs.size()) {
+        selectionToApply = m_pluginTabs.empty() ? 0 : (m_pluginTabs.size() - 1);
     }
-    if (selectionToApply >= static_cast<int>(m_pluginTabs.size()))
-    {
-        selectionToApply = static_cast<int>(m_pluginTabs.empty() ? 0 : (m_pluginTabs.size() - 1));
-    }
-    SendMessageW(m_navList, LB_SETCURSEL, static_cast<WPARAM>(selectionToApply), 0);
-
-    InvalidateRect(m_navList, nullptr, TRUE);
+    m_navList->SetSelectedIndex(selectionToApply);
+    m_navList->Invalidate();
     ShowSelectedPluginTab();
 }
 
@@ -881,17 +1032,12 @@ std::wstring SettingsWindow::BuildSelectedTabContent(size_t tabIndex) const
 
 void SettingsWindow::ShowSelectedPluginTab()
 {
-    const LRESULT selection = SendMessageW(m_navList, LB_GETCURSEL, 0, 0);
-    if (selection == -1)
-    {
-        return;
-    }
 
-    const size_t tabIndex = static_cast<size_t>(selection);
-    if (tabIndex >= m_pluginTabs.size())
-    {
+    if (!m_navList)
         return;
-    }
+    size_t tabIndex = m_navList->GetSelectedIndex();
+    if (tabIndex >= m_pluginTabs.size())
+        return;
 
     if (!m_pageView)
     {
@@ -899,6 +1045,7 @@ void SettingsWindow::ShowSelectedPluginTab()
     }
 
     UpdateShellHeaderAndStatus(tabIndex);
+    const bool showPluginTree = ShouldShowPluginTree();
 
     // Check whether any page in this tab declares interactive fields.
     const auto& tab = m_pluginTabs[tabIndex];
@@ -907,10 +1054,20 @@ void SettingsWindow::ShowSelectedPluginTab()
     {
         for (const size_t pi : tab.pageIndexes)
         {
-            if (pi < m_pages.size() && !m_pages[pi].fields.empty())
+            if (pi < m_pages.size())
             {
-                hasFields = true;
-                break;
+                for (const auto& field : m_pages[pi].fields)
+                {
+                    if (IsFieldVisibleInBasicMode(field))
+                    {
+                        hasFields = true;
+                        break;
+                    }
+                }
+                if (hasFields)
+                {
+                    break;
+                }
             }
         }
     }
@@ -931,6 +1088,18 @@ void SettingsWindow::ShowSelectedPluginTab()
     {
         // Hide the read-only EDIT; render interactive controls instead.
         ShowWindow(m_pageView, SW_HIDE);
+        if (m_pluginTreeView)
+        {
+            ShowWindow(m_pluginTreeView, showPluginTree ? SW_SHOW : SW_HIDE);
+            if (showPluginTree)
+            {
+                PopulatePluginTree(tabIndex);
+            }
+            else
+            {
+                ClearPluginTree();
+            }
+        }
         if (m_rightScrollPanel)
         {
             // Show AFTER controls are populated so nothing flashes.
@@ -941,9 +1110,11 @@ void SettingsWindow::ShowSelectedPluginTab()
         RECT clientRect{};
         GetClientRect(m_hwnd, &clientRect);
         const int width = clientRect.right - clientRect.left;
-        const int navWidth = m_navCollapsed ? 64 : 280;
+        const int navWidth = m_navAnimating
+            ? m_navAnimatedWidth
+            : (m_navCollapsed ? kNavCollapsedWidth : kNavExpandedWidth);
         const int margin   = 10;
-        const int topArea = kHeaderTitleHeight + kHeaderSubtitleHeight + kHeaderGap + 16;
+        const int topArea = TopAreaHeight();
         const int rightX   = navWidth + (margin * 2);
         const int rightY   = margin + topArea;
         const int rightW   = width - navWidth - (margin * 3);
@@ -959,6 +1130,11 @@ void SettingsWindow::ShowSelectedPluginTab()
     else
     {
         // Show the read-only EDIT with text content.
+        if (m_pluginTreeView)
+        {
+            ShowWindow(m_pluginTreeView, SW_HIDE);
+            ClearPluginTree();
+        }
         if (m_rightScrollPanel)
         {
             SendMessageW(m_rightScrollPanel, WM_SETREDRAW, TRUE, 0);
@@ -975,12 +1151,12 @@ void SettingsWindow::ShowSelectedPluginTab()
     if (hasFields && m_rightScrollPanel)
     {
         RedrawWindow(m_rightScrollPanel, nullptr, nullptr,
-                     RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+                     RDW_INVALIDATE | RDW_NOERASE | RDW_ALLCHILDREN);
     }
     else if (m_pageView)
     {
-        InvalidateRect(m_pageView, nullptr, TRUE);
-        UpdateWindow(m_pageView);
+        RedrawWindow(m_pageView, nullptr, nullptr,
+                     RDW_INVALIDATE | RDW_NOERASE | RDW_UPDATENOW);
     }
 
 }
@@ -1076,8 +1252,8 @@ std::wstring SettingsWindow::BuildGeneralContent(const std::vector<PluginStatusV
 {
     std::wstring text;
     text += L"General\r\n\r\n";
-    text += L"Phase 0.0.013 settings shell is active.\r\n";
-    text += L"Core spaces remain first-class and stable while plugins extend behavior.\r\n\r\n";
+    text += L"Everyday app settings live here.\r\n";
+    text += L"Plugin-specific options are grouped under each plugin tab.\r\n\r\n";
     text += L"Loaded plugin count: ";
 
     int loaded = 0;
@@ -1100,8 +1276,7 @@ std::wstring SettingsWindow::BuildPluginsContent(const std::vector<PluginStatusV
 {
     std::wstring text;
     text += L"Plugin Manager\r\n\r\n";
-    text += L"Marketplace-first workflow is active. Use Marketplace tabs to discover and manage plugins.\r\n";
-    text += L"Plugin Hub git sync remains available as a developer fallback only.\r\n\r\n";
+    text += L"Use Marketplace tabs to discover, install, and update plugins.\r\n\r\n";
 
     const std::wstring statusFilter = m_settingsRegistry
         ? m_settingsRegistry->GetValue(L"settings.plugins.manager_filter_status", L"all")
@@ -1194,18 +1369,13 @@ std::wstring SettingsWindow::BuildMarketplaceDiscoverContent() const
         ? (m_settingsRegistry->GetValue(L"settings.plugins.show_incompatible", L"false") == L"true")
         : false;
 
-    const std::wstring source = ResolveCatalogSource(m_settingsRegistry);
-    if (source.empty())
-    {
-        text += L"No catalog source is configured. Set 'Plugin catalog URL' in App and Updates.\r\n";
-        return text;
-    }
-
     PluginCatalog::CatalogFetcher fetcher;
-    if (!fetcher.FetchCatalog(source))
+    std::wstring source;
+    std::wstring fetchError;
+    if (!TryFetchCatalogWithFallback(m_settingsRegistry, fetcher, source, fetchError))
     {
-        text += L"Failed to load catalog from: " + source + L"\r\n";
-        text += L"Error: " + fetcher.GetLastError() + L"\r\n";
+        text += L"Failed to load plugin catalog.\r\n";
+        text += L"Error: " + fetchError + L"\r\n";
         return text;
     }
 
@@ -1311,18 +1481,13 @@ std::wstring SettingsWindow::BuildMarketplaceUpdatesContent(const std::vector<Pl
     std::wstring text;
     text += L"Marketplace - Updates\r\n\r\n";
 
-    const std::wstring source = ResolveCatalogSource(m_settingsRegistry);
-    if (source.empty())
-    {
-        text += L"No catalog source is configured.\r\n";
-        return text;
-    }
-
     PluginCatalog::CatalogFetcher fetcher;
-    if (!fetcher.FetchCatalog(source))
+    std::wstring source;
+    std::wstring fetchError;
+    if (!TryFetchCatalogWithFallback(m_settingsRegistry, fetcher, source, fetchError))
     {
-        text += L"Failed to load catalog from: " + source + L"\r\n";
-        text += L"Error: " + fetcher.GetLastError() + L"\r\n";
+        text += L"Failed to load plugin catalog.\r\n";
+        text += L"Error: " + fetchError + L"\r\n";
         return text;
     }
 
@@ -1624,6 +1789,7 @@ void SettingsWindow::ClearFieldControls()
         }
     }
     m_fieldControls.clear();
+    m_fieldSurfaceTypes.clear();
     m_fieldControlLayouts.clear();
     m_controlFieldMap.clear();
     m_sectionCardRects.clear();
@@ -1632,6 +1798,115 @@ void SettingsWindow::ClearFieldControls()
     m_rightPaneContentHeight = 0;
     // Reset ID counter so IDs don't climb unboundedly across tab switches.
     m_nextControlId = 2000;
+}
+
+bool SettingsWindow::ShouldShowPluginTree() const
+{
+    if (!m_navList)
+    {
+        return false;
+    }
+
+    if (!m_navList)
+        return false;
+    size_t activeIdx = m_navList->GetSelectedIndex();
+    if (activeIdx >= m_pluginTabs.size())
+        return false;
+    const auto& tab = m_pluginTabs[activeIdx];
+    return tab.pluginId == L"builtin.plugins";
+}
+
+void SettingsWindow::ClearPluginTree()
+{
+    if (!m_pluginTreeView)
+    {
+        return;
+    }
+    TreeView_DeleteAllItems(m_pluginTreeView);
+}
+
+void SettingsWindow::PopulatePluginTree(size_t tabIndex)
+{
+    if (!m_pluginTreeView || m_plugins.empty())
+    {
+        return;
+    }
+
+    if (tabIndex >= m_pluginTabs.size() || m_pluginTabs[tabIndex].pluginId != L"builtin.plugins")
+    {
+        ClearPluginTree();
+        return;
+    }
+    
+    ClearPluginTree();
+    
+    // Populate tree with plugins
+    for (const auto& plugin : m_plugins)
+    {
+        // Add plugin as root item
+        TVINSERTSTRUCT tvi{};
+        tvi.hParent = TVI_ROOT;
+        tvi.hInsertAfter = TVI_LAST;
+        tvi.item.mask = TVIF_TEXT | TVIF_STATE;
+        
+        std::wstring displayText = plugin.displayName + L" (v" + plugin.version + L")";
+        tvi.item.pszText = const_cast<LPWSTR>(displayText.c_str());
+        tvi.item.state = TVIS_EXPANDED;
+        tvi.item.stateMask = TVIS_EXPANDED;
+        
+        HTREEITEM hPlugin = TreeView_InsertItem(m_pluginTreeView, &tvi);
+        if (!hPlugin)
+        {
+            continue;
+        }
+        
+        // Add status as child item
+        TVINSERTSTRUCT tviStatus{};
+        tviStatus.hParent = hPlugin;
+        tviStatus.hInsertAfter = TVI_LAST;
+        tviStatus.item.mask = TVIF_TEXT;
+        std::wstring statusText = L"Status: " + (plugin.enabled ? std::wstring(L"Enabled") : std::wstring(L"Disabled"));
+        tviStatus.item.pszText = const_cast<LPWSTR>(statusText.c_str());
+        TreeView_InsertItem(m_pluginTreeView, &tviStatus);
+        
+        // Add capabilities as child items if present
+        if (!plugin.capabilities.empty())
+        {
+            TVINSERTSTRUCT tviCap{};
+            tviCap.hParent = hPlugin;
+            tviCap.hInsertAfter = TVI_LAST;
+            tviCap.item.mask = TVIF_TEXT;
+            std::wstring capText = L"Capabilities: " + JoinCapabilities(plugin.capabilities);
+            tviCap.item.pszText = const_cast<LPWSTR>(capText.c_str());
+            TreeView_InsertItem(m_pluginTreeView, &tviCap);
+        }
+    }
+}
+
+void SettingsWindow::CommitPendingTextFieldEdits()
+{
+    if (!m_settingsRegistry || !m_rightScrollPanel)
+    {
+        return;
+    }
+
+    for (const auto& [ctrlId, info] : m_controlFieldMap)
+    {
+        if (info.type != SettingsFieldType::String && info.type != SettingsFieldType::Int)
+        {
+            continue;
+        }
+
+        HWND ctrl = GetDlgItem(m_rightScrollPanel, ctrlId);
+        if (!ctrl)
+        {
+            continue;
+        }
+
+        wchar_t buf[1024]{};
+        GetWindowTextW(ctrl, buf, static_cast<int>(std::size(buf)));
+        m_settingsRegistry->SetValue(info.key, buf);
+    }
 }
 
 void SettingsWindow::RegisterTooltipForControl(HWND control, const std::wstring& tipText)
@@ -1677,12 +1952,18 @@ void SettingsWindow::UpdateShellHeaderAndStatus(size_t tabIndex)
         }
     }
 
+    UpdateMarketplaceStatusState(tabIndex);
+
     if (m_headerTitle)
     {
         SetWindowTextW(m_headerTitle, headerText.c_str());
     }
     if (m_headerSubtitle)
     {
+        if (!m_marketplaceStatusChip.empty())
+        {
+            subtitle += L"  [" + m_marketplaceStatusChip + L"]";
+        }
         SetWindowTextW(m_headerSubtitle, subtitle.c_str());
     }
 
@@ -1703,11 +1984,202 @@ void SettingsWindow::UpdateShellHeaderAndStatus(size_t tabIndex)
         }
 
         std::wstringstream status;
+         static const wchar_t kSpinnerFrames[] = { L'|', L'/', L'-', L'\\' };
+         const wchar_t spinner = kSpinnerFrames[m_marketplaceSpinnerFrame % 4];
         status << L"Loaded plugins: " << loadedCount << L" / " << m_plugins.size()
                << L"   |   Failed: " << failedCount
                << L"   |   Active tab: " << tab.title
+             << (m_marketplaceStatusChip.empty()
+                  ? L""
+                  : (std::wstring(L"   |   Marketplace ") + spinner + L" " + m_marketplaceStatusChip))
                << L"   |   Ctrl+Tab switch  F1 help";
         SetWindowTextW(m_statusBar, status.str().c_str());
+    }
+}
+
+void SettingsWindow::UpdateMarketplaceStatusState(size_t tabIndex)
+{
+    m_marketplaceSpinnerActive = false;
+    m_marketplaceStatusChip.clear();
+
+    if (tabIndex >= m_pluginTabs.size())
+    {
+        KillTimer(m_hwnd, kMarketplaceSpinnerTimerId);
+        return;
+    }
+
+    const auto& tab = m_pluginTabs[tabIndex];
+    int marketplacePageCount = 0;
+    for (const size_t pageIndex : tab.pageIndexes)
+    {
+        if (pageIndex >= m_pages.size())
+        {
+            continue;
+        }
+
+        const auto& page = m_pages[pageIndex];
+        if (StartsWith(page.pageId, L"marketplace."))
+        {
+            ++marketplacePageCount;
+        }
+    }
+
+    if (marketplacePageCount > 0)
+    {
+        m_marketplaceSpinnerActive = true;
+        m_marketplaceStatusChip = L"Ready";
+
+        if (m_settingsRegistry)
+        {
+            const bool enabled = m_settingsRegistry->GetValue(L"settings.plugins.marketplace_enabled", L"true") == L"true";
+            m_marketplaceStatusChip = enabled ? L"Live" : L"Disabled";
+        }
+
+        SetTimer(m_hwnd, kMarketplaceSpinnerTimerId, 120, nullptr);
+        return;
+    }
+
+    KillTimer(m_hwnd, kMarketplaceSpinnerTimerId);
+}
+
+void SettingsWindow::InvalidateNavTransitionRegion(int oldNavWidth, int newNavWidth)
+{
+    if (!m_hwnd)
+    {
+        return;
+    }
+
+    RECT client{};
+    GetClientRect(m_hwnd, &client);
+
+    const int margin = 10;
+    const int topArea = TopAreaHeight();
+
+    const int oldDividerX = oldNavWidth + (margin * 2) - 8;
+    const int newDividerX = newNavWidth + (margin * 2) - 8;
+    RECT dividerBand{};
+    dividerBand.left = (std::max)(0, (std::min)(oldDividerX, newDividerX) - 16);
+    dividerBand.top = margin;
+    dividerBand.right = (std::min)(client.right, static_cast<LONG>((std::max)(oldDividerX, newDividerX) + 16));
+    dividerBand.bottom = (std::max)(dividerBand.top, client.bottom - margin);
+    if (dividerBand.right > dividerBand.left && dividerBand.bottom > dividerBand.top)
+    {
+        RedrawWindow(m_hwnd, &dividerBand, nullptr, RDW_INVALIDATE | RDW_NOERASE);
+    }
+
+    const int oldHeaderStart = oldNavWidth + (margin * 2);
+    const int newHeaderStart = newNavWidth + (margin * 2);
+    RECT headerBand{};
+    headerBand.left = (std::max)(0, (std::min)(oldHeaderStart, newHeaderStart) - 12);
+    headerBand.top = margin;
+    headerBand.right = (std::min)(client.right, static_cast<LONG>((std::max)(oldHeaderStart, newHeaderStart) + 12));
+    headerBand.bottom = (std::min)(client.bottom, static_cast<LONG>(margin + topArea));
+    if (headerBand.right > headerBand.left && headerBand.bottom > headerBand.top)
+    {
+        RedrawWindow(m_hwnd, &headerBand, nullptr, RDW_INVALIDATE | RDW_NOERASE);
+    }
+}
+
+void SettingsWindow::StartNavCollapseAnimation(bool requestedCollapsed)
+{
+    const int currentWidth = m_navAnimating
+        ? m_navAnimatedWidth
+        : (m_navCollapsed ? kNavCollapsedWidth : kNavExpandedWidth);
+    const int targetWidth = requestedCollapsed ? kNavCollapsedWidth : kNavExpandedWidth;
+
+    if (!m_navAnimating && currentWidth == targetWidth)
+    {
+        m_navCollapsed = requestedCollapsed;
+        return;
+    }
+
+    m_pendingNavCollapsed = requestedCollapsed;
+    m_navAnimating = true;
+    m_navAnimationStartWidth = currentWidth;
+    m_navAnimationTargetWidth = targetWidth;
+    m_navAnimatedWidth = currentWidth;
+    m_navAnimationStartTick = GetTickCount();
+
+    bool reducedMotion = false;
+    if (m_settingsRegistry)
+    {
+        reducedMotion = (m_settingsRegistry->GetValue(L"settings.accessibility.reduced_motion", L"false") == L"true");
+    }
+
+    m_navAnimationDurationMs = reducedMotion ? 1 : 180;
+    if (m_themePlatform)
+    {
+        ThemeResourceResolver* resolver = m_themePlatform->GetResourceResolver();
+        if (resolver)
+        {
+            m_navAnimationDurationMs = resolver->GetMotionDurationMs(resolver->GetSelectedMotionPreset(), 180);
+        }
+    }
+    if (reducedMotion)
+    {
+        m_navAnimationDurationMs = 1;
+    }
+    if (m_navAnimationDurationMs <= 0)
+    {
+        m_navAnimationDurationMs = 1;
+    }
+
+    if (m_navAnimationDurationMs <= 1)
+    {
+        m_navAnimating = false;
+        m_navCollapsed = requestedCollapsed;
+        m_navAnimatedWidth = targetWidth;
+        KillTimer(m_hwnd, kNavAnimationTimerId);
+
+        RECT rc{};
+        GetClientRect(m_hwnd, &rc);
+        SendMessageW(m_hwnd, WM_SIZE, 0, MAKELPARAM(rc.right - rc.left, rc.bottom - rc.top));
+        InvalidateNavTransitionRegion(currentWidth, targetWidth);
+        PopulatePluginTabs();
+        ShowSelectedPluginTab();
+        return;
+    }
+
+    SetTimer(m_hwnd, kNavAnimationTimerId, 16, nullptr);
+    RECT rc{};
+    GetClientRect(m_hwnd, &rc);
+    SendMessageW(m_hwnd, WM_SIZE, 0, MAKELPARAM(rc.right - rc.left, rc.bottom - rc.top));
+    InvalidateNavTransitionRegion(currentWidth, m_navAnimatedWidth);
+}
+
+void SettingsWindow::StepNavCollapseAnimation()
+{
+    if (!m_navAnimating)
+    {
+        KillTimer(m_hwnd, kNavAnimationTimerId);
+        return;
+    }
+
+    const DWORD now = GetTickCount();
+    const DWORD elapsed = now - m_navAnimationStartTick;
+    const double t = (m_navAnimationDurationMs <= 0)
+        ? 1.0
+        : (std::min)(1.0, static_cast<double>(elapsed) / static_cast<double>(m_navAnimationDurationMs));
+    const double easedT = t * t * (3.0 - (2.0 * t));
+    const int oldWidth = m_navAnimatedWidth;
+    const int delta = m_navAnimationTargetWidth - m_navAnimationStartWidth;
+    m_navAnimatedWidth = m_navAnimationStartWidth + static_cast<int>(delta * easedT);
+
+    RECT rc{};
+    GetClientRect(m_hwnd, &rc);
+    SendMessageW(m_hwnd, WM_SIZE, 0, MAKELPARAM(rc.right - rc.left, rc.bottom - rc.top));
+    InvalidateNavTransitionRegion(oldWidth, m_navAnimatedWidth);
+
+    if (t >= 1.0)
+    {
+        const int animatedEndWidth = m_navAnimatedWidth;
+        m_navAnimating = false;
+        m_navCollapsed = m_pendingNavCollapsed;
+        m_navAnimatedWidth = m_navAnimationTargetWidth;
+        KillTimer(m_hwnd, kNavAnimationTimerId);
+        InvalidateNavTransitionRegion(animatedEndWidth, m_navAnimatedWidth);
+        PopulatePluginTabs();
+        ShowSelectedPluginTab();
     }
 }
 
@@ -1742,6 +2214,319 @@ std::wstring SettingsWindow::BuildTabHelpText(size_t tabIndex) const
     return text;
 }
 
+bool SettingsWindow::SelectTabByPluginId(const std::wstring& pluginId)
+{
+    if (!m_navList)
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < m_pluginTabs.size(); ++i)
+    {
+        if (m_pluginTabs[i].pluginId == pluginId)
+        {
+            m_navList->SetSelectedIndex(i);
+            ShowSelectedPluginTab();
+            return true;
+        }
+    }
+
+    return false;
+}
+
+HWND SettingsWindow::FindFieldControlByKey(const std::wstring& key) const
+{
+    if (!m_rightScrollPanel)
+    {
+        return nullptr;
+    }
+
+    for (const auto& [ctrlId, info] : m_controlFieldMap)
+    {
+        if (info.key != key)
+        {
+            continue;
+        }
+
+        HWND ctrl = GetDlgItem(m_rightScrollPanel, ctrlId);
+        if (ctrl)
+        {
+            return ctrl;
+        }
+    }
+
+    return nullptr;
+}
+
+void SettingsWindow::FocusPreferredSearchField()
+{
+    if (m_contentSearchEdit && IsWindowVisible(m_contentSearchEdit) && IsWindowEnabled(m_contentSearchEdit))
+    {
+        SetFocus(m_contentSearchEdit);
+        SendMessageW(m_contentSearchEdit, EM_SETSEL, 0, -1);
+        return;
+    }
+
+    const std::wstring preferredKeys[] = {
+        L"settings.plugins.manager_filter_text",
+        L"settings.plugins.marketplace.search_query",
+        L"settings.plugins.marketplace.selected_plugin_id"
+    };
+
+    for (const auto& key : preferredKeys)
+    {
+        HWND ctrl = FindFieldControlByKey(key);
+        if (!ctrl || !IsWindowVisible(ctrl) || !IsWindowEnabled(ctrl))
+        {
+            continue;
+        }
+
+        SetFocus(ctrl);
+        wchar_t className[32]{};
+        GetClassNameW(ctrl, className, static_cast<int>(std::size(className)));
+        if (_wcsicmp(className, L"Edit") == 0)
+        {
+            SendMessageW(ctrl, EM_SETSEL, 0, -1);
+        }
+        return;
+    }
+
+    if (m_navList)
+    {
+        SetFocus(m_navList->GetHwnd());
+    }
+}
+
+bool SettingsWindow::MatchesContentSearch(const SettingsFieldDescriptor& field) const
+{
+    if (m_contentSearchQuery.empty())
+    {
+        return true;
+    }
+
+    const std::wstring query = ToLowerCopy(m_contentSearchQuery);
+    if (ToLowerCopy(field.label).find(query) != std::wstring::npos ||
+        ToLowerCopy(field.description).find(query) != std::wstring::npos ||
+        ToLowerCopy(field.key).find(query) != std::wstring::npos)
+    {
+        return true;
+    }
+
+    for (const auto& option : field.options)
+    {
+        if (ToLowerCopy(option.label).find(query) != std::wstring::npos ||
+            ToLowerCopy(option.value).find(query) != std::wstring::npos)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool SettingsWindow::MatchesContentChipFilter(const SettingsFieldDescriptor& field) const
+{
+    switch (m_activeContentChip)
+    {
+    case 1:
+        return field.type == SettingsFieldType::Bool;
+    case 2:
+        return field.type == SettingsFieldType::Enum;
+    case 3:
+        return field.type == SettingsFieldType::String || field.type == SettingsFieldType::Int;
+    default:
+        return true;
+    }
+}
+
+bool SettingsWindow::IsBuiltinPluginsTabSelected() const
+{
+    if (!m_navList)
+    {
+        return false;
+    }
+
+    const size_t tabIndex = m_navList->GetSelectedIndex();
+    return tabIndex < m_pluginTabs.size() && m_pluginTabs[tabIndex].pluginId == L"builtin.plugins";
+}
+
+bool SettingsWindow::ShouldShowMarketplacePage(const std::wstring& pageId) const
+{
+    if (!StartsWith(pageId, L"marketplace."))
+    {
+        return true;
+    }
+
+    if (m_marketplaceSubTab == 0)
+    {
+        return pageId == L"marketplace.discover";
+    }
+
+    return pageId == L"marketplace.installed" ||
+           pageId == L"marketplace.updates" ||
+           pageId == L"marketplace.disabled";
+}
+
+void SettingsWindow::ShowMenuBarPopup(int buttonId)
+{
+    HWND button = nullptr;
+    switch (buttonId)
+    {
+    case kMenuFileId:
+        button = m_menuFileButton;
+        break;
+    case kMenuEditId:
+        button = m_menuEditButton;
+        break;
+    case kMenuViewId:
+        button = m_menuViewButton;
+        break;
+    case kMenuPluginsId:
+        button = m_menuPluginsButton;
+        break;
+    case kHeaderHelpId:
+        button = m_headerHelpButton;
+        break;
+    default:
+        break;
+    }
+
+    if (!button)
+    {
+        return;
+    }
+
+    HMENU menu = CreatePopupMenu();
+    if (!menu)
+    {
+        return;
+    }
+
+    const auto addItem = [&](UINT id, const wchar_t* label) {
+        AppendMenuW(menu, MF_STRING, id, label);
+    };
+
+    switch (buttonId)
+    {
+    case kMenuFileId:
+        addItem(kMenuCmdSaveSettings, L"Save Settings");
+        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        addItem(kMenuCmdCloseSettings, L"Close Settings");
+        break;
+    case kMenuEditId:
+        addItem(kMenuCmdUndo, L"Undo");
+        addItem(kMenuCmdRedo, L"Redo");
+        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        addItem(kMenuCmdFind, L"Find");
+        break;
+    case kMenuViewId:
+        addItem(kMenuCmdToggleSidebar, L"Toggle Sidebar");
+        addItem(kMenuCmdReloadCurrent, L"Refresh Current Page");
+        break;
+    case kMenuPluginsId:
+        addItem(kMenuCmdOpenPlugins, L"Open Plugins");
+        addItem(kMenuCmdCheckUpdates, L"Open Plugin Updates");
+        break;
+    case kHeaderHelpId:
+        addItem(kMenuCmdKeyboardShortcuts, L"Keyboard Shortcuts");
+        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        addItem(kMenuCmdAbout, L"About Spaces");
+        break;
+    default:
+        DestroyMenu(menu);
+        return;
+    }
+
+    RECT rc{};
+    GetWindowRect(button, &rc);
+    SetForegroundWindow(m_hwnd);
+    const UINT flags = TPM_RETURNCMD | TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON;
+    const int cmd = TrackPopupMenuEx(menu, flags, rc.left, rc.bottom + 2, m_hwnd, nullptr);
+    DestroyMenu(menu);
+
+    if (cmd != 0)
+    {
+        HandleMenuBarCommand(static_cast<UINT>(cmd));
+    }
+
+    PostMessageW(m_hwnd, WM_NULL, 0, 0);
+}
+
+void SettingsWindow::HandleMenuBarCommand(UINT commandId)
+{
+    switch (commandId)
+    {
+    case kMenuCmdSaveSettings:
+        CommitPendingTextFieldEdits();
+        if (m_statusBar)
+        {
+            SetWindowTextW(m_statusBar, L"Settings saved.");
+        }
+        return;
+    case kMenuCmdCloseSettings:
+        SendMessageW(m_hwnd, WM_CLOSE, 0, 0);
+        return;
+    case kMenuCmdUndo:
+    {
+        HWND focus = GetFocus();
+        if (focus)
+        {
+            SendMessageW(focus, WM_UNDO, 0, 0);
+        }
+        return;
+    }
+    case kMenuCmdRedo:
+    {
+        HWND focus = GetFocus();
+        if (focus)
+        {
+            constexpr UINT kEditRedoMessage = 0x0454;
+            SendMessageW(focus, kEditRedoMessage, 0, 0);
+        }
+        return;
+    }
+    case kMenuCmdFind:
+        FocusPreferredSearchField();
+        return;
+    case kMenuCmdToggleSidebar:
+        SendMessageW(m_hwnd, WM_COMMAND,
+                     MAKEWPARAM(kNavToggleId, BN_CLICKED),
+                     reinterpret_cast<LPARAM>(m_navToggleButton));
+        return;
+    case kMenuCmdReloadCurrent:
+        ShowSelectedPluginTab();
+        return;
+    case kMenuCmdOpenPlugins:
+        SelectTabByPluginId(L"builtin.plugins");
+        FocusPreferredSearchField();
+        return;
+    case kMenuCmdCheckUpdates:
+        if (SelectTabByPluginId(L"builtin.plugins"))
+        {
+            HWND ctrl = FindFieldControlByKey(L"settings.plugins.marketplace.updates_action");
+            if (ctrl)
+            {
+                SetFocus(ctrl);
+            }
+        }
+        return;
+    case kMenuCmdKeyboardShortcuts:
+    {
+        size_t tabIndex = m_navList ? m_navList->GetSelectedIndex() : 0;
+        MessageBoxW(m_hwnd, BuildTabHelpText(tabIndex).c_str(), L"Keyboard Shortcuts", MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+    case kMenuCmdAbout:
+        MessageBoxW(m_hwnd,
+                    L"Spaces\r\n\r\nA native Win32 desktop organizer with plugin-powered settings and theming.",
+                    L"About Spaces",
+                    MB_OK | MB_ICONINFORMATION);
+        return;
+    default:
+        return;
+    }
+}
+
 void SettingsWindow::DrawNavItem(const DRAWITEMSTRUCT* drawInfo)
 {
     if (!drawInfo || drawInfo->itemID == static_cast<UINT>(-1))
@@ -1768,6 +2553,31 @@ void SettingsWindow::DrawNavItem(const DRAWITEMSTRUCT* drawInfo)
     RECT pillRc = rc;
     InflateRect(&pillRc, -6, -4);
 
+    // Apply component family-aware styling
+    std::wstring componentFamily = L"desktop-fluent";
+    if (m_themePlatform)
+    {
+        ThemeResourceResolver* resolver = m_themePlatform->GetResourceResolver();
+        if (resolver)
+        {
+            componentFamily = resolver->GetSelectedComponentFamily();
+        }
+    }
+
+    // Vary pill styling based on component family
+    int pillPadding = -6;  // default: desktop-fluent
+    if (componentFamily == L"flat-minimal")
+    {
+        pillPadding = -4;  // less aggressive rounding
+    }
+    else if (componentFamily == L"soft-mobile")
+    {
+        pillPadding = -8;  // more aggressive rounding
+    }
+
+    pillRc = rc;
+    InflateRect(&pillRc, pillPadding, -4);
+
     if (selected || hovered)
     {
         const COLORREF fillColor = selected
@@ -1782,6 +2592,19 @@ void SettingsWindow::DrawNavItem(const DRAWITEMSTRUCT* drawInfo)
     {
         RECT accentRc = pillRc;
         accentRc.right = accentRc.left + 4;
+
+        // Vary accent bar styling based on component family
+        int accentWidth = 4;  // default: desktop-fluent
+        if (componentFamily == L"dashboard-modern")
+        {
+            accentWidth = 6;  // thicker bar for dashboard
+        }
+        else if (componentFamily == L"cyber-futuristic")
+        {
+            accentWidth = 3;  // thinner bar for futuristic
+        }
+
+        accentRc.right = accentRc.left + accentWidth;
         HBRUSH accentBrush = CreateSolidBrush(m_accentColor);
         FillRect(hdc, &accentRc, accentBrush);
         DeleteObject(accentBrush);
@@ -1789,21 +2612,67 @@ void SettingsWindow::DrawNavItem(const DRAWITEMSTRUCT* drawInfo)
 
     SetBkMode(hdc, TRANSPARENT);
     SetTextColor(hdc, m_textColor);
-    SelectObject(hdc, m_navFont ? m_navFont : GetStockObject(DEFAULT_GUI_FONT));
 
+    const COLORREF iconChipFill = selected
+        ? BlendColor(m_accentColor, RGB(255, 255, 255), 28)
+        : BlendColor(m_surfaceColor, m_textColor, hovered ? 30 : 18);
+    const COLORREF iconColor = selected
+        ? RGB(255, 255, 255)
+        : BlendColor(m_textColor, m_accentColor, hovered ? 42 : 24);
+
+    RECT iconChipRc = pillRc;
+    const int iconBoxSize = m_navCollapsed ? 30 : 28;
     if (m_navCollapsed)
     {
-        DrawTextW(hdc, tab.iconGlyph.c_str(), -1, &pillRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        iconChipRc.left = pillRc.left + (((pillRc.right - pillRc.left) - iconBoxSize) / 2);
     }
     else
     {
-        RECT glyphRc = pillRc;
-        glyphRc.left += 12;
-        glyphRc.right = glyphRc.left + 24;
-        DrawTextW(hdc, tab.iconGlyph.c_str(), -1, &glyphRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        iconChipRc.left = pillRc.left + 10;
+    }
+    iconChipRc.top = pillRc.top + (((pillRc.bottom - pillRc.top) - iconBoxSize) / 2);
+    iconChipRc.right = iconChipRc.left + iconBoxSize;
+    iconChipRc.bottom = iconChipRc.top + iconBoxSize;
+
+    HBRUSH iconChipBrush = CreateSolidBrush(iconChipFill);
+    HPEN iconChipPen = CreatePen(PS_SOLID, 1, BlendColor(iconChipFill, m_textColor, 20));
+    HGDIOBJ oldPen = SelectObject(hdc, iconChipPen);
+    HGDIOBJ oldBrush = SelectObject(hdc, iconChipBrush);
+    RoundRect(hdc, iconChipRc.left, iconChipRc.top, iconChipRc.right, iconChipRc.bottom, 8, 8);
+    SelectObject(hdc, oldBrush);
+    SelectObject(hdc, oldPen);
+    DeleteObject(iconChipBrush);
+    DeleteObject(iconChipPen);
+
+    if (m_navCollapsed)
+    {
+        HFONT oldFont = reinterpret_cast<HFONT>(SelectObject(hdc, m_iconFont ? m_iconFont : (m_navFont ? m_navFont : GetStockObject(DEFAULT_GUI_FONT))));
+        SetTextColor(hdc, iconColor);
+        DrawTextW(hdc, tab.iconGlyph.c_str(), -1, &iconChipRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(hdc, oldFont);
+    }
+    else
+    {
+        // Vary icon rendering spacing based on family
+        int glyphSpacing = 12;
+        if (componentFamily == L"flat-minimal")
+        {
+            glyphSpacing = 10;  // more compact
+        }
+        else if (componentFamily == L"soft-mobile")
+        {
+            glyphSpacing = 14;  // more spacious
+        }
+
+        HFONT oldFont = reinterpret_cast<HFONT>(SelectObject(hdc, m_iconFont ? m_iconFont : (m_navFont ? m_navFont : GetStockObject(DEFAULT_GUI_FONT))));
+        SetTextColor(hdc, iconColor);
+        DrawTextW(hdc, tab.iconGlyph.c_str(), -1, &iconChipRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(hdc, oldFont);
 
         RECT textRc = pillRc;
-        textRc.left = glyphRc.right + 12;
+        textRc.left = iconChipRc.right + glyphSpacing;
+        SelectObject(hdc, m_navFont ? m_navFont : GetStockObject(DEFAULT_GUI_FONT));
+        SetTextColor(hdc, selected ? RGB(255, 255, 255) : m_textColor);
         DrawTextW(hdc, tab.title.c_str(), -1, &textRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     }
 
@@ -1839,18 +2708,49 @@ LRESULT CALLBACK SettingsWindow::NavListSubclassProc(HWND hwnd, UINT msg, WPARAM
         const POINT pt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
         const LRESULT hit = SendMessageW(hwnd, LB_ITEMFROMPOINT, 0, MAKELPARAM(pt.x, pt.y));
         const int hoverIndex = (HIWORD(hit) != 0) ? -1 : static_cast<int>(LOWORD(hit));
+        const int previousHover = self->m_navHoverIndex;
         if (hoverIndex != self->m_navHoverIndex)
         {
             self->m_navHoverIndex = hoverIndex;
-            InvalidateRect(hwnd, nullptr, FALSE);
+
+            auto invalidateNavItem = [hwnd](int index)
+            {
+                if (index < 0)
+                {
+                    return;
+                }
+
+                RECT itemRect{};
+                const LRESULT rectResult = SendMessageW(hwnd, LB_GETITEMRECT, static_cast<WPARAM>(index), reinterpret_cast<LPARAM>(&itemRect));
+                if (rectResult == LB_ERR)
+                {
+                    InvalidateRect(hwnd, nullptr, FALSE);
+                    return;
+                }
+
+                InvalidateRect(hwnd, &itemRect, FALSE);
+            };
+
+            invalidateNavItem(previousHover);
+            invalidateNavItem(hoverIndex);
         }
         break;
     }
     case WM_MOUSELEAVE:
         if (self->m_navHoverIndex != -1)
         {
+            RECT itemRect{};
+            const int hoverIndex = self->m_navHoverIndex;
             self->m_navHoverIndex = -1;
-            InvalidateRect(hwnd, nullptr, FALSE);
+            const LRESULT rectResult = SendMessageW(hwnd, LB_GETITEMRECT, static_cast<WPARAM>(hoverIndex), reinterpret_cast<LPARAM>(&itemRect));
+            if (rectResult == LB_ERR)
+            {
+                InvalidateRect(hwnd, nullptr, FALSE);
+            }
+            else
+            {
+                InvalidateRect(hwnd, &itemRect, FALSE);
+            }
         }
         break;
     default:
@@ -1957,6 +2857,7 @@ LRESULT CALLBACK SettingsWindow::ScrollPanelProc(HWND hwnd, UINT msg, WPARAM wPa
         break;
     case WM_CTLCOLORSTATIC:
     case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORLISTBOX:
     case WM_CTLCOLORBTN:
     {
         if (!self)
@@ -2084,7 +2985,8 @@ void SettingsWindow::RelayoutScrollPanelChildren()
         EndDeferWindowPos(defer);
     }
 
-            InvalidateRect(m_rightScrollPanel, nullptr, FALSE);
+    RedrawWindow(m_rightScrollPanel, nullptr, nullptr,
+                 RDW_INVALIDATE | RDW_NOERASE | RDW_ALLCHILDREN);
 }
 
 LRESULT SettingsWindow::DrawScrollPanelBkgnd(HDC hdc)
@@ -2159,10 +3061,33 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
             continue;
         }
         const auto& page = m_pages[pi];
+        if (tab.pluginId == L"builtin.plugins" && !ShouldShowMarketplacePage(page.pageId))
+        {
+            continue;
+        }
         if (page.fields.empty())
         {
             continue;
         }
+
+        std::vector<const SettingsFieldDescriptor*> sorted;
+        sorted.reserve(page.fields.size());
+        for (const auto& f : page.fields)
+        {
+            if (IsFieldVisibleInBasicMode(f) && MatchesContentSearch(f) && MatchesContentChipFilter(f))
+            {
+                sorted.push_back(&f);
+            }
+        }
+        if (sorted.empty())
+        {
+            continue;
+        }
+
+        std::sort(sorted.begin(), sorted.end(),
+                  [](const SettingsFieldDescriptor* a, const SettingsFieldDescriptor* b) {
+                      return a->order < b->order;
+                  });
 
         // --- Section header (page title) ----------------------------------------
         HWND hHeader = CreateWindowExW(
@@ -2180,17 +3105,6 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
         y += rowH + 4;
 
         // --- Fields -------------------------------------------------------------
-        // Sort by order for display
-        std::vector<const SettingsFieldDescriptor*> sorted;
-        sorted.reserve(page.fields.size());
-        for (const auto& f : page.fields)
-        {
-            sorted.push_back(&f);
-        }
-        std::sort(sorted.begin(), sorted.end(),
-                  [](const SettingsFieldDescriptor* a, const SettingsFieldDescriptor* b) {
-                      return a->order < b->order;
-                  });
 
         for (const SettingsFieldDescriptor* fp : sorted)
         {
@@ -2257,20 +3171,99 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
                     GetModuleHandleW(nullptr), nullptr);
                 if (hCtrl)
                 {
+                    std::vector<SettingsEnumOption> displayOptions = field.options;
+                    if (displayOptions.empty() && m_themePlatform)
+                    {
+                        ThemeResourceResolver* resolver = m_themePlatform->GetResourceResolver();
+                        if (resolver)
+                        {
+                            if (field.key == L"appearance.ui.component_family")
+                            {
+                                const auto families = resolver->GetAvailableComponentFamilies();
+                                for (const auto& familyId : families)
+                                {
+                                    const std::wstring label = resolver->GetComponentFamilyLabel(familyId);
+                                    displayOptions.push_back(SettingsEnumOption{familyId, label});
+                                }
+                            }
+                            else if (field.key == L"appearance.ui.icon_pack")
+                            {
+                                const auto packs = resolver->GetAvailableIconPacks();
+                                for (const auto& packId : packs)
+                                {
+                                    const std::wstring label = resolver->GetIconPackLabel(packId);
+                                    displayOptions.push_back(SettingsEnumOption{packId, label});
+                                }
+                            }
+                            else if (field.key == L"appearance.ui.motion_preset")
+                            {
+                                const auto presets = resolver->GetAvailableMotionPresets();
+                                for (const auto& presetId : presets)
+                                {
+                                    const std::wstring label = resolver->GetMotionPresetLabel(presetId);
+                                    displayOptions.push_back(SettingsEnumOption{presetId, label});
+                                }
+                            }
+                            else if (field.key == L"appearance.ui.button_family")
+                            {
+                                const auto families = resolver->GetAvailableButtonFamilies();
+                                for (const auto& familyId : families)
+                                {
+                                    const std::wstring label = resolver->GetButtonFamilyLabel(familyId);
+                                    displayOptions.push_back(SettingsEnumOption{familyId, label});
+                                }
+                            }
+                            else if (field.key == L"appearance.ui.menu_style")
+                            {
+                                const auto styles = resolver->GetAvailableMenuStyles();
+                                for (const auto& styleId : styles)
+                                {
+                                    const std::wstring label = resolver->GetMenuStyleLabel(styleId);
+                                    displayOptions.push_back(SettingsEnumOption{styleId, label});
+                                }
+                            }
+                            else if (field.key == L"appearance.ui.fence_style")
+                            {
+                                const auto styles = resolver->GetAvailableFenceStyles();
+                                for (const auto& styleId : styles)
+                                {
+                                    const std::wstring label = resolver->GetFenceStyleLabel(styleId);
+                                    displayOptions.push_back(SettingsEnumOption{styleId, label});
+                                }
+                            }
+                            else if (field.key == L"appearance.ui.controls_family")
+                            {
+                                const auto families = resolver->GetAvailableControlFamilies();
+                                for (const auto& familyId : families)
+                                {
+                                    const std::wstring label = resolver->GetControlFamilyLabel(familyId);
+                                    displayOptions.push_back(SettingsEnumOption{familyId, label});
+                                }
+                            }
+                        }
+                    }
+
                     const std::wstring curVal = m_settingsRegistry
                         ? m_settingsRegistry->GetValue(field.key, field.defaultValue)
                         : field.defaultValue;
                     int selIndex = 0;
-                    for (size_t oi = 0; oi < field.options.size(); ++oi)
+                    for (size_t oi = 0; oi < displayOptions.size(); ++oi)
                     {
                         SendMessageW(hCtrl, CB_ADDSTRING, 0,
-                                     reinterpret_cast<LPARAM>(field.options[oi].label.c_str()));
-                        if (field.options[oi].value == curVal)
+                                     reinterpret_cast<LPARAM>(displayOptions[oi].label.c_str()));
+                        if (displayOptions[oi].value == curVal)
                         {
                             selIndex = static_cast<int>(oi);
                         }
                     }
                     SendMessageW(hCtrl, CB_SETCURSEL, static_cast<WPARAM>(selIndex), 0);
+
+                    // Store options for later - store dynamic options if we populated them, else use field options
+                    FieldControlInfo info;
+                    info.key = field.key;
+                    info.type = field.type;
+                    info.options = displayOptions; // use populated or original options
+                    m_controlFieldMap[ctrlId] = info;
                 }
             }
             else // String or Int
@@ -2286,7 +3279,7 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
                 }
 
                 hCtrl = CreateWindowExW(
-                    WS_EX_CLIENTEDGE, L"EDIT", curVal.c_str(),
+                    0, L"EDIT", curVal.c_str(),
                     editStyle,
                     ctrlX, y, ctrlWidth, rowH,
                     m_rightScrollPanel,
@@ -2307,11 +3300,27 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
                 m_fieldControlLayouts.push_back(FieldControlLayout{hCtrl, ctrlX, controlTop, ctrlWidth, controlHeight, false, 0});
                 RegisterTooltipForControl(hCtrl, field.description);
 
-                FieldControlInfo info;
-                info.key     = field.key;
-                info.type    = field.type;
-                info.options = field.options;
-                m_controlFieldMap.emplace(ctrlId, std::move(info));
+                if (field.type == SettingsFieldType::Enum ||
+                    field.type == SettingsFieldType::String ||
+                    field.type == SettingsFieldType::Int)
+                {
+                    SetWindowSubclass(hCtrl,
+                                      &SettingsWindow::FieldSurfaceSubclassProc,
+                                      1,
+                                      reinterpret_cast<DWORD_PTR>(this));
+                    m_fieldSurfaceTypes[hCtrl] = field.type;
+                    RedrawWindow(hCtrl, nullptr, nullptr, RDW_INVALIDATE | RDW_FRAME);
+                }
+
+                // Don't re-store for Enum types (already stored with dynamic options)
+                if (field.type != SettingsFieldType::Enum)
+                {
+                    FieldControlInfo info;
+                    info.key     = field.key;
+                    info.type    = field.type;
+                    info.options = field.options;
+                    m_controlFieldMap.emplace(ctrlId, std::move(info));
+                }
             }
 
             y += rowH + rowGap;
@@ -2321,7 +3330,43 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
     }
 
     m_rightPaneContentHeight = (std::max)(y + topPad, panelHeight);
+
+    if (m_fieldControls.empty())
+    {
+        HWND hEmpty = CreateWindowExW(
+            0, L"STATIC", L"No settings match the current search/filter.",
+            WS_CHILD | WS_VISIBLE | SS_LEFT,
+            leftPad, topPad, rightPaneW, rowH,
+            m_rightScrollPanel, nullptr, GetModuleHandleW(nullptr), nullptr);
+        if (hEmpty)
+        {
+            SendMessageW(hEmpty, WM_SETFONT, reinterpret_cast<WPARAM>(hFont), TRUE);
+            m_fieldControls.push_back(hEmpty);
+            m_fieldControlLayouts.push_back(FieldControlLayout{hEmpty, leftPad, topPad, rightPaneW, rowH, true, rightPad});
+            m_rightPaneTextStatics.insert(hEmpty);
+            m_rightPaneContentHeight = (std::max)(panelHeight, topPad + rowH + topPad);
+        }
+    }
+
     RelayoutScrollPanelChildren();
+}
+
+bool SettingsWindow::IsFieldVisibleInBasicMode(const SettingsFieldDescriptor& field) const
+{
+    const std::wstring& key = field.key;
+
+    // Keep advanced/dev options out of everyday settings UI.
+    return key != L"settings.plugins.hub_repo_url" &&
+           key != L"settings.plugins.hub_branch" &&
+           key != L"settings.plugins.hub_action" &&
+           key != L"settings.plugins.manager_target_plugin" &&
+           key != L"settings.plugins.manager_action" &&
+           key != L"settings.plugins.cache_path" &&
+           key != L"settings.plugins.clear_cache_on_exit" &&
+           key != L"settings.plugins.background_update_checks" &&
+           key != L"settings.plugins.keep_backup_versions" &&
+           key != L"settings.plugins.load_timeout_ms" &&
+           key != L"desktop.context.advanced_actions_visible";
 }
 
 void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, HWND hwndCtrl)
@@ -2355,6 +3400,21 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
             changedKey == L"theme.source")
         {
             RefreshTheme();
+        }
+    };
+
+    auto refreshCurrentTabForKey = [&](const std::wstring& changedKey) {
+        const bool shouldRefresh =
+            changedKey == L"settings.plugins.manager_filter_status" ||
+            changedKey == L"settings.plugins.manager_filter_text" ||
+            changedKey == L"settings.plugins.marketplace.search_query" ||
+            changedKey == L"settings.plugins.marketplace.category_filter" ||
+            changedKey == L"settings.plugins.marketplace.installed_filter" ||
+            changedKey == L"settings.plugins.marketplace.selected_plugin_id" ||
+            changedKey == L"settings.plugins.show_incompatible";
+
+        if (shouldRefresh)
+        {
             ShowSelectedPluginTab();
         }
     };
@@ -2372,6 +3432,11 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
         {
             const std::wstring selectedValue = info.options[static_cast<size_t>(sel)].value;
             m_settingsRegistry->SetValue(info.key, selectedValue);
+            const bool shouldRefreshAfterSelection =
+                info.key == L"settings.plugins.manager_filter_status" ||
+                info.key == L"settings.plugins.marketplace.category_filter" ||
+                info.key == L"settings.plugins.marketplace.installed_filter" ||
+                info.key == L"settings.plugins.show_incompatible";
 
             // Built-in Settings > Plugins action: sync from plugin hub.
             if (info.key == L"settings.plugins.hub_action" && selectedValue == L"sync_now")
@@ -2499,16 +3564,15 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
 
                 const auto withCatalogEntry = [&](const std::wstring& pluginId,
                                                   const std::function<void(const PluginCatalog::CatalogFetcher&, const PluginCatalog::PluginEntry&)>& action) {
-                    const std::wstring source = ResolveCatalogSource(m_settingsRegistry);
                     PluginCatalog::CatalogFetcher fetcher;
-                    if (source.empty() || !fetcher.FetchCatalog(source))
+                    std::wstring source;
+                    std::wstring fetchError;
+                    if (!TryFetchCatalogWithFallback(m_settingsRegistry, fetcher, source, fetchError))
                     {
                         Win32Helpers::ShowUserWarning(
                             m_hwnd,
                             L"Marketplace",
-                            source.empty()
-                                ? L"No plugin catalog source is configured."
-                                : (L"Failed to load catalog: " + fetcher.GetLastError()));
+                            L"Failed to load catalog: " + fetchError);
                         return;
                     }
 
@@ -2722,7 +3786,6 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
 
             if (info.key == L"settings.plugins.marketplace.updates_action" && selectedValue != L"idle")
             {
-                const std::wstring source = ResolveCatalogSource(m_settingsRegistry);
                 const std::wstring updateScope = m_settingsRegistry->GetValue(L"settings.plugins.marketplace.update_scope", L"selected");
                 const std::wstring selectedId = m_settingsRegistry->GetValue(L"settings.plugins.marketplace.selected_plugin_id", L"");
                 const bool keepBackup =
@@ -2746,13 +3809,14 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
                 }
 
                 PluginCatalog::CatalogFetcher fetcher;
-                if (source.empty() || !fetcher.FetchCatalog(source))
+                std::wstring source;
+                std::wstring fetchError;
+                if (!TryFetchCatalogWithFallback(m_settingsRegistry, fetcher, source, fetchError))
                 {
                     Win32Helpers::ShowUserWarning(
                         m_hwnd,
                         L"Marketplace Updates",
-                        source.empty() ? L"No plugin catalog source is configured."
-                                       : (L"Failed to load catalog: " + fetcher.GetLastError()));
+                        L"Failed to load catalog: " + fetchError);
                     m_settingsRegistry->SetValue(L"settings.plugins.marketplace.updates_action", L"idle");
                     SendMessageW(hwndCtrl, CB_SETCURSEL, 0, 0);
                     return;
@@ -2948,6 +4012,20 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
             }
 
             applyImmediateUiChanges(info.key);
+            if (shouldRefreshAfterSelection)
+            {
+                refreshCurrentTabForKey(info.key);
+            }
+        }
+    }
+    else if (info.type == SettingsFieldType::String && notificationCode == EN_CHANGE)
+    {
+        wchar_t buf[1024]{};
+        GetWindowTextW(hwndCtrl, buf, static_cast<int>(std::size(buf)));
+        const std::wstring value = buf;
+        if (m_settingsRegistry->GetValue(info.key, L"") != value)
+        {
+            m_settingsRegistry->SetValue(info.key, value);
         }
     }
     else if ((info.type == SettingsFieldType::String || info.type == SettingsFieldType::Int)
@@ -2957,6 +4035,10 @@ void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, 
         GetWindowTextW(hwndCtrl, buf, static_cast<int>(std::size(buf)));
         m_settingsRegistry->SetValue(info.key, buf);
         applyImmediateUiChanges(info.key);
+        if (info.type == SettingsFieldType::String)
+        {
+            refreshCurrentTabForKey(info.key);
+        }
     }
 }
 
@@ -2975,14 +4057,33 @@ void SettingsWindow::DrawToggleControl(const DRAWITEMSTRUCT* drawInfo)
     const bool pressed = (drawInfo->itemState & ODS_SELECTED) != 0;
     const bool disabled = (drawInfo->itemState & ODS_DISABLED) != 0;
 
+    std::wstring controlFamily = L"desktop-fluent";
+    if (m_themePlatform)
+    {
+        ThemeResourceResolver* resolver = m_themePlatform->GetResourceResolver();
+        if (resolver)
+        {
+            controlFamily = resolver->GetSelectedControlFamily();
+        }
+    }
+
     HBRUSH backgroundBrush = CreateSolidBrush(m_surfaceColor);
     FillRect(hdc, &rc, backgroundBrush);
     DeleteObject(backgroundBrush);
 
     const int width = rc.right - rc.left;
     const int height = rc.bottom - rc.top;
-    const int trackWidth = min(50, max(40, width - 4));
-    const int trackHeight = min(28, max(18, height - 6));
+    int trackWidth = min(50, max(40, width - 4));
+    int trackHeight = min(28, max(18, height - 6));
+    if (controlFamily == L"flat-minimal")
+    {
+        trackHeight = min(22, max(16, height - 8));
+    }
+    else if (controlFamily == L"soft-mobile")
+    {
+        trackWidth = min(54, max(44, width - 2));
+        trackHeight = min(30, max(20, height - 4));
+    }
 
     RECT track{};
     track.left = rc.left + ((width - trackWidth) / 2);
@@ -2998,11 +4099,21 @@ void SettingsWindow::DrawToggleControl(const DRAWITEMSTRUCT* drawInfo)
         trackColor = BlendColor(m_surfaceColor, trackColor, 110);
     }
 
-    HPEN borderPen = CreatePen(PS_SOLID, 1, BlendColor(trackColor, m_textColor, 28));
+    int borderWidth = 1;
+    if (controlFamily == L"dashboard-modern")
+    {
+        borderWidth = 2;
+    }
+    HPEN borderPen = CreatePen(PS_SOLID, borderWidth, BlendColor(trackColor, m_textColor, 28));
     HBRUSH trackBrush = CreateSolidBrush(trackColor);
     HGDIOBJ oldPen = SelectObject(hdc, borderPen);
     HGDIOBJ oldBrush = SelectObject(hdc, trackBrush);
-    RoundRect(hdc, track.left, track.top, track.right, track.bottom, trackHeight, trackHeight);
+    int radius = trackHeight;
+    if (controlFamily == L"flat-minimal")
+    {
+        radius = 6;
+    }
+    RoundRect(hdc, track.left, track.top, track.right, track.bottom, radius, radius);
     SelectObject(hdc, oldBrush);
     SelectObject(hdc, oldPen);
     DeleteObject(trackBrush);
@@ -3042,6 +4153,209 @@ void SettingsWindow::DrawToggleControl(const DRAWITEMSTRUCT* drawInfo)
     }
 }
 
+void SettingsWindow::DrawShellButton(const DRAWITEMSTRUCT* drawInfo)
+{
+    if (!drawInfo)
+    {
+        return;
+    }
+
+    const bool pressed = (drawInfo->itemState & ODS_SELECTED) != 0;
+    const bool focused = (drawInfo->itemState & ODS_FOCUS) != 0;
+    const bool hovered = (drawInfo->itemState & ODS_HOTLIGHT) != 0;
+    const bool disabled = (drawInfo->itemState & ODS_DISABLED) != 0;
+    const bool chipSelected =
+        (drawInfo->CtlID == kChipAllId && m_activeContentChip == 0) ||
+        (drawInfo->CtlID == kChipToggleId && m_activeContentChip == 1) ||
+        (drawInfo->CtlID == kChipChoiceId && m_activeContentChip == 2) ||
+        (drawInfo->CtlID == kChipTextId && m_activeContentChip == 3);
+    const bool marketplaceTabSelected =
+        (drawInfo->CtlID == kMarketplaceDiscoverTabId && m_marketplaceSubTab == 0) ||
+        (drawInfo->CtlID == kMarketplaceInstalledTabId && m_marketplaceSubTab == 1);
+
+    std::wstring buttonFamily = L"compact";
+    if (m_themePlatform)
+    {
+        ThemeResourceResolver* resolver = m_themePlatform->GetResourceResolver();
+        if (resolver)
+        {
+            buttonFamily = resolver->GetSelectedButtonFamily();
+        }
+    }
+
+    RECT rc = drawInfo->rcItem;
+    const int radius = (buttonFamily == L"soft") ? 9 : 6;
+    const int inset = 1;
+
+    COLORREF bg = BlendColor(m_surfaceColor, m_navColor, 90);
+    COLORREF border = BlendColor(m_surfaceColor, m_textColor, 44);
+    COLORREF text = m_textColor;
+
+    if (buttonFamily == L"outlined")
+    {
+        bg = BlendColor(m_windowColor, m_surfaceColor, hovered ? 24 : 12);
+        border = hovered ? m_accentColor : BlendColor(m_surfaceColor, m_textColor, 56);
+    }
+
+    if (chipSelected || marketplaceTabSelected)
+    {
+        bg = BlendColor(m_accentColor, m_surfaceColor, 48);
+        border = m_accentColor;
+        text = RGB(255, 255, 255);
+    }
+    else if (buttonFamily == L"high-contrast")
+    {
+        bg = hovered ? m_accentColor : BlendColor(m_surfaceColor, m_textColor, 105);
+        border = hovered ? m_accentColor : BlendColor(m_surfaceColor, m_textColor, 120);
+        text = hovered ? RGB(255, 255, 255) : m_textColor;
+    }
+    else if (buttonFamily == L"soft")
+    {
+        bg = BlendColor(m_surfaceColor, m_accentColor, hovered ? 36 : 20);
+        border = BlendColor(bg, m_textColor, 24);
+    }
+
+    if (pressed)
+    {
+        bg = BlendColor(bg, m_textColor, 24);
+        border = BlendColor(border, m_textColor, 24);
+    }
+    if (disabled)
+    {
+        bg = BlendColor(m_surfaceColor, m_windowColor, 60);
+        border = BlendColor(m_surfaceColor, m_textColor, 24);
+        text = BlendColor(m_textColor, m_surfaceColor, 120);
+    }
+
+    HDC hdc = drawInfo->hDC;
+    SetBkMode(hdc, TRANSPARENT);
+
+    RECT buttonRc = rc;
+    InflateRect(&buttonRc, -inset, -inset);
+    HPEN pen = CreatePen(PS_SOLID, 1, border);
+    HBRUSH brush = CreateSolidBrush(bg);
+    HGDIOBJ oldPen = SelectObject(hdc, pen);
+    HGDIOBJ oldBrush = SelectObject(hdc, brush);
+    RoundRect(hdc, buttonRc.left, buttonRc.top, buttonRc.right, buttonRc.bottom, radius, radius);
+    SelectObject(hdc, oldBrush);
+    SelectObject(hdc, oldPen);
+    DeleteObject(brush);
+    DeleteObject(pen);
+
+    wchar_t textBuffer[128]{};
+    GetWindowTextW(drawInfo->hwndItem, textBuffer, static_cast<int>(std::size(textBuffer)));
+    RECT textRc = buttonRc;
+    if (pressed)
+    {
+        OffsetRect(&textRc, 1, 1);
+    }
+    SetTextColor(hdc, text);
+    SelectObject(hdc, m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT));
+    DrawTextW(hdc, textBuffer, -1, &textRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+
+    if (focused)
+    {
+        RECT focusRc = buttonRc;
+        InflateRect(&focusRc, -3, -3);
+        DrawFocusRect(hdc, &focusRc);
+    }
+}
+
+void SettingsWindow::DrawFieldSurfaceFrame(HWND control)
+{
+    if (!control)
+    {
+        return;
+    }
+
+    RECT wr{};
+    GetWindowRect(control, &wr);
+    OffsetRect(&wr, -wr.left, -wr.top);
+
+    HDC hdc = GetWindowDC(control);
+    if (!hdc)
+    {
+        return;
+    }
+
+    std::wstring controlFamily = L"desktop-fluent";
+    if (m_themePlatform)
+    {
+        ThemeResourceResolver* resolver = m_themePlatform->GetResourceResolver();
+        if (resolver)
+        {
+            controlFamily = resolver->GetSelectedControlFamily();
+        }
+    }
+
+    const bool focused = (GetFocus() == control);
+    int borderWidth = 1;
+    if (controlFamily == L"dashboard-modern")
+    {
+        borderWidth = 2;
+    }
+
+    COLORREF borderColor = focused
+        ? m_accentColor
+        : BlendColor(m_surfaceColor, m_textColor, 52);
+
+    HPEN pen = CreatePen(PS_SOLID, borderWidth, borderColor);
+    HGDIOBJ oldPen = SelectObject(hdc, pen);
+    HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
+
+    const int radius = (controlFamily == L"soft-mobile") ? 8 : 5;
+    Rectangle(hdc, wr.left, wr.top, wr.right, wr.bottom);
+    if (radius > 5)
+    {
+        RoundRect(hdc, wr.left + 1, wr.top + 1, wr.right - 1, wr.bottom - 1, radius, radius);
+    }
+
+    SelectObject(hdc, oldBrush);
+    SelectObject(hdc, oldPen);
+    DeleteObject(pen);
+    ReleaseDC(control, hdc);
+}
+
+LRESULT CALLBACK SettingsWindow::FieldSurfaceSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
+                                                          UINT_PTR subclassId, DWORD_PTR refData)
+{
+    (void)subclassId;
+    auto* self = reinterpret_cast<SettingsWindow*>(refData);
+    if (!self)
+    {
+        return DefSubclassProc(hwnd, msg, wParam, lParam);
+    }
+
+    switch (msg)
+    {
+    case WM_NCPAINT:
+    {
+        const LRESULT result = DefSubclassProc(hwnd, msg, wParam, lParam);
+        self->DrawFieldSurfaceFrame(hwnd);
+        return result;
+    }
+    case WM_PAINT:
+    {
+        const LRESULT result = DefSubclassProc(hwnd, msg, wParam, lParam);
+        self->DrawFieldSurfaceFrame(hwnd);
+        return result;
+    }
+    case WM_SETFOCUS:
+    case WM_KILLFOCUS:
+    case WM_ENABLE:
+        RedrawWindow(hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_FRAME | RDW_UPDATENOW);
+        break;
+    case WM_NCDESTROY:
+        self->m_fieldSurfaceTypes.erase(hwnd);
+        RemoveWindowSubclass(hwnd, &SettingsWindow::FieldSurfaceSubclassProc, 1);
+        break;
+    default:
+        break;
+    }
+
+    return DefSubclassProc(hwnd, msg, wParam, lParam);
+}
+
 LRESULT CALLBACK SettingsWindow::WndProcStatic(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     SettingsWindow* self = nullptr;
@@ -3070,7 +4384,6 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     if (msg == ThemePlatform::GetThemeChangedMessageId())
     {
         RefreshTheme();
-        ShowSelectedPluginTab();
         return 0;
     }
 
@@ -3078,6 +4391,174 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     {
     case WM_CREATE:
     {
+        m_menuFileButton = CreateWindowExW(
+            0,
+            L"BUTTON",
+            L"File",
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+            0,
+            0,
+            56,
+            kMenuBarHeight,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kMenuFileId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
+        m_menuEditButton = CreateWindowExW(
+            0,
+            L"BUTTON",
+            L"Edit",
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+            0,
+            0,
+            56,
+            kMenuBarHeight,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kMenuEditId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
+        m_menuViewButton = CreateWindowExW(
+            0,
+            L"BUTTON",
+            L"View",
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+            0,
+            0,
+            56,
+            kMenuBarHeight,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kMenuViewId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
+        m_menuPluginsButton = CreateWindowExW(
+            0,
+            L"BUTTON",
+            L"Plugins",
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+            0,
+            0,
+            72,
+            kMenuBarHeight,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kMenuPluginsId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
+        m_contentSearchEdit = CreateWindowExW(
+            0,
+            L"EDIT",
+            L"",
+            WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
+            0,
+            0,
+            180,
+            kSearchRowHeight,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kContentSearchId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
+        m_chipAllButton = CreateWindowExW(
+            0,
+            L"BUTTON",
+            L"All",
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+            0,
+            0,
+            54,
+            kSearchRowHeight,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kChipAllId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
+        m_chipToggleButton = CreateWindowExW(
+            0,
+            L"BUTTON",
+            L"Toggles",
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+            0,
+            0,
+            74,
+            kSearchRowHeight,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kChipToggleId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
+        m_chipChoiceButton = CreateWindowExW(
+            0,
+            L"BUTTON",
+            L"Choices",
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+            0,
+            0,
+            74,
+            kSearchRowHeight,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kChipChoiceId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
+        m_chipTextButton = CreateWindowExW(
+            0,
+            L"BUTTON",
+            L"Text",
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+            0,
+            0,
+            64,
+            kSearchRowHeight,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kChipTextId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
+        m_marketplaceDiscoverTabButton = CreateWindowExW(
+            0,
+            L"BUTTON",
+            L"Discover",
+            WS_CHILD | BS_OWNERDRAW,
+            0,
+            0,
+            88,
+            kSearchRowHeight,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kMarketplaceDiscoverTabId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
+        m_marketplaceInstalledTabButton = CreateWindowExW(
+            0,
+            L"BUTTON",
+            L"Installed",
+            WS_CHILD | BS_OWNERDRAW,
+            0,
+            0,
+            88,
+            kSearchRowHeight,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kMarketplaceInstalledTabId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+        
+        m_pluginTreeView = CreateWindowExW(
+            WS_EX_CLIENTEDGE,
+            WC_TREEVIEWW,
+            L"",
+            WS_CHILD | TVS_LINESATROOT | TVS_HASLINES | TVS_HASBUTTONS | TVS_FULLROWSELECT | WS_VSCROLL,
+            0,
+            0,
+            100,
+            100,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kPluginTreeViewId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
         m_headerTitle = CreateWindowExW(
             0,
             L"STATIC",
@@ -3109,8 +4590,8 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         m_headerHelpButton = CreateWindowExW(
             0,
             L"BUTTON",
-            L"? Help",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            L"Help",
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
             0,
             0,
             90,
@@ -3124,7 +4605,7 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             0,
             L"BUTTON",
             L"<",
-            WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
             0,
             0,
             28,
@@ -3134,19 +4615,10 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             GetModuleHandleW(nullptr),
             nullptr);
 
-        m_navList = CreateWindowExW(
-            WS_EX_CLIENTEDGE,
-            L"LISTBOX",
-            L"",
-            WS_CHILD | WS_VISIBLE | LBS_NOTIFY | LBS_OWNERDRAWFIXED | LBS_HASSTRINGS | WS_VSCROLL,
-            0,
-            0,
-            200,
-            100,
-            hwnd,
-            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kNavId)),
-            GetModuleHandleW(nullptr),
-            nullptr);
+        m_navList = new VirtualNavList(hwnd, m_themePlatform);
+        m_navList->SetOnItemClick([this](size_t) {
+            ShowSelectedPluginTab();
+        });
 
         m_pageView = CreateWindowExW(
             WS_EX_CLIENTEDGE,
@@ -3218,12 +4690,33 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
 
         SendMessageW(m_pageView, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
-        SendMessageW(m_navList, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_navList->GetHwnd(), WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_menuFileButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_menuEditButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_menuViewButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_menuPluginsButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_contentSearchEdit, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_chipAllButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_chipToggleButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_chipChoiceButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_chipTextButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_marketplaceDiscoverTabButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_marketplaceInstalledTabButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        if (m_pluginTreeView)
+        {
+            SendMessageW(m_pluginTreeView, WM_SETFONT, reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        }
         SendMessageW(m_headerTitle, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         SendMessageW(m_headerSubtitle, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         SendMessageW(m_statusBar, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         SendMessageW(m_headerHelpButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
-        SetWindowSubclass(m_navList, &SettingsWindow::NavListSubclassProc, 1, reinterpret_cast<DWORD_PTR>(this));
+        SetWindowSubclass(m_navList->GetHwnd(), &SettingsWindow::NavListSubclassProc, 1, reinterpret_cast<DWORD_PTR>(this));
+
+        RegisterHotKey(hwnd, kHotkeyNextSectionId, MOD_CONTROL | MOD_NOREPEAT, VK_TAB);
+        RegisterHotKey(hwnd, kHotkeyPrevSectionId, MOD_CONTROL | MOD_SHIFT | MOD_NOREPEAT, VK_TAB);
+        RegisterHotKey(hwnd, kHotkeyFocusSearchId, MOD_CONTROL | MOD_NOREPEAT, 'L');
+        RegisterHotKey(hwnd, kHotkeyFocusNavId, MOD_ALT | MOD_NOREPEAT, '1');
+        RegisterHotKey(hwnd, kHotkeyHelpId, MOD_NOREPEAT, VK_F1);
 
         RefreshTheme();
         PopulatePluginTabs();
@@ -3233,15 +4726,66 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     {
         const int width = LOWORD(lParam);
         const int height = HIWORD(lParam);
-        const int navWidth = m_navCollapsed ? 64 : 280;
+        const int navWidth = m_navAnimating
+            ? m_navAnimatedWidth
+            : (m_navCollapsed ? kNavCollapsedWidth : kNavExpandedWidth);
         const int margin = 10;
-        const int topArea = kHeaderTitleHeight + kHeaderSubtitleHeight + kHeaderGap + 16;
+        const int topArea = TopAreaHeight();
+
+        int menuButtonWidth = 62;
+        int menuButtonGap = 6;
+        if (m_themePlatform)
+        {
+            ThemeResourceResolver* resolver = m_themePlatform->GetResourceResolver();
+            if (resolver)
+            {
+                const std::wstring menuStyle = resolver->GetSelectedMenuStyle();
+                if (menuStyle == L"compact")
+                {
+                    menuButtonWidth = 54;
+                    menuButtonGap = 4;
+                }
+                else if (menuStyle == L"hierarchical")
+                {
+                    menuButtonWidth = 78;
+                    menuButtonGap = 8;
+                }
+            }
+        }
+
+        const int contentLeft = navWidth + (margin * 2);
+        const int menuY = margin;
+
+        if (m_menuFileButton)
+        {
+            MoveWindow(m_menuFileButton, contentLeft, menuY, menuButtonWidth, kMenuBarHeight, TRUE);
+            SendMessageW(m_menuFileButton, WM_SETFONT,
+                reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        }
+        if (m_menuEditButton)
+        {
+            MoveWindow(m_menuEditButton, contentLeft + (menuButtonWidth + menuButtonGap), menuY, menuButtonWidth, kMenuBarHeight, TRUE);
+            SendMessageW(m_menuEditButton, WM_SETFONT,
+                reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        }
+        if (m_menuViewButton)
+        {
+            MoveWindow(m_menuViewButton, contentLeft + ((menuButtonWidth + menuButtonGap) * 2), menuY, menuButtonWidth, kMenuBarHeight, TRUE);
+            SendMessageW(m_menuViewButton, WM_SETFONT,
+                reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        }
+        if (m_menuPluginsButton)
+        {
+            MoveWindow(m_menuPluginsButton, contentLeft + ((menuButtonWidth + menuButtonGap) * 3), menuY, menuButtonWidth + 12, kMenuBarHeight, TRUE);
+            SendMessageW(m_menuPluginsButton, WM_SETFONT,
+                reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        }
 
         if (m_headerTitle)
         {
             MoveWindow(m_headerTitle,
-                       navWidth + (margin * 2),
-                       margin,
+                       contentLeft,
+                       margin + kMenuBarHeight + kMenuBarGap,
                        width - navWidth - (margin * 3),
                        kHeaderTitleHeight,
                        TRUE);
@@ -3252,8 +4796,8 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         if (m_headerSubtitle)
         {
             MoveWindow(m_headerSubtitle,
-                       navWidth + (margin * 2),
-                       margin + kHeaderTitleHeight + kHeaderGap,
+                       contentLeft,
+                       margin + kMenuBarHeight + kMenuBarGap + kHeaderTitleHeight + kHeaderGap,
                        width - navWidth - (margin * 3),
                        kHeaderSubtitleHeight,
                        TRUE);
@@ -3261,13 +4805,82 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                 reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         }
 
+        const int searchY = margin + kMenuBarHeight + kMenuBarGap + kHeaderTitleHeight + kHeaderGap + kHeaderSubtitleHeight + 6;
+        const int chipGap = 6;
+        const int chipAllWidth = 52;
+        const int chipToggleWidth = 76;
+        const int chipChoiceWidth = 76;
+        const int chipTextWidth = 58;
+        const int totalChipWidth = chipAllWidth + chipToggleWidth + chipChoiceWidth + chipTextWidth + (chipGap * 3);
+        const bool showMarketplaceSubTabs = IsBuiltinPluginsTabSelected();
+        const int subTabGap = 6;
+        const int subTabWidth = 90;
+        const int totalSubTabWidth = showMarketplaceSubTabs ? ((subTabWidth * 2) + subTabGap + 10) : 0;
+        const int searchWidth = (std::max)(180, width - navWidth - (margin * 3) - totalChipWidth - totalSubTabWidth - 10);
+
+        if (m_contentSearchEdit)
+        {
+            MoveWindow(m_contentSearchEdit, contentLeft, searchY, searchWidth, kSearchRowHeight, TRUE);
+            SendMessageW(m_contentSearchEdit, WM_SETFONT,
+                reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        }
+
+        const int chipStartX = contentLeft + searchWidth + 10;
+        if (m_chipAllButton)
+        {
+            MoveWindow(m_chipAllButton, chipStartX, searchY, chipAllWidth, kSearchRowHeight, TRUE);
+        }
+        if (m_chipToggleButton)
+        {
+            MoveWindow(m_chipToggleButton, chipStartX + chipAllWidth + chipGap, searchY, chipToggleWidth, kSearchRowHeight, TRUE);
+        }
+        if (m_chipChoiceButton)
+        {
+            MoveWindow(m_chipChoiceButton, chipStartX + chipAllWidth + chipGap + chipToggleWidth + chipGap, searchY, chipChoiceWidth, kSearchRowHeight, TRUE);
+        }
+        if (m_chipTextButton)
+        {
+            MoveWindow(m_chipTextButton, chipStartX + chipAllWidth + chipGap + chipToggleWidth + chipGap + chipChoiceWidth + chipGap, searchY, chipTextWidth, kSearchRowHeight, TRUE);
+        }
+
+        const int chipsEndX = chipStartX + totalChipWidth;
+        if (m_marketplaceDiscoverTabButton)
+        {
+            if (showMarketplaceSubTabs)
+            {
+                ShowWindow(m_marketplaceDiscoverTabButton, SW_SHOW);
+                MoveWindow(m_marketplaceDiscoverTabButton, chipsEndX + 10, searchY, subTabWidth, kSearchRowHeight, TRUE);
+                SendMessageW(m_marketplaceDiscoverTabButton, WM_SETFONT,
+                    reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+            }
+            else
+            {
+                ShowWindow(m_marketplaceDiscoverTabButton, SW_HIDE);
+            }
+        }
+
+        if (m_marketplaceInstalledTabButton)
+        {
+            if (showMarketplaceSubTabs)
+            {
+                ShowWindow(m_marketplaceInstalledTabButton, SW_SHOW);
+                MoveWindow(m_marketplaceInstalledTabButton, chipsEndX + 10 + subTabWidth + subTabGap, searchY, subTabWidth, kSearchRowHeight, TRUE);
+                SendMessageW(m_marketplaceInstalledTabButton, WM_SETFONT,
+                    reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+            }
+            else
+            {
+                ShowWindow(m_marketplaceInstalledTabButton, SW_HIDE);
+            }
+        }
+
         if (m_headerHelpButton)
         {
             MoveWindow(m_headerHelpButton,
                        width - margin - 90,
-                       margin + 2,
+                       menuY,
                        90,
-                       28,
+                       kMenuBarHeight,
                        TRUE);
             SendMessageW(m_headerHelpButton, WM_SETFONT,
                 reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
@@ -3275,14 +4888,15 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         if (m_navToggleButton)
         {
-            MoveWindow(m_navToggleButton, margin, margin, navWidth, 30, TRUE);
-            SetWindowTextW(m_navToggleButton, m_navCollapsed ? L">" : L"<");
+            MoveWindow(m_navToggleButton, margin, margin, 36, 30, TRUE);
+            const bool displayCollapsed = m_navAnimating ? m_pendingNavCollapsed : m_navCollapsed;
+            SetWindowTextW(m_navToggleButton, displayCollapsed ? L">" : L"<");
             SendMessageW(m_navToggleButton, WM_SETFONT,
                 reinterpret_cast<WPARAM>(m_navFont ? m_navFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         }
         if (m_navList)
         {
-            MoveWindow(m_navList, margin, margin + topArea, navWidth, height - (margin * 3) - topArea - kStatusHeight, TRUE);
+            MoveWindow(m_navList->GetHwnd(), margin, margin + topArea, navWidth, height - (margin * 3) - topArea - kStatusHeight, TRUE);
         }
         if (m_pageView)
         {
@@ -3301,6 +4915,17 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                        width - navWidth - (margin * 3),
                        height - (margin * 3) - topArea - kStatusHeight,
                        TRUE);
+        }
+        if (m_pluginTreeView)
+        {
+            MoveWindow(m_pluginTreeView,
+                       navWidth + (margin * 2),
+                       margin + topArea,
+                       width - navWidth - (margin * 3),
+                       height - (margin * 3) - topArea - kStatusHeight,
+                       TRUE);
+            SendMessageW(m_pluginTreeView, WM_SETFONT,
+                reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         }
 
         if (m_statusBar)
@@ -3377,11 +5002,64 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             return 0;
         }
 
+        if ((id == kMenuFileId || id == kMenuEditId || id == kMenuViewId || id == kMenuPluginsId) && code == BN_CLICKED)
+        {
+            ShowMenuBarPopup(id);
+            return 0;
+        }
+
         if (id == kHeaderHelpId && code == BN_CLICKED)
         {
-            const LRESULT selection = m_navList ? SendMessageW(m_navList, LB_GETCURSEL, 0, 0) : -1;
-            const size_t tabIndex = (selection >= 0) ? static_cast<size_t>(selection) : 0;
-            MessageBoxW(hwnd, BuildTabHelpText(tabIndex).c_str(), L"Settings Help", MB_OK | MB_ICONINFORMATION);
+            ShowMenuBarPopup(id);
+            return 0;
+        }
+
+        if (id == kContentSearchId && code == EN_CHANGE)
+        {
+            wchar_t searchBuf[256]{};
+            GetWindowTextW(m_contentSearchEdit, searchBuf, static_cast<int>(std::size(searchBuf)));
+            m_contentSearchQuery = searchBuf;
+            ShowSelectedPluginTab();
+            return 0;
+        }
+
+        if (IsContentChipId(id) && code == BN_CLICKED)
+        {
+            int newChip = 0;
+            if (id == kChipToggleId)
+            {
+                newChip = 1;
+            }
+            else if (id == kChipChoiceId)
+            {
+                newChip = 2;
+            }
+            else if (id == kChipTextId)
+            {
+                newChip = 3;
+            }
+
+            m_activeContentChip = newChip;
+            if (m_chipAllButton) InvalidateRect(m_chipAllButton, nullptr, FALSE);
+            if (m_chipToggleButton) InvalidateRect(m_chipToggleButton, nullptr, FALSE);
+            if (m_chipChoiceButton) InvalidateRect(m_chipChoiceButton, nullptr, FALSE);
+            if (m_chipTextButton) InvalidateRect(m_chipTextButton, nullptr, FALSE);
+            ShowSelectedPluginTab();
+            return 0;
+        }
+
+        if ((id == kMarketplaceDiscoverTabId || id == kMarketplaceInstalledTabId) && code == BN_CLICKED)
+        {
+            m_marketplaceSubTab = (id == kMarketplaceInstalledTabId) ? 1 : 0;
+            if (m_marketplaceDiscoverTabButton)
+            {
+                InvalidateRect(m_marketplaceDiscoverTabButton, nullptr, FALSE);
+            }
+            if (m_marketplaceInstalledTabButton)
+            {
+                InvalidateRect(m_marketplaceInstalledTabButton, nullptr, FALSE);
+            }
+            ShowSelectedPluginTab();
             return 0;
         }
 
@@ -3396,23 +5074,62 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     case WM_SETTINGCHANGE:
     case WM_THEMECHANGED:
         RefreshTheme();
-        ShowSelectedPluginTab();
         return 0;
+    case WM_HOTKEY:
+    {
+        switch (static_cast<int>(wParam))
+        {
+        case kHotkeyNextSectionId:
+        case kHotkeyPrevSectionId:
+            if (m_navList && !m_pluginTabs.empty())
+            {
+                const int direction = (wParam == kHotkeyPrevSectionId) ? -1 : 1;
+                int current = m_navList ? static_cast<int>(m_navList->GetSelectedIndex()) : 0;
+                int count = static_cast<int>(m_pluginTabs.size());
+                int next = (current + direction + count) % count;
+                if (m_navList) m_navList->SetSelectedIndex(next);
+                ShowSelectedPluginTab();
+            }
+            return 0;
+        case kHotkeyFocusSearchId:
+            FocusPreferredSearchField();
+            return 0;
+        case kHotkeyFocusNavId:
+            if (m_navList) {
+                SetFocus(m_navList->GetHwnd());
+            }
+            return 0;
+        case kHotkeyHelpId:
+            HandleMenuBarCommand(kMenuCmdKeyboardShortcuts);
+            return 0;
+        default:
+            break;
+        }
+        break;
+    }
     case WM_TIMER:
+        if (wParam == kNavAnimationTimerId)
+        {
+            StepNavCollapseAnimation();
+            return 0;
+        }
+        if (wParam == kMarketplaceSpinnerTimerId)
+        {
+            if (m_marketplaceSpinnerActive)
+            {
+                m_marketplaceSpinnerFrame = (m_marketplaceSpinnerFrame + 1) % 4;
+                if (m_navList) {
+                    size_t selection = m_navList->GetSelectedIndex();
+                    UpdateShellHeaderAndStatus(selection);
+                }
+            }
+            return 0;
+        }
         break;
     case kMsgApplyNavCollapsed:
     {
         const bool requestedCollapsed = (wParam != 0);
-        m_navCollapsed = requestedCollapsed;
-        PopulatePluginTabs();
-        RECT rc{};
-        GetClientRect(hwnd, &rc);
-        SendMessageW(hwnd, WM_SIZE, 0, MAKELPARAM(rc.right - rc.left, rc.bottom - rc.top));
-
-        Win32Helpers::LogInfo(
-            L"Settings nav collapse apply: requested=" + std::wstring(requestedCollapsed ? L"true" : L"false") +
-            L", applied=" + std::wstring(m_navCollapsed ? L"true" : L"false") +
-            L", pending=" + std::wstring(m_pendingNavCollapsed ? L"true" : L"false"));
+        StartNavCollapseAnimation(requestedCollapsed);
         return 0;
     }
     case WM_MEASUREITEM:
@@ -3421,7 +5138,10 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         if (measure && measure->CtlID == kNavId)
         {
             measure->itemHeight = m_navCollapsed ? 44 : 40;
-            measure->itemWidth = static_cast<UINT>(m_navCollapsed ? 64 : 280);
+            const int navWidth = m_navAnimating
+                ? m_navAnimatedWidth
+                : (m_navCollapsed ? kNavCollapsedWidth : kNavExpandedWidth);
+            measure->itemWidth = static_cast<UINT>(navWidth);
             return TRUE;
         }
         break;
@@ -3436,6 +5156,20 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
         if (drawInfo && drawInfo->CtlType == ODT_BUTTON)
         {
+            if (drawInfo->CtlID == kNavToggleId ||
+                drawInfo->CtlID == kHeaderHelpId ||
+                drawInfo->CtlID == kMenuFileId ||
+                drawInfo->CtlID == kMenuEditId ||
+                drawInfo->CtlID == kMenuViewId ||
+                drawInfo->CtlID == kMenuPluginsId ||
+                drawInfo->CtlID == kMarketplaceDiscoverTabId ||
+                drawInfo->CtlID == kMarketplaceInstalledTabId ||
+                IsContentChipId(static_cast<int>(drawInfo->CtlID)))
+            {
+                DrawShellButton(drawInfo);
+                return TRUE;
+            }
+
             const auto it = m_controlFieldMap.find(static_cast<int>(drawInfo->CtlID));
             if (it != m_controlFieldMap.end() && it->second.type == SettingsFieldType::Bool)
             {
@@ -3452,7 +5186,7 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     {
         HDC hdc = reinterpret_cast<HDC>(wParam);
         HWND ctrl = reinterpret_cast<HWND>(lParam);
-        const bool isNav = (ctrl == m_navList);
+        const bool isNav = (m_navList && ctrl == m_navList->GetHwnd());
 
         if (ctrl == m_headerSubtitle)
         {
@@ -3468,11 +5202,22 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             return reinterpret_cast<LRESULT>(m_windowBrush ? m_windowBrush : GetStockObject(WHITE_BRUSH));
         }
 
-        if (ctrl == m_headerHelpButton)
+        if (ctrl == m_headerHelpButton ||
+            ctrl == m_menuFileButton ||
+            ctrl == m_menuEditButton ||
+            ctrl == m_menuViewButton ||
+            ctrl == m_menuPluginsButton)
         {
             SetTextColor(hdc, m_textColor);
             SetBkColor(hdc, m_windowColor);
             return reinterpret_cast<LRESULT>(m_windowBrush ? m_windowBrush : GetStockObject(WHITE_BRUSH));
+        }
+
+        if (ctrl == m_contentSearchEdit)
+        {
+            SetTextColor(hdc, m_textColor);
+            SetBkColor(hdc, m_surfaceColor);
+            return reinterpret_cast<LRESULT>(m_surfaceBrush ? m_surfaceBrush : GetStockObject(WHITE_BRUSH));
         }
 
         if (m_rightPaneTextStatics.find(ctrl) != m_rightPaneTextStatics.end())
@@ -3505,10 +5250,33 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         RECT rect{};
         GetClientRect(hwnd, &rect);
         FillRect(hdc, &rect, m_windowBrush);
+
+        // Premium shell framing inspired by VS Code layout rhythm.
+        const int navWidth = m_navAnimating
+            ? m_navAnimatedWidth
+            : (m_navCollapsed ? kNavCollapsedWidth : kNavExpandedWidth);
+        const int margin = 10;
+        const int topArea = TopAreaHeight();
+        const COLORREF divider = BlendColor(m_windowColor, m_textColor, 28);
+
+        HPEN pen = CreatePen(PS_SOLID, 1, divider);
+        HPEN oldPen = reinterpret_cast<HPEN>(SelectObject(hdc, pen));
+
+        const int verticalX = navWidth + (margin * 2) - 8;
+        MoveToEx(hdc, verticalX, margin, nullptr);
+        LineTo(hdc, verticalX, rect.bottom - margin);
+
+        const int horizontalY = margin + topArea - 8;
+        MoveToEx(hdc, navWidth + (margin * 2), horizontalY, nullptr);
+        LineTo(hdc, rect.right - margin, horizontalY);
+
+        SelectObject(hdc, oldPen);
+        DeleteObject(pen);
         return 1;
     }
     case WM_CLOSE:
     {
+        CommitPendingTextFieldEdits();
         const bool closeToTray = m_settingsRegistry
             ? (m_settingsRegistry->GetValue(L"spaces.window.close_to_tray", L"true") == L"true")
             : true;
@@ -3522,6 +5290,13 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         return 0;
     }
     case WM_DESTROY:
+        UnregisterHotKey(hwnd, kHotkeyNextSectionId);
+        UnregisterHotKey(hwnd, kHotkeyPrevSectionId);
+        UnregisterHotKey(hwnd, kHotkeyFocusSearchId);
+        UnregisterHotKey(hwnd, kHotkeyFocusNavId);
+        UnregisterHotKey(hwnd, kHotkeyHelpId);
+        KillTimer(hwnd, kNavAnimationTimerId);
+        KillTimer(hwnd, kMarketplaceSpinnerTimerId);
         DestroyThemeBrushes();
         DestroyFonts();
         if (m_tooltip)
@@ -3531,9 +5306,23 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
         m_hwnd = nullptr;
         m_navToggleButton = nullptr;
+        m_menuFileButton = nullptr;
+        m_menuEditButton = nullptr;
+        m_menuViewButton = nullptr;
+        m_menuPluginsButton = nullptr;
+        m_contentSearchEdit = nullptr;
+        m_chipAllButton = nullptr;
+        m_chipToggleButton = nullptr;
+        m_chipChoiceButton = nullptr;
+        m_chipTextButton = nullptr;
+        m_marketplaceDiscoverTabButton = nullptr;
+        m_marketplaceInstalledTabButton = nullptr;
+        ClearPluginTree();
+        m_pluginTreeView = nullptr;
         m_headerTitle = nullptr;
         m_headerSubtitle = nullptr;
         m_headerHelpButton = nullptr;
+        delete m_navList;
         m_navList = nullptr;
         m_pageView = nullptr;
         m_rightScrollPanel = nullptr;

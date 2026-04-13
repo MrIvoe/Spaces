@@ -53,12 +53,35 @@ bool App::Initialize(HINSTANCE hInstance)
 
     Win32Helpers::LogInfo(L"Creating TrayMenu");
     m_kernel = std::make_unique<AppKernel>();
-    if (!m_kernel->Initialize(this))
+    bool kernelAvailable = true;
+    try
     {
-        Win32Helpers::LogError(L"AppKernel::Initialize reported plugin load failures. Continuing with degraded plugin set.");
+        if (!m_kernel->Initialize(this))
+        {
+            Win32Helpers::LogError(L"AppKernel::Initialize reported plugin load failures. Continuing with degraded plugin set.");
+        }
+    }
+    catch (const std::bad_alloc&)
+    {
+        Win32Helpers::LogError(L"AppKernel::Initialize threw std::bad_alloc. Falling back to minimal mode.");
+        m_kernel.reset();
+        kernelAvailable = false;
+    }
+    catch (const std::exception& ex)
+    {
+        Win32Helpers::LogError(L"AppKernel::Initialize threw exception. Falling back to minimal mode. reason='" +
+                               std::wstring(ex.what(), ex.what() + strlen(ex.what())) + L"'");
+        m_kernel.reset();
+        kernelAvailable = false;
+    }
+    catch (...)
+    {
+        Win32Helpers::LogError(L"AppKernel::Initialize threw unknown exception. Falling back to minimal mode.");
+        m_kernel.reset();
+        kernelAvailable = false;
     }
 
-    if (m_manager)
+    if (m_manager && kernelAvailable)
     {
         m_manager->SetSpaceExtensionRegistry(m_kernel->GetSpaceExtensionRegistry());
         m_manager->SetMenuContributionRegistry(m_kernel->GetMenuRegistry());
@@ -150,10 +173,37 @@ bool App::ExecuteCommand(const std::wstring& commandId) const
 {
     if (!m_kernel)
     {
+        if (commandId == L"space.create")
+        {
+            const_cast<App*>(this)->CreateSpaceNearCursor();
+            return true;
+        }
+        if (commandId == L"app.exit")
+        {
+            const_cast<App*>(this)->Exit();
+            return true;
+        }
+        if (commandId == L"plugin.openSettings" || commandId == L"app.openSettings")
+        {
+            const_cast<App*>(this)->OpenSettingsWindow();
+            return true;
+        }
         return false;
     }
 
-    return m_kernel->ExecuteCommand(commandId);
+    if (m_kernel->ExecuteCommand(commandId))
+    {
+        return true;
+    }
+
+    // Keep settings reachable even if command registration drifted.
+    if (commandId == L"plugin.openSettings" || commandId == L"app.openSettings")
+    {
+        const_cast<App*>(this)->OpenSettingsWindow();
+        return true;
+    }
+
+    return false;
 }
 
 bool App::ExecuteCommand(const std::wstring& commandId, const CommandContext& context) const
@@ -170,7 +220,10 @@ std::vector<TrayMenuEntry> App::GetTrayMenuEntries() const
 {
     if (!m_kernel)
     {
-        return {};
+        return {
+            TrayMenuEntry{L"New Space", L"space.create", L"actions.space.create", false},
+            TrayMenuEntry{L"Exit", L"app.exit", L"actions.app.exit", true}
+        };
     }
 
     return m_kernel->GetTrayMenuEntries();
@@ -208,11 +261,16 @@ void App::OpenSettingsWindow()
         m_settingsWindow = std::make_unique<SettingsWindow>();
     }
 
-    m_settingsWindow->ShowScaffold(
+    const bool shown = m_settingsWindow->ShowScaffold(
         GetSettingsPages(),
         GetPluginStatuses(),
         m_kernel ? m_kernel->GetSettingsRegistry() : nullptr,
         m_kernel ? m_kernel->GetThemePlatform() : nullptr);
+
+    if (!shown)
+    {
+        Win32Helpers::LogError(L"Settings window failed to open (ShowScaffold returned false).");
+    }
 }
 
 void App::Shutdown()

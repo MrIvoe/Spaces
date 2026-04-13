@@ -409,7 +409,7 @@ public:
         context.settingsRegistry->RegisterPage(std::move(generalPage));
 
         PluginSettingsPage pluginsPage;
-        pluginsPage.pluginId = L"builtin.settings";
+        pluginsPage.pluginId = L"builtin.plugins";
         pluginsPage.pageId = L"plugins";
         pluginsPage.title = L"Plugins";
         pluginsPage.order = 20;
@@ -443,8 +443,8 @@ public:
                 100},
             SettingsFieldDescriptor{
                 L"settings.plugins.manager_filter_status",
-                L"Plugin manager status filter",
-                L"Filter plugin list by runtime status and compatibility.",
+                L"Status filter",
+                L"Show all plugins, only working ones, or only problem items.",
                 SettingsFieldType::Enum,
                 L"all",
                 {
@@ -452,13 +452,13 @@ public:
                     SettingsEnumOption{L"loaded", L"Loaded"},
                     SettingsEnumOption{L"failed", L"Failed"},
                     SettingsEnumOption{L"disabled", L"Disabled"},
-                    SettingsEnumOption{L"incompatible", L"Incompatible"}
+                    SettingsEnumOption{L"incompatible", L"Not supported"}
                 },
                 40},
             SettingsFieldDescriptor{
                 L"settings.plugins.manager_filter_text",
-                L"Plugin manager text filter",
-                L"Filter by plugin id or display name (applies after leaving the field).",
+                L"Search plugins",
+                L"Type part of a plugin name to quickly filter this list.",
                 SettingsFieldType::String,
                 L"",
                 {},
@@ -473,15 +473,15 @@ public:
                 60},
             SettingsFieldDescriptor{
                 L"settings.plugins.manager_action",
-                L"Plugin manager action",
-                L"Apply enable/disable override for target plugin; change takes effect on next plugin host load.",
+                L"Choose plugin action",
+                L"Choose what to do for the selected plugin.",
                 SettingsFieldType::Enum,
                 L"idle",
                 {
                     SettingsEnumOption{L"idle", L"Idle"},
                     SettingsEnumOption{L"disable_selected", L"Disable selected plugin"},
                     SettingsEnumOption{L"enable_selected", L"Enable selected plugin"},
-                    SettingsEnumOption{L"apply_now", L"Apply now (reload plugin host)"}
+                    SettingsEnumOption{L"apply_now", L"Apply now (refresh plugins)"}
                 },
                 70}
         };
@@ -491,15 +491,15 @@ public:
 
         // === Appearance: Core Theme Settings ===
         PluginSettingsPage appearanceCorePage;
-        appearanceCorePage.pluginId = L"builtin.settings";
+        appearanceCorePage.pluginId = L"community.visual_modes";
         appearanceCorePage.pageId = L"appearance.core";
         appearanceCorePage.title = L"Appearance";
         appearanceCorePage.order = 40;
         appearanceCorePage.fields = {
             SettingsFieldDescriptor{
                 L"appearance.theme.mode",
-                L"Theme mode",
-                L"Follow system, or force light/dark mode.",
+                L"Choose theme",
+                L"Use system theme, or always use light or dark.",
                 SettingsFieldType::Enum,
                 L"system",
                 {
@@ -510,44 +510,45 @@ public:
                 10},
             SettingsFieldDescriptor{
                 L"appearance.text.scale_percent",
-                L"Text scale (%)",
-                L"Global UI text scale percentage (90-150).",
+                L"Set text size (%)",
+                L"Make app text smaller or larger.",
                 SettingsFieldType::Int,
                 L"115",
                 {},
                 20},
             SettingsFieldDescriptor{
                 L"appearance.ui.icon_size",
-                L"Icon size",
-                L"Base icon size used by host UI surfaces.",
+                L"Choose icon size",
+                L"Set how large app icons appear.",
                 SettingsFieldType::Enum,
-                L"md",
+                L"normal",
                 {
-                    SettingsEnumOption{L"sm", L"Small"},
-                    SettingsEnumOption{L"md", L"Medium"},
-                    SettingsEnumOption{L"lg", L"Large"}
+                    SettingsEnumOption{L"smaller", L"Smaller"},
+                    SettingsEnumOption{L"small", L"Small"},
+                    SettingsEnumOption{L"normal", L"Normal"},
+                    SettingsEnumOption{L"large", L"Large"}
                 },
                 30},
             SettingsFieldDescriptor{
                 L"appearance.ui.compact_mode",
-                L"Compact mode",
-                L"Reduce spacing and padding in settings and list surfaces.",
+                L"Use compact layout",
+                L"Show tighter spacing in lists and settings.",
                 SettingsFieldType::Bool,
                 L"false",
                 {},
                 40},
             SettingsFieldDescriptor{
                 L"appearance.ui.animations_enabled",
-                L"Enable animations",
-                L"Turn UI animations on or off.",
+                L"Show animations",
+                L"Turn app animations on or off.",
                 SettingsFieldType::Bool,
                 L"true",
                 {},
                 50},
             SettingsFieldDescriptor{
                 L"appearance.ui.animation_speed",
-                L"Animation speed",
-                L"Controls transition speed for animated surfaces.",
+                L"Set animation speed",
+                L"Choose how fast animations play.",
                 SettingsFieldType::Enum,
                 L"normal",
                 {
@@ -558,16 +559,16 @@ public:
                 60},
             SettingsFieldDescriptor{
                 L"appearance.ui.high_contrast",
-                L"High contrast mode",
-                L"Increase contrast in host controls and text rendering.",
+                L"Use high contrast",
+                L"Make text and controls easier to see.",
                 SettingsFieldType::Bool,
                 L"false",
                 {},
                 70},
             SettingsFieldDescriptor{
                 L"appearance.settings.nav_default_collapsed",
-                L"Settings nav collapsed by default",
-                L"Start the settings shell with icon-only navigation.",
+                L"Start with compact sidebar",
+                L"Open settings with icons-only navigation.",
                 SettingsFieldType::Bool,
                 L"false",
                 {},
@@ -577,123 +578,100 @@ public:
 
         // === Appearance: Transparency & Opacity ===
         PluginSettingsPage appearanceTransparencyPage;
-        appearanceTransparencyPage.pluginId = L"builtin.settings";
+        appearanceTransparencyPage.pluginId = L"community.visual_modes";
         appearanceTransparencyPage.pageId = L"appearance.transparency";
         appearanceTransparencyPage.title = L"Transparency";
         appearanceTransparencyPage.order = 41;
         appearanceTransparencyPage.fields = {
             SettingsFieldDescriptor{
-                L"appearance.ui.settings_window_opacity_percent",
-                L"Settings window opacity (%)",
-                L"Translucency level for settings shell background (5-100). Set to 100 for fully solid, 99 for first slight transparency.",
-                SettingsFieldType::Int,
-                L"100",
-                {},
+                L"appearance.ui.opacity_profile",
+                L"Opacity profile",
+                L"Choose a simple transparency profile for settings and spaces.",
+                SettingsFieldType::Enum,
+                L"balanced",
+                {
+                    SettingsEnumOption{L"solid", L"Solid"},
+                    SettingsEnumOption{L"balanced", L"Balanced"},
+                    SettingsEnumOption{L"airy", L"Airy"},
+                    SettingsEnumOption{L"glass", L"Glass"}
+                },
                 10},
             SettingsFieldDescriptor{
                 L"appearance.ui.settings_window_blur_enabled",
-                L"Settings backdrop blur",
-                L"Enable acrylic-like blur effect behind the translucent settings window.",
+                L"Use background blur",
+                L"Blur content behind the settings window.",
                 SettingsFieldType::Bool,
                 L"false",
                 {},
                 20},
             SettingsFieldDescriptor{
-                L"appearance.ui.space_titlebar_opacity_percent",
-                L"Space title bar opacity (%)",
-                L"Translucency level for space title bars (5-100). Set to 100 for fully solid.",
-                SettingsFieldType::Int,
-                L"96",
+                L"appearance.ui.transparency_enabled",
+                L"Enable transparency effects",
+                L"Turn transparency effects on or off globally.",
+                SettingsFieldType::Bool,
+                L"true",
                 {},
-                30},
-            SettingsFieldDescriptor{
-                L"appearance.ui.space_idle_opacity_percent",
-                L"Space idle opacity (%)",
-                L"Opacity when space is transparent and not hovered (5-100). Set to 100 for fully solid.",
-                SettingsFieldType::Int,
-                L"92",
-                {},
-                40}
+                30}
         };
         context.settingsRegistry->RegisterPage(std::move(appearanceTransparencyPage));
 
         // === Appearance: Layout & Sizing ===
         PluginSettingsPage appearanceLayoutPage;
-        appearanceLayoutPage.pluginId = L"builtin.settings";
+        appearanceLayoutPage.pluginId = L"community.visual_modes";
         appearanceLayoutPage.pageId = L"appearance.layout";
         appearanceLayoutPage.title = L"Layout & Sizing";
         appearanceLayoutPage.order = 42;
         appearanceLayoutPage.fields = {
             SettingsFieldDescriptor{
-                L"appearance.ui.settings_row_height_px",
-                L"Settings row height",
-                L"Height of each settings row in pixels.",
-                SettingsFieldType::Int,
-                L"34",
-                {},
+                L"appearance.ui.settings_density",
+                L"Settings density",
+                L"Choose compact, standard, or spacious settings layout.",
+                SettingsFieldType::Enum,
+                L"standard",
+                {
+                    SettingsEnumOption{L"compact", L"Compact"},
+                    SettingsEnumOption{L"standard", L"Standard"},
+                    SettingsEnumOption{L"spacious", L"Spacious"}
+                },
                 10},
             SettingsFieldDescriptor{
-                L"appearance.ui.settings_row_gap_px",
-                L"Settings row gap",
-                L"Vertical spacing between settings rows in pixels.",
-                SettingsFieldType::Int,
-                L"6",
-                {},
+                L"appearance.ui.toggle_size",
+                L"Toggle size",
+                L"Choose a preset size for switch controls.",
+                SettingsFieldType::Enum,
+                L"normal",
+                {
+                    SettingsEnumOption{L"small", L"Small"},
+                    SettingsEnumOption{L"normal", L"Normal"},
+                    SettingsEnumOption{L"large", L"Large"}
+                },
                 20},
             SettingsFieldDescriptor{
-                L"appearance.ui.settings_section_gap_px",
-                L"Settings section gap",
-                L"Vertical spacing between settings sections in pixels.",
-                SettingsFieldType::Int,
-                L"22",
-                {},
-                30},
-            SettingsFieldDescriptor{
-                L"appearance.ui.settings_toggle_width_px",
-                L"Settings toggle width",
-                L"Width of settings toggle controls in pixels.",
-                SettingsFieldType::Int,
-                L"62",
-                {},
-                40},
-            SettingsFieldDescriptor{
-                L"appearance.ui.settings_toggle_height_px",
-                L"Settings toggle height",
-                L"Height of settings toggle controls in pixels.",
-                SettingsFieldType::Int,
-                L"28",
-                {},
-                50},
-            SettingsFieldDescriptor{
-                L"appearance.ui.tray_menu_min_width_px",
-                L"Tray menu minimum width",
-                L"Minimum width for tray menu rows in pixels.",
-                SettingsFieldType::Int,
-                L"220",
-                {},
-                60},
-            SettingsFieldDescriptor{
-                L"appearance.ui.tray_menu_row_height_px",
-                L"Tray menu row height",
-                L"Base height for tray menu rows in pixels.",
-                SettingsFieldType::Int,
-                L"24",
-                {},
-                70}
+                L"appearance.ui.tray_menu_size",
+                L"Tray menu size",
+                L"Choose compact, standard, or large tray menu sizing.",
+                SettingsFieldType::Enum,
+                L"standard",
+                {
+                    SettingsEnumOption{L"compact", L"Compact"},
+                    SettingsEnumOption{L"standard", L"Standard"},
+                    SettingsEnumOption{L"large", L"Large"}
+                },
+                30}
         };
         context.settingsRegistry->RegisterPage(std::move(appearanceLayoutPage));
 
         // === Appearance: Icons & Visual Pack ===
         PluginSettingsPage appearanceIconsPage;
-        appearanceIconsPage.pluginId = L"builtin.settings";
+        appearanceIconsPage.pluginId = L"community.visual_modes";
         appearanceIconsPage.pageId = L"appearance.icons";
         appearanceIconsPage.title = L"Icons";
         appearanceIconsPage.order = 43;
         appearanceIconsPage.fields = {
             SettingsFieldDescriptor{
                 L"appearance.icons.pack",
-                L"Icon pack",
-                L"Preferred icon pack for host surfaces (settings and tray).",
+                L"Choose icon pack",
+                L"Pick the icon style used by Spaces.",
                 SettingsFieldType::Enum,
                 L"tabler",
                 {
@@ -762,28 +740,83 @@ public:
         };
         context.settingsRegistry->RegisterPage(std::move(appearanceIconsPage));
 
+        // === Appearance: Component Families & Resources ===
+        PluginSettingsPage appearanceResourcesPage;
+        appearanceResourcesPage.pluginId = L"community.visual_modes";
+        appearanceResourcesPage.pageId = L"appearance.resources";
+        appearanceResourcesPage.title = L"Component Styles";
+        appearanceResourcesPage.order = 45;
+        appearanceResourcesPage.fields = {
+            SettingsFieldDescriptor{
+                L"appearance.ui.component_family",
+                L"Component family",
+                L"Select the overall UI style family for buttons, menus, cards, and other components.",
+                SettingsFieldType::Enum,
+                L"desktop-fluent",
+                {}, // options populated dynamically by SettingsWindow
+                10},
+            SettingsFieldDescriptor{
+                L"appearance.ui.icon_pack",
+                L"Icon pack",
+                L"Choose the icon pack for system icons and tray indicators.",
+                SettingsFieldType::Enum,
+                L"lucide",
+                {}, // options populated dynamically
+                20},
+            SettingsFieldDescriptor{
+                L"appearance.ui.motion_preset",
+                L"Motion preset",
+                L"Set the animation speed and easing for transitions and interactions.",
+                SettingsFieldType::Enum,
+                L"standard",
+                {}, // options populated dynamically
+                30},
+            SettingsFieldDescriptor{
+                L"appearance.ui.button_family",
+                L"Button style family",
+                L"Select button styling (compact, soft, outlined, high-contrast).",
+                SettingsFieldType::Enum,
+                L"compact",
+                {}, // options populated dynamically
+                40},
+            SettingsFieldDescriptor{
+                L"appearance.ui.menu_style",
+                L"Menu style",
+                L"Choose menu layout and styling (standard, compact, hierarchical).",
+                SettingsFieldType::Enum,
+                L"standard",
+                {}, // options populated dynamically
+                50},
+            SettingsFieldDescriptor{
+                L"appearance.ui.fence_style",
+                L"Fence shell style",
+                L"Select the fence window frame appearance.",
+                SettingsFieldType::Enum,
+                L"window-frame",
+                {}, // options populated dynamically
+                60}
+        };
+        context.settingsRegistry->RegisterPage(std::move(appearanceResourcesPage));
+
         PluginSettingsPage spacesPage;
-        spacesPage.pluginId = L"builtin.settings";
+        spacesPage.pluginId = L"builtin.space_organizer";
         spacesPage.pageId = L"spaces.defaults";
         spacesPage.title = L"Spaces Defaults";
         spacesPage.order = 50;
         spacesPage.fields = {
             SettingsFieldDescriptor{
-                L"spaces.create.default_width",
-                L"Default space width",
-                L"Preferred width for newly created spaces.",
-                SettingsFieldType::Int,
-                L"320",
-                {},
+                L"spaces.create.size_preset",
+                L"Default space size",
+                L"Choose a preset size for newly created spaces.",
+                SettingsFieldType::Enum,
+                L"normal",
+                {
+                    SettingsEnumOption{L"small", L"Small"},
+                    SettingsEnumOption{L"normal", L"Normal"},
+                    SettingsEnumOption{L"large", L"Large"},
+                    SettingsEnumOption{L"xlarge", L"Extra Large"}
+                },
                 10},
-            SettingsFieldDescriptor{
-                L"spaces.create.default_height",
-                L"Default space height",
-                L"Preferred height for newly created spaces.",
-                SettingsFieldType::Int,
-                L"240",
-                {},
-                20},
             SettingsFieldDescriptor{
                 L"spaces.create.auto_focus",
                 L"Auto-focus on create",
@@ -791,20 +824,20 @@ public:
                 SettingsFieldType::Bool,
                 L"true",
                 {},
-                30},
+                20},
             SettingsFieldDescriptor{
                 L"spaces.create.title_template",
                 L"Default title template",
-                L"Default title used by New Space command.",
+                L"Starting title for new spaces.",
                 SettingsFieldType::String,
                 L"New Space",
                 {},
-                40}
+                30}
         };
         context.settingsRegistry->RegisterPage(std::move(spacesPage));
 
         PluginSettingsPage filesPage;
-        filesPage.pluginId = L"builtin.settings";
+        filesPage.pluginId = L"builtin.space_organizer";
         filesPage.pageId = L"files.safety";
         filesPage.title = L"Files & Safety";
         filesPage.order = 60;
@@ -812,7 +845,7 @@ public:
             SettingsFieldDescriptor{
                 L"spaces.files.confirm_delete_space",
                 L"Confirm before deleting space",
-                L"Show a confirmation prompt before deleting a space.",
+                L"Ask before deleting a space.",
                 SettingsFieldType::Bool,
                 L"true",
                 {},
@@ -820,7 +853,7 @@ public:
             SettingsFieldDescriptor{
                 L"spaces.files.show_hidden",
                 L"Show hidden files",
-                L"Display hidden files when supported by the active content provider.",
+                L"Show hidden files in spaces.",
                 SettingsFieldType::Bool,
                 L"false",
                 {},
@@ -828,7 +861,7 @@ public:
             SettingsFieldDescriptor{
                 L"spaces.files.confirm_delete_item",
                 L"Confirm before deleting item",
-                L"Require confirmation before deleting files/folders from a space.",
+                L"Ask before deleting files or folders from a space.",
                 SettingsFieldType::Bool,
                 L"true",
                 {},
@@ -836,7 +869,7 @@ public:
             SettingsFieldDescriptor{
                 L"spaces.files.auto_refresh",
                 L"Auto-refresh after file actions",
-                L"Refresh the space view after move/delete operations.",
+                L"Refresh the space after file moves or deletes.",
                 SettingsFieldType::Bool,
                 L"true",
                 {},
@@ -845,7 +878,7 @@ public:
         context.settingsRegistry->RegisterPage(std::move(filesPage));
 
         PluginSettingsPage windowPage;
-        windowPage.pluginId = L"builtin.settings";
+        windowPage.pluginId = L"builtin.space_organizer";
         windowPage.pageId = L"window.behavior";
         windowPage.title = L"Window Behavior";
         windowPage.order = 70;
@@ -853,7 +886,7 @@ public:
             SettingsFieldDescriptor{
                 L"spaces.window.close_to_tray",
                 L"Close to tray",
-                L"When enabled, close requests minimize to tray instead of exiting.",
+                L"Keep Spaces running in the tray when you close the window.",
                 SettingsFieldType::Bool,
                 L"true",
                 {},
@@ -861,7 +894,7 @@ public:
             SettingsFieldDescriptor{
                 L"spaces.window.restore_on_startup",
                 L"Restore spaces on startup",
-                L"Restore previously open spaces when the app starts.",
+                L"Reopen your spaces when the app starts.",
                 SettingsFieldType::Bool,
                 L"true",
                 {},
@@ -869,7 +902,7 @@ public:
             SettingsFieldDescriptor{
                 L"spaces.window.launch_on_startup",
                 L"Launch on Windows startup",
-                L"Start Spaces automatically when signing in.",
+                L"Open Spaces when you sign in to Windows.",
                 SettingsFieldType::Bool,
                 L"false",
                 {},
@@ -877,7 +910,7 @@ public:
             SettingsFieldDescriptor{
                 L"spaces.window.snap_enabled",
                 L"Snap while dragging",
-                L"Enable desktop-edge snapping while moving spaces.",
+                L"Snap spaces to screen edges while moving them.",
                 SettingsFieldType::Bool,
                 L"true",
                 {},
@@ -886,7 +919,7 @@ public:
         context.settingsRegistry->RegisterPage(std::move(windowPage));
 
         PluginSettingsPage pluginManagerPage;
-        pluginManagerPage.pluginId = L"builtin.settings";
+        pluginManagerPage.pluginId = L"builtin.plugins";
         pluginManagerPage.pageId = L"plugins.behavior";
         pluginManagerPage.title = L"Plugin Manager";
         pluginManagerPage.order = 80;
@@ -894,7 +927,7 @@ public:
             SettingsFieldDescriptor{
                 L"settings.plugins.auto_check_updates",
                 L"Auto-check plugin updates",
-                L"Automatically check plugin hub updates during startup.",
+                L"Check for plugin updates automatically.",
                 SettingsFieldType::Bool,
                 L"true",
                 {},
@@ -902,7 +935,7 @@ public:
             SettingsFieldDescriptor{
                 L"settings.plugins.update_channel",
                 L"Plugin update channel",
-                L"Choose stable-only or preview-inclusive plugin channel.",
+                L"Choose stable updates or include preview updates.",
                 SettingsFieldType::Enum,
                 L"stable",
                 {
@@ -913,15 +946,15 @@ public:
             SettingsFieldDescriptor{
                 L"settings.plugins.allow_preview",
                 L"Allow preview plugins",
-                L"Show and allow install of preview/experimental plugins.",
+                L"Show plugins that are still in preview.",
                 SettingsFieldType::Bool,
                 L"false",
                 {},
                 30},
             SettingsFieldDescriptor{
                 L"settings.plugins.show_incompatible",
-                L"Show incompatible plugins",
-                L"Display marketplace plugins that do not match current host/API compatibility.",
+                L"Show unsupported plugins",
+                L"Show plugins that may not work with this version of Spaces.",
                 SettingsFieldType::Bool,
                 L"false",
                 {},
@@ -938,7 +971,7 @@ public:
         context.settingsRegistry->RegisterPage(std::move(pluginManagerPage));
 
         PluginSettingsPage marketplaceDiscoverPage;
-        marketplaceDiscoverPage.pluginId = L"builtin.settings";
+        marketplaceDiscoverPage.pluginId = L"builtin.plugins";
         marketplaceDiscoverPage.pageId = L"marketplace.discover";
         marketplaceDiscoverPage.title = L"Marketplace - Discover";
         marketplaceDiscoverPage.order = 81;
@@ -946,15 +979,15 @@ public:
             SettingsFieldDescriptor{
                 L"settings.plugins.marketplace.search_query",
                 L"Search plugins",
-                L"Filter discover results by id, name, author, description, or capability.",
+                L"Type to find plugins by name, author, or description.",
                 SettingsFieldType::String,
                 L"",
                 {},
                 10},
             SettingsFieldDescriptor{
                 L"settings.plugins.marketplace.category_filter",
-                L"Category filter",
-                L"Filter discover results by category.",
+                L"Choose category",
+                L"Show plugins from one category.",
                 SettingsFieldType::Enum,
                 L"all",
                 {
@@ -968,8 +1001,8 @@ public:
                 20},
             SettingsFieldDescriptor{
                 L"settings.plugins.marketplace.selected_plugin_id",
-                L"Selected plugin id",
-                L"Target plugin id for marketplace action commands.",
+                L"Selected plugin",
+                L"Plugin name used for action buttons below.",
                 SettingsFieldType::String,
                 L"",
                 {},
@@ -977,7 +1010,7 @@ public:
             SettingsFieldDescriptor{
                 L"settings.plugins.marketplace.action",
                 L"Marketplace action",
-                L"Apply install/update/enable/disable/uninstall/view actions to selected plugin id.",
+                L"Choose an action for the selected plugin.",
                 SettingsFieldType::Enum,
                 L"idle",
                 {
@@ -994,28 +1027,28 @@ public:
         context.settingsRegistry->RegisterPage(std::move(marketplaceDiscoverPage));
 
         PluginSettingsPage marketplaceInstalledPage;
-        marketplaceInstalledPage.pluginId = L"builtin.settings";
+        marketplaceInstalledPage.pluginId = L"builtin.plugins";
         marketplaceInstalledPage.pageId = L"marketplace.installed";
         marketplaceInstalledPage.title = L"Marketplace - Installed";
         marketplaceInstalledPage.order = 82;
         marketplaceInstalledPage.fields = {
             SettingsFieldDescriptor{
                 L"settings.plugins.marketplace.installed_filter",
-                L"Installed filter",
-                L"Filter installed plugins by state.",
+                L"Choose installed filter",
+                L"Show installed plugins by status.",
                 SettingsFieldType::Enum,
                 L"all",
                 {
                     SettingsEnumOption{L"all", L"All"},
                     SettingsEnumOption{L"enabled", L"Enabled"},
                     SettingsEnumOption{L"disabled", L"Disabled"},
-                    SettingsEnumOption{L"requires_restart", L"Requires restart"}
+                    SettingsEnumOption{L"requires_restart", L"Needs restart"}
                 },
                 10},
             SettingsFieldDescriptor{
                 L"settings.plugins.marketplace.installed_action",
-                L"Installed action",
-                L"Run enable/disable/uninstall/reload commands for selected plugin id.",
+                L"Choose installed action",
+                L"Choose an action for the selected plugin.",
                 SettingsFieldType::Enum,
                 L"idle",
                 {
@@ -1023,54 +1056,54 @@ public:
                     SettingsEnumOption{L"enable_selected", L"Enable selected"},
                     SettingsEnumOption{L"disable_selected", L"Disable selected"},
                     SettingsEnumOption{L"uninstall_selected", L"Uninstall selected"},
-                    SettingsEnumOption{L"apply_now", L"Apply now (reload plugin host)"}
+                    SettingsEnumOption{L"apply_now", L"Apply now (refresh plugins)"}
                 },
                 20}
         };
         context.settingsRegistry->RegisterPage(std::move(marketplaceInstalledPage));
 
         PluginSettingsPage marketplaceUpdatesPage;
-        marketplaceUpdatesPage.pluginId = L"builtin.settings";
+        marketplaceUpdatesPage.pluginId = L"builtin.plugins";
         marketplaceUpdatesPage.pageId = L"marketplace.updates";
         marketplaceUpdatesPage.title = L"Marketplace - Updates";
         marketplaceUpdatesPage.order = 83;
         marketplaceUpdatesPage.fields = {
             SettingsFieldDescriptor{
                 L"settings.plugins.marketplace.update_scope",
-                L"Update scope",
-                L"Choose whether to update selected plugin or all compatible installed plugins.",
+                L"Update target",
+                L"Update one selected plugin or all supported installed plugins.",
                 SettingsFieldType::Enum,
                 L"selected",
                 {
                     SettingsEnumOption{L"selected", L"Selected plugin"},
-                    SettingsEnumOption{L"all_compatible", L"All compatible plugins"}
+                    SettingsEnumOption{L"all_compatible", L"All supported plugins"}
                 },
                 10},
             SettingsFieldDescriptor{
                 L"settings.plugins.marketplace.updates_action",
                 L"Updates action",
-                L"Run update actions based on update scope and selected plugin id.",
+                L"Choose what to do with updates.",
                 SettingsFieldType::Enum,
                 L"idle",
                 {
                     SettingsEnumOption{L"idle", L"Idle"},
                     SettingsEnumOption{L"update_now", L"Update now"},
-                    SettingsEnumOption{L"apply_now", L"Apply now (reload plugin host)"}
+                    SettingsEnumOption{L"apply_now", L"Apply now (refresh plugins)"}
                 },
                 20}
         };
         context.settingsRegistry->RegisterPage(std::move(marketplaceUpdatesPage));
 
         PluginSettingsPage marketplaceDisabledPage;
-        marketplaceDisabledPage.pluginId = L"builtin.settings";
+        marketplaceDisabledPage.pluginId = L"builtin.plugins";
         marketplaceDisabledPage.pageId = L"marketplace.disabled";
         marketplaceDisabledPage.title = L"Marketplace - Disabled";
         marketplaceDisabledPage.order = 84;
         marketplaceDisabledPage.fields = {
             SettingsFieldDescriptor{
                 L"settings.plugins.marketplace.show_disabled_reason",
-                L"Show disable reason",
-                L"Display policy/compatibility reason for disabled plugins when available.",
+                L"Show unavailable reason",
+                L"Show why a plugin cannot be used.",
                 SettingsFieldType::Bool,
                 L"true",
                 {},
@@ -1088,31 +1121,40 @@ public:
             SettingsFieldDescriptor{
                 L"settings.app.auto_check_updates",
                 L"Check for app updates",
-                L"Automatically check for application updates (downloaded separately).",
+                L"Check for new app versions automatically.",
                 SettingsFieldType::Bool,
                 L"true",
                 {},
                 10},
             SettingsFieldDescriptor{
+                L"settings.app.launch_on_startup",
+                L"Launch on startup",
+                L"Open Spaces when Windows starts.",
+                SettingsFieldType::Bool,
+                L"false",
+                {},
+                20}
+        };
+        context.settingsRegistry->RegisterPage(std::move(appUpdatePage));
+
+        PluginSettingsPage pluginUpdatePage;
+        pluginUpdatePage.pluginId = L"builtin.plugins";
+        pluginUpdatePage.pageId = L"plugins.updates";
+        pluginUpdatePage.title = L"Plugin Updates";
+        pluginUpdatePage.order = 85;
+        pluginUpdatePage.fields = {
+            SettingsFieldDescriptor{
                 L"settings.plugins.marketplace_enabled",
                 L"Enable plugin marketplace",
-                L"Allow in-app discovery and installation from marketplace catalogs.",
+                L"Let Spaces find and install plugins.",
                 SettingsFieldType::Bool,
                 L"true",
                 {},
                 5},
             SettingsFieldDescriptor{
-                L"settings.app.launch_on_startup",
-                L"Launch on startup",
-                L"Start Spaces automatically when Windows starts.",
-                SettingsFieldType::Bool,
-                L"false",
-                {},
-                20},
-            SettingsFieldDescriptor{
                 L"settings.plugins.catalog_url",
-                L"Plugin catalog URL",
-                L"Source URL or path for plugin catalog (JSON). Leave empty for default.",
+                L"Marketplace source",
+                L"Address for the plugin list. Leave blank to use default.",
                 SettingsFieldType::String,
                 L"",
                 {},
@@ -1144,7 +1186,7 @@ public:
             SettingsFieldDescriptor{
                 L"settings.plugins.auto_update_installed",
                 L"Auto-update installed plugins",
-                L"Automatically download and queue compatible plugin updates.",
+                L"Download plugin updates automatically.",
                 SettingsFieldType::Bool,
                 L"true",
                 {},
@@ -1152,7 +1194,7 @@ public:
             SettingsFieldDescriptor{
                 L"settings.plugins.check_on_startup",
                 L"Check marketplace on startup",
-                L"Fetch the marketplace catalog when the app starts.",
+                L"Check for plugin updates when Spaces starts.",
                 SettingsFieldType::Bool,
                 L"true",
                 {},
@@ -1160,7 +1202,7 @@ public:
             SettingsFieldDescriptor{
                 L"settings.plugins.apply_updates_on_restart",
                 L"Apply updates on restart",
-                L"Apply downloaded plugin updates at next restart.",
+                L"Finish installing updates when you restart Spaces.",
                 SettingsFieldType::Bool,
                 L"true",
                 {},
@@ -1174,7 +1216,7 @@ public:
                 {},
                 100}
         };
-        context.settingsRegistry->RegisterPage(std::move(appUpdatePage));
+            context.settingsRegistry->RegisterPage(std::move(pluginUpdatePage));
 
         PluginSettingsPage diagnosticsPage;
         diagnosticsPage.pluginId = L"builtin.settings";
@@ -1185,7 +1227,7 @@ public:
             SettingsFieldDescriptor{
                 L"settings.diagnostics.log_level",
                 L"Log level",
-                L"Controls diagnostics verbosity.",
+                L"Choose how much detail to record in logs.",
                 SettingsFieldType::Enum,
                 L"info",
                 {
@@ -1198,7 +1240,7 @@ public:
             SettingsFieldDescriptor{
                 L"settings.diagnostics.logging_enabled",
                 L"Enable logging",
-                L"Master switch for runtime diagnostics logging.",
+                L"Turn app logging on or off.",
                 SettingsFieldType::Bool,
                 L"true",
                 {},
@@ -1206,7 +1248,7 @@ public:
             SettingsFieldDescriptor{
                 L"settings.diagnostics.max_log_mb",
                 L"Max log file size (MB)",
-                L"Rotate logs when they exceed this size.",
+                L"Start a new log file when logs reach this size.",
                 SettingsFieldType::Int,
                 L"20",
                 {},
@@ -1223,7 +1265,7 @@ public:
             SettingsFieldDescriptor{
                 L"settings.accessibility.reduced_motion",
                 L"Reduced motion",
-                L"Reduce non-essential motion and animation effects.",
+                L"Use fewer animations.",
                 SettingsFieldType::Bool,
                 L"false",
                 {},
@@ -1231,7 +1273,7 @@ public:
             SettingsFieldDescriptor{
                 L"settings.accessibility.large_text_mode",
                 L"Large text mode",
-                L"Increase baseline typography size in host-managed UI.",
+                L"Use larger text in the app.",
                 SettingsFieldType::Bool,
                 L"false",
                 {},
@@ -1239,7 +1281,7 @@ public:
             SettingsFieldDescriptor{
                 L"settings.accessibility.keyboard_first",
                 L"Keyboard-first navigation",
-                L"Prioritize keyboard interactions and focus affordances.",
+                L"Improve keyboard navigation and focus visibility.",
                 SettingsFieldType::Bool,
                 L"false",
                 {},

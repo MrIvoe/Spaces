@@ -3,10 +3,10 @@
 [![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#build-and-run)
 [![Language](https://img.shields.io/badge/language-C%2B%2B17-00599C.svg)](#tech-stack)
 [![Build System](https://img.shields.io/badge/build-CMake-064F8C.svg)](#build-and-run)
-[![Version](https://img.shields.io/badge/version-0.0.013-2EA043.svg)](#release-history)
+[![Version](https://img.shields.io/badge/version-1.01.004-2EA043.svg)](#release-history)
 
 A lightweight Win32 desktop organizer for Windows that lets you create simple desktop Spaces and move files into them safely.
-**🎉 Release Version 1.01.001 - Now installable like a normal Windows app!**
+**🎉 Release Version 1.01.004 - Current public fix release.**
 
 Theme architecture note:
 
@@ -48,8 +48,8 @@ First run notes:
 
 ## Current Version
 
-Current version: `0.0.013`
-Current release version: `1.01.001`
+Current version: `1.01.004`
+Current release version: `1.01.004`
 
 ## Current Status
 
@@ -114,7 +114,7 @@ Example storage layout:
 
 ### Option 1: Install from Release (Recommended)
 
-Download the latest **Spaces-Setup-1.01.001.exe** from [Releases](https://github.com/MrIvoe/Spaces/releases) and run it.
+Download the latest **Spaces-Setup-1.01.004.exe** from [Releases](https://github.com/MrIvoe/Spaces/releases) and run it.
 
 The installer will:
 
@@ -194,7 +194,7 @@ To build a professional Windows installer:
     iscc.exe installer\Spaces.iss
     ```
 
-4. Installer appears in `output/Spaces-Setup-1.01.001.exe`
+4. Installer appears in `output/Spaces-Setup-1.01.004.exe`
 
 See [installer/README.md](installer/README.md) for detailed instructions.
 When you restore an item:

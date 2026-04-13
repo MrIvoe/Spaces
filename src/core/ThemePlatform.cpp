@@ -2,16 +2,19 @@
 
 #include "core/SettingsStore.h"
 #include "core/UniversalThemeLoader.h"
+#include "core/ThemeResourceResolver.h"
 
 #include <nlohmann/json.hpp>
 
 #include <cwctype>
 #include <cmath>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include <dwmapi.h>
 #include <windows.h>
@@ -399,6 +402,7 @@ void ThemePlatform::SetStore(SettingsStore* store)
 {
     m_store = store;
     m_cachedTheme.reset();
+    m_cachedThemeKey.clear();
 }
 
 ThemeMode ThemePlatform::DetectSystemMode()
@@ -490,6 +494,20 @@ int ThemePlatform::GetTextScalePercent() const
 
 int ThemePlatform::GetSpaceIdleOpacityPercent() const
 {
+    if (m_store)
+    {
+        const std::wstring profile = m_store->Get(L"appearance.ui.opacity_profile", L"");
+        const bool transparencyEnabled = m_store->Get(L"appearance.ui.transparency_enabled", L"true") == L"true";
+        if (!transparencyEnabled)
+        {
+            return 100;
+        }
+        if (profile == L"solid") return 100;
+        if (profile == L"balanced") return 92;
+        if (profile == L"airy") return 88;
+        if (profile == L"glass") return 84;
+    }
+
     int value = 92;
     if (m_store)
     {
@@ -510,6 +528,20 @@ int ThemePlatform::GetSpaceIdleOpacityPercent() const
 
 int ThemePlatform::GetSpaceTitleBarOpacityPercent() const
 {
+    if (m_store)
+    {
+        const std::wstring profile = m_store->Get(L"appearance.ui.opacity_profile", L"");
+        const bool transparencyEnabled = m_store->Get(L"appearance.ui.transparency_enabled", L"true") == L"true";
+        if (!transparencyEnabled)
+        {
+            return 100;
+        }
+        if (profile == L"solid") return 100;
+        if (profile == L"balanced") return 96;
+        if (profile == L"airy") return 92;
+        if (profile == L"glass") return 88;
+    }
+
     int value = 96;
     if (m_store)
     {
@@ -530,6 +562,20 @@ int ThemePlatform::GetSpaceTitleBarOpacityPercent() const
 
 int ThemePlatform::GetSettingsWindowOpacityPercent() const
 {
+    if (m_store)
+    {
+        const std::wstring profile = m_store->Get(L"appearance.ui.opacity_profile", L"");
+        const bool transparencyEnabled = m_store->Get(L"appearance.ui.transparency_enabled", L"true") == L"true";
+        if (!transparencyEnabled)
+        {
+            return 100;
+        }
+        if (profile == L"solid") return 100;
+        if (profile == L"balanced") return 98;
+        if (profile == L"airy") return 94;
+        if (profile == L"glass") return 90;
+    }
+
     int value = 100;
     if (m_store)
     {
@@ -560,6 +606,14 @@ bool ThemePlatform::IsSettingsWindowBlurEnabled() const
 
 int ThemePlatform::GetSettingsRowHeightPx() const
 {
+    if (m_store)
+    {
+        const std::wstring density = m_store->Get(L"appearance.ui.settings_density", L"");
+        if (density == L"compact") return 30;
+        if (density == L"standard") return 34;
+        if (density == L"spacious") return 40;
+    }
+
     std::shared_ptr<UniversalThemeData> universalTheme;
     return ResolveThemeMetric(m_store,
                               TryLoadUniversalTheme(universalTheme) ? universalTheme.get() : nullptr,
@@ -572,6 +626,14 @@ int ThemePlatform::GetSettingsRowHeightPx() const
 
 int ThemePlatform::GetSettingsRowGapPx() const
 {
+    if (m_store)
+    {
+        const std::wstring density = m_store->Get(L"appearance.ui.settings_density", L"");
+        if (density == L"compact") return 4;
+        if (density == L"standard") return 6;
+        if (density == L"spacious") return 10;
+    }
+
     std::shared_ptr<UniversalThemeData> universalTheme;
     return ResolveThemeMetric(m_store,
                               TryLoadUniversalTheme(universalTheme) ? universalTheme.get() : nullptr,
@@ -584,6 +646,14 @@ int ThemePlatform::GetSettingsRowGapPx() const
 
 int ThemePlatform::GetSettingsSectionGapPx() const
 {
+    if (m_store)
+    {
+        const std::wstring density = m_store->Get(L"appearance.ui.settings_density", L"");
+        if (density == L"compact") return 16;
+        if (density == L"standard") return 22;
+        if (density == L"spacious") return 30;
+    }
+
     std::shared_ptr<UniversalThemeData> universalTheme;
     return ResolveThemeMetric(m_store,
                               TryLoadUniversalTheme(universalTheme) ? universalTheme.get() : nullptr,
@@ -596,6 +666,14 @@ int ThemePlatform::GetSettingsSectionGapPx() const
 
 int ThemePlatform::GetSettingsToggleWidthPx() const
 {
+    if (m_store)
+    {
+        const std::wstring size = m_store->Get(L"appearance.ui.toggle_size", L"");
+        if (size == L"small") return 52;
+        if (size == L"normal") return 62;
+        if (size == L"large") return 74;
+    }
+
     std::shared_ptr<UniversalThemeData> universalTheme;
     return ResolveThemeMetric(m_store,
                               TryLoadUniversalTheme(universalTheme) ? universalTheme.get() : nullptr,
@@ -608,6 +686,14 @@ int ThemePlatform::GetSettingsToggleWidthPx() const
 
 int ThemePlatform::GetSettingsToggleHeightPx() const
 {
+    if (m_store)
+    {
+        const std::wstring size = m_store->Get(L"appearance.ui.toggle_size", L"");
+        if (size == L"small") return 24;
+        if (size == L"normal") return 28;
+        if (size == L"large") return 34;
+    }
+
     std::shared_ptr<UniversalThemeData> universalTheme;
     return ResolveThemeMetric(m_store,
                               TryLoadUniversalTheme(universalTheme) ? universalTheme.get() : nullptr,
@@ -620,6 +706,14 @@ int ThemePlatform::GetSettingsToggleHeightPx() const
 
 int ThemePlatform::GetTrayMenuMinWidthPx() const
 {
+    if (m_store)
+    {
+        const std::wstring size = m_store->Get(L"appearance.ui.tray_menu_size", L"");
+        if (size == L"compact") return 200;
+        if (size == L"standard") return 220;
+        if (size == L"large") return 260;
+    }
+
     std::shared_ptr<UniversalThemeData> universalTheme;
     return ResolveThemeMetric(m_store,
                               TryLoadUniversalTheme(universalTheme) ? universalTheme.get() : nullptr,
@@ -632,6 +726,14 @@ int ThemePlatform::GetTrayMenuMinWidthPx() const
 
 int ThemePlatform::GetTrayMenuRowHeightPx() const
 {
+    if (m_store)
+    {
+        const std::wstring size = m_store->Get(L"appearance.ui.tray_menu_size", L"");
+        if (size == L"compact") return 24;
+        if (size == L"standard") return 28;
+        if (size == L"large") return 34;
+    }
+
     std::shared_ptr<UniversalThemeData> universalTheme;
     return ResolveThemeMetric(m_store,
                               TryLoadUniversalTheme(universalTheme) ? universalTheme.get() : nullptr,
@@ -725,56 +827,69 @@ ThemePalette ThemePlatform::BuildPaletteFor(ThemeMode mode, ThemeStyle style)
 
 bool ThemePlatform::TryLoadUniversalTheme(std::shared_ptr<UniversalThemeData>& outTheme) const
 {
-    // First check if we have a cached theme
-    if (m_cachedTheme)
-    {
-        outTheme = m_cachedTheme;
-        return true;
-    }
-
     if (!m_store)
     {
         return false;
     }
 
-    // Try to determine the theme directory
-    // For now, check common location: %APPDATA%/SimpleSpaces/Spaces/themes/
-    // In a full implementation, this would be configurable
-    std::wstring themePath = m_store->Get(L"theme.custom.path", L"");
-    if (themePath.empty())
+    const std::wstring customPath = m_store->Get(L"theme.custom.path", L"");
+    const std::wstring themeId = m_store->Get(L"theme.win32.theme_id", L"graphite-office");
+    const std::wstring cacheKey = customPath + L"|" + themeId;
+
+    if (m_cachedTheme && m_cachedThemeKey == cacheKey)
     {
-        // Default to user's Custom theme folder
-        wchar_t* appData = nullptr;
-        size_t appDataLength = 0;
-        const errno_t envResult = _wdupenv_s(&appData, &appDataLength, L"APPDATA");
-        if (envResult == 0 && appData != nullptr && appDataLength > 0)
-        {
-            themePath = std::wstring(appData) + L"\\SimpleSpaces\\Spaces\\themes\\custom";
-            free(appData);
-        }
-        else
-        {
-            if (appData != nullptr)
-            {
-                free(appData);
-            }
-            return false;
-        }
+        outTheme = m_cachedTheme;
+        return true;
     }
 
-    // Attempt to load theme from directory
+    std::vector<std::wstring> candidatePaths;
+    if (!customPath.empty())
+    {
+        candidatePaths.push_back(customPath);
+    }
+
+    wchar_t* appData = nullptr;
+    size_t appDataLength = 0;
+    const errno_t envResult = _wdupenv_s(&appData, &appDataLength, L"APPDATA");
+    if (envResult == 0 && appData != nullptr && appDataLength > 0)
+    {
+        const std::wstring appDataRoot(appData);
+        candidatePaths.push_back(appDataRoot + L"\\SimpleSpaces\\Spaces\\themes\\" + themeId);
+        candidatePaths.push_back(appDataRoot + L"\\SimpleSpaces\\Spaces\\themes\\custom");
+    }
+    if (appData)
+    {
+        free(appData);
+    }
+
+    wchar_t modulePath[MAX_PATH] = {};
+    if (GetModuleFileNameW(nullptr, modulePath, MAX_PATH) > 0)
+    {
+        std::filesystem::path exeDir(modulePath);
+        exeDir = exeDir.parent_path();
+        candidatePaths.push_back((exeDir / L"themes" / themeId).wstring());
+        candidatePaths.push_back((exeDir / L"themes" / L"custom").wstring());
+        candidatePaths.push_back((exeDir / L".." / L".." / L"Themes" / L"themes" / themeId).wstring());
+    }
+
     UniversalThemeData theme;
-    if (!UniversalThemeLoader::LoadFromDirectory(themePath, theme))
+    for (const auto& path : candidatePaths)
     {
-        // Fallback to loading a built-in theme from application theme directory
-        // This would typically be in the exe directory or a resources path
-        return false;
+        if (path.empty())
+        {
+            continue;
+        }
+
+        if (UniversalThemeLoader::LoadFromDirectory(path, theme))
+        {
+            m_cachedTheme = std::make_shared<UniversalThemeData>(theme);
+            m_cachedThemeKey = cacheKey;
+            outTheme = m_cachedTheme;
+            return true;
+        }
     }
 
-    // Cache the loaded theme
-    m_cachedTheme = std::make_shared<UniversalThemeData>(theme);
-    outTheme = m_cachedTheme;
-    return true;
+    return false;
 }
 
 ThemePalette ThemePlatform::BuildPalette() const
@@ -1036,5 +1151,31 @@ UINT ThemePlatform::GetThemeChangedMessageId()
 {
     static const UINT kThemeChanged = RegisterWindowMessageW(L"SimpleSpaces.ThemeChanged");
     return kThemeChanged;
+}
+
+ThemeResourceResolver* ThemePlatform::GetResourceResolver() const
+{
+    if (!m_store)
+    {
+        return nullptr;
+    }
+
+    if (!m_resourceResolver)
+    {
+        m_resourceResolver = std::make_unique<ThemeResourceResolver>(m_store);
+    }
+
+    // Reinitialize against current theme source so runtime theme changes update UI resources.
+    std::shared_ptr<UniversalThemeData> themeData;
+    if (TryLoadUniversalTheme(themeData))
+    {
+        m_resourceResolver->Initialize(themeData.get());
+    }
+    else
+    {
+        m_resourceResolver->Initialize(nullptr);
+    }
+
+    return m_resourceResolver.get();
 }
 

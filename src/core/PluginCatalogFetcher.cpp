@@ -44,19 +44,113 @@ namespace PluginCatalog
 
     CatalogFetcher::~CatalogFetcher() = default;
 
+    std::wstring CatalogFetcher::GetDefaultCatalogSource()
+    {
+        wchar_t modulePath[MAX_PATH] = {};
+        if (GetModuleFileNameW(nullptr, modulePath, MAX_PATH) == 0)
+        {
+            return L"";
+        }
+
+        const fs::path exeDir = fs::path(modulePath).parent_path();
+        const fs::path sideBySide = exeDir / L"plugin-catalog.json";
+        if (fs::exists(sideBySide))
+        {
+            return sideBySide.wstring();
+        }
+
+        const fs::path assetsPath = exeDir / L"assets" / L"plugin-catalog.json";
+        if (fs::exists(assetsPath))
+        {
+            return assetsPath.wstring();
+        }
+
+        return L"";
+    }
+
     bool CatalogFetcher::FetchCatalog(const std::wstring& source)
     {
         m_lastError.clear();
+        m_lastResolvedSource.clear();
 
         // Check if source is a URL or file path
         if (source.find(L"http://") == 0 || source.find(L"https://") == 0)
         {
-            return FetchFromUrl(source);
+            const bool ok = FetchFromUrl(source);
+            if (ok)
+            {
+                m_lastResolvedSource = source;
+            }
+            return ok;
         }
         else
         {
-            return LoadFromFile(source);
+            const bool ok = LoadFromFile(source);
+            if (ok)
+            {
+                m_lastResolvedSource = source;
+            }
+            return ok;
         }
+    }
+
+    bool CatalogFetcher::FetchCatalogWithFallback(const std::wstring& preferredSource,
+                                                  const std::wstring& fallbackSource,
+                                                  std::wstring* resolvedSource,
+                                                  bool* usedFallback)
+    {
+        if (usedFallback)
+        {
+            *usedFallback = false;
+        }
+
+        const std::wstring preferred = preferredSource;
+        const std::wstring fallback = fallbackSource;
+
+        if (!preferred.empty() && FetchCatalog(preferred))
+        {
+            if (resolvedSource)
+            {
+                *resolvedSource = m_lastResolvedSource;
+            }
+            return true;
+        }
+
+        const std::wstring preferredError = m_lastError;
+
+        if (!fallback.empty() && fallback != preferred && FetchCatalog(fallback))
+        {
+            if (usedFallback)
+            {
+                *usedFallback = true;
+            }
+            if (resolvedSource)
+            {
+                *resolvedSource = m_lastResolvedSource;
+            }
+            return true;
+        }
+
+        const std::wstring fallbackError = m_lastError;
+
+        if (!preferred.empty() && !preferredError.empty())
+        {
+            m_lastError = L"Primary source failed: " + preferredError;
+            if (!fallback.empty() && fallback != preferred)
+            {
+                m_lastError += L" | Fallback failed: " + fallbackError;
+            }
+        }
+        else if (m_lastError.empty())
+        {
+            m_lastError = L"No usable plugin catalog source was available.";
+        }
+
+        if (resolvedSource)
+        {
+            resolvedSource->clear();
+        }
+        return false;
     }
 
     bool CatalogFetcher::FetchFromUrl(const std::wstring& url)
@@ -154,9 +248,12 @@ namespace PluginCatalog
         try
         {
             m_catalog.version = j.value("version", 1);
-            m_catalog.catalogVersion = std::wstring(j.value("catalogVersion", "").begin(), j.value("catalogVersion", "").end());
-            m_catalog.lastUpdated = std::wstring(j.value("lastUpdated", "").begin(), j.value("lastUpdated", "").end());
-            m_catalog.appMinVersion = std::wstring(j.value("appMinVersion", "").begin(), j.value("appMinVersion", "").end());
+            const std::string catalogVersion = j.value("catalogVersion", "");
+            const std::string lastUpdated = j.value("lastUpdated", "");
+            const std::string appMinVersion = j.value("appMinVersion", "");
+            m_catalog.catalogVersion = Utf8ToWide(catalogVersion);
+            m_catalog.lastUpdated = Utf8ToWide(lastUpdated);
+            m_catalog.appMinVersion = Utf8ToWide(appMinVersion);
 
             m_catalog.plugins.clear();
 

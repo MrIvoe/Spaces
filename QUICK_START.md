@@ -1,8 +1,8 @@
-# Quick Start: Spaces 1.01.001 Release
+# Quick Start: Spaces 1.01.004 Release
 
 ## What Just Happened
 
-**Spaces is now version 1.01.001** 🎉 - A professional, installable Windows app with foundation for plugin delivery without Git.
+**Spaces is now version 1.01.004** - Current public fix release with build output workflow improvements.
 
 ---
 
@@ -14,7 +14,7 @@
 README.md                          # User installation guide
 installer/README.md                # Developer installer guide
 IMPLEMENTATION_SUMMARY.md          # What was built
-RELEASE_1.01.001.md                # Complete release notes
+RELEASE_1.01.004.md                # Complete release notes
 PHASE_2_ROADMAP.md                 # What's next (plugin downloader)
 ```
 
@@ -36,7 +36,7 @@ src/core/PluginPackageInstaller.h/cpp  # Download & install plugins
 
 ```
 src/plugins/builtins/BuiltinPlugins.cpp # New "App & Updates" page added
-src/AppVersion.h                        # Version: 1.01.001
+src/AppVersion.h                        # Version: 1.01.004
 ```
 
 ---
@@ -61,7 +61,7 @@ cmake --build build --config Release
 $env:BUILD_OUTPUT_DIR = "build\bin\Release"
 iscc.exe installer\Spaces.iss
 
-# Output: output/Spaces-Setup-1.01.001.exe
+# Output: output/Spaces-Setup-1.01.004.exe
 ```
 
 ---
@@ -69,7 +69,7 @@ iscc.exe installer\Spaces.iss
 ## Architecture Overview
 
 ```
-Spaces 1.01.001
+Spaces 1.01.004
 │
 ├─ Phase 1: Installer ✅
 │  └─ Professional setup.exe
@@ -198,7 +198,7 @@ They will be added to `CMakeLists.txt` in Phase 2.
 
 Phase 1 achieved:
 - ✅ Professional installer
-- ✅ Version bump to release (1.01.001)
+- ✅ Version bump to release (1.01.004)
 - ✅ No Git required foundation
 - ✅ Settings infrastructure
 - ✅ Complete documentation
@@ -224,12 +224,12 @@ Phase 2 will achieve:
 ## Support
 
 - `README.md` - User & developer guide
-- `RELEASE_1.01.001.md` - Full release documentation
+- `RELEASE_1.01.004.md` - Full release documentation
 - `PHASE_2_ROADMAP.md` - Detailed next phase plan
 - `IMPLEMENTATION_SUMMARY.md` - What was built
 
 ---
 
-**Welcome to Spaces 1.01.001!** 🚀
+**Welcome to Spaces 1.01.004.**
 
 Your job: Make it even better.
