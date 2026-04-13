@@ -49,6 +49,14 @@ docs/wiki/
 installer/output/
 crashdumps/
 
+# Local workspace and legacy side projects (not required for app runtime/build)
+.vscode/
+IVOESpaces/
+csharp-advanced/
+plugin-hub/
+*.code-workspace
+myeasylog.log
+
 # OS
 Thumbs.db
 .DS_Store

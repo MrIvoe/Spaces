@@ -1,5 +1,0 @@
-C:\Users\MrIvo\Github\IVOEFences\build\IVOEFences.Core.dll
-C:\Users\MrIvo\Github\IVOEFences\build\IVOEFences.Core.deps.json
-C:\Users\MrIvo\Github\IVOEFences\build\IVOEFences.Core.pdb
-C:\Users\MrIvo\Github\IVOEFences\build\Serilog.dll
-C:\Users\MrIvo\Github\IVOEFences\build\Serilog.Sinks.File.dll

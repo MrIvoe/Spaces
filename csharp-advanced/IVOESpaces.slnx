@@ -1,5 +1,0 @@
-<Solution>
-  <Project Path="src\IVOESpaces.Core\IVOESpaces.Core.csproj" />
-  <Project Path="src\IVOESpaces.Shell\IVOESpaces.Shell.csproj" />
-  <Project Path="src\IVOESpaces.Tests\IVOESpaces.Tests.csproj" />
-</Solution>
