@@ -44,6 +44,11 @@ TestResults/
 # Legacy in-repo build output locations
 IVOESpaces/build-vs18/
 
+# Local-only docs and artifacts (not part of runtime package)
+docs/wiki/
+installer/output/
+crashdumps/
+
 # OS
 Thumbs.db
 .DS_Store

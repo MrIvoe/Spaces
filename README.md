@@ -1,154 +1,141 @@
 # Spaces
 
-[![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#install)
-[![Language](https://img.shields.io/badge/language-C%2B%2B17-00599C.svg)](#for-developers)
-[![Build](https://img.shields.io/badge/build-CMake-064F8C.svg)](#for-developers)
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#download)
+[![Version](https://img.shields.io/badge/version-1.01.010-2EA043.svg)](#current-version)
 
-Spaces is a desktop organizer for Windows.
+Spaces is a Windows desktop app that lets you create desktop Spaces as real windows backed by real folders.
 
-Create resizable desktop Spaces, drop files into them, and keep your workspace clean without losing where files came from.
+You can drag files and folders into a Space, keep them organized visually, and restore them later with recovery-first behavior designed to avoid destructive overwrite mistakes.
 
-Current stable version: 1.01.010
+Spaces works with:
 
-## Why People Use Spaces
+- [Spaces-Plugins](https://github.com/MrIvoe/Spaces-Plugins) for extensions
+- [Themes](https://github.com/MrIvoe/Themes) for shared appearance and theme tokens
 
-- Keep active files grouped by project on the desktop.
-- Drag and drop files quickly into visual containers.
-- Restore files back toward original locations safely.
-- Keep layout and Space contents across app restarts.
+## Why Spaces
 
-## Install
+- Real desktop windows
+- Real backing folders on disk
+- Safer restore behavior
+- Startup persistence
+- Plugin support
+- Theme support
 
-1. Open the Releases page: https://github.com/MrIvoe/Spaces/releases
-2. Download the newest installer named `Spaces-Setup-<version>.exe`.
-3. Run the installer.
-4. Launch Spaces from Start Menu.
+## What Happens To My Files
 
-If Windows SmartScreen appears, click More info, then Run anyway.
+When you drop a file or folder into a Space, Spaces physically moves it into that Space's backing folder on disk.
 
-## Installer (Release Quality)
+After the move succeeds, Spaces records the original location so restore can be handled safely later.
 
-Spaces ships with an Inno Setup installer script at `installer/Spaces.iss`.
+Spaces is designed to prefer recovery over destructive actions:
 
-Installer behavior:
+- original paths are recorded only after a successful move
+- restore does not intentionally overwrite an existing file
+- if a conflict exists, a non-destructive restored name is generated
+- if restore is only partially successful, Space deletion is aborted so recovery remains possible
 
-- Per-user installation path under `%LOCALAPPDATA%\Programs\Spaces\<version>`
-- Start Menu shortcut creation
-- Optional desktop shortcut
-- Optional startup registration
-- Uninstall registration in Windows Apps settings
+Example:
 
-Installer output:
+```text
+report.txt -> report (restored 1).txt
+```
 
-- `installer/output/Spaces-Setup-<version>.exe`
+## Screenshots
 
-Installer build details:
+Add screenshots here as they become available.
 
-- [installer/README.md](installer/README.md)
+Suggested screenshots:
 
-## First 2 Minutes
+- main desktop view
+- settings window
+- plugins manager
+- theme/customization view
 
-1. Right-click the Spaces tray icon.
-2. Select New Space.
-3. Drag a file from desktop into the new Space.
-4. Restart Spaces and confirm the Space comes back.
+## Download
 
-## Daily Use
+Download the latest installer from [Releases](https://github.com/MrIvoe/Spaces/releases).
 
-- Create Space: tray icon -> New Space
-- Open Settings: tray icon -> Settings
-- Move files into a Space: drag and drop
-- Restore an item: open item context menu and choose restore action
-- Remove a Space safely: delete Space and follow prompts
+Example installer name:
 
-## Safety Model
+```text
+Spaces-Setup-1.01.010.exe
+```
 
-Spaces is designed around non-destructive behavior:
-
-- Files are moved intentionally into each Space backing folder.
-- Original locations are tracked for restore workflows.
-- Restore avoids destructive overwrite by generating a safe name when needed.
-- Failed operations are logged for diagnostics.
-
-## Where Data Is Stored
-
-Spaces user data is stored in:
-
-- `%LOCALAPPDATA%\SimpleSpaces\Spaces\settings.json` for settings
-- `%LOCALAPPDATA%\SimpleSpaces\config.json` for app metadata
-- `%LOCALAPPDATA%\SimpleSpaces\debug.log` for logs
-- `%LOCALAPPDATA%\SimpleSpaces\Spaces\` for Space-scoped data (themes, settings, etc.)
-
-## Troubleshooting
-
-If something looks wrong:
-
-1. Check if another Spaces instance is already running.
-2. Reopen the app from Start Menu.
-3. Check logs in `%LOCALAPPDATA%\SimpleSpaces\`.
-4. Run the manual checklists in [docs/MANUAL_RUNTIME_SMOKE_TEST.md](docs/MANUAL_RUNTIME_SMOKE_TEST.md) and [docs/MANUAL_SETTINGS_PERSISTENCE_CHECKLIST.md](docs/MANUAL_SETTINGS_PERSISTENCE_CHECKLIST.md).
+After installation, launch Spaces from the Start Menu or Desktop shortcut and begin creating Spaces.
 
 ## Plugins and Themes
 
-- Plugins repository: https://github.com/MrIvoe/Spaces-Plugins
-- Themes repository: https://github.com/MrIvoe/Themes
+### Plugins
 
-## For Developers
+Spaces supports extensions for things like:
 
-If you want to build, extend, or contribute:
+- theme customization
+- visual modes and layouts
+- context actions
+- integrations
+- provider-style Space behavior
 
-- Start in [docs/wiki/Home.md](docs/wiki/Home.md)
-- Build and test guide: [docs/wiki/Build-and-Test.md](docs/wiki/Build-and-Test.md)
-- Architecture map: [docs/wiki/Architecture.md](docs/wiki/Architecture.md)
-- Settings and persistence: [docs/wiki/Settings-and-Persistence.md](docs/wiki/Settings-and-Persistence.md)
-- Plugin and theme integration: [docs/wiki/Plugins-and-Themes.md](docs/wiki/Plugins-and-Themes.md)
-- Release process: [docs/wiki/Release-Workflow.md](docs/wiki/Release-Workflow.md)
+Learn more:
 
-Quick build:
+- [Spaces-Plugins](https://github.com/MrIvoe/Spaces-Plugins)
 
-```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Debug
-.\build\bin\Debug\Spaces.exe
-```
+### Themes
 
-Release build:
+Spaces uses shared appearance tokens and semantic mappings from:
 
-```powershell
-cmake --build build --config Release
-```
+- [Themes](https://github.com/MrIvoe/Themes)
 
-The host build also copies the latest executable to:
+## Safety and Recovery
 
-- `installer/output/Spaces.exe`
+Spaces is built around recovery-first behavior:
 
-This is useful for installer packaging verification.
+- restore does not overwrite existing destination files
+- failed moves do not create stale origin metadata
+- partial restore failure blocks Space deletion
+- file operation failures are logged for troubleshooting
 
-## Publish Checklist
+## Troubleshooting
 
-Before pushing a release update:
+### The app starts but expected behavior does not appear
 
-1. Update version references (`src/AppVersion.h`, `installer/Spaces.iss`, release notes docs).
-2. Build Debug and Release.
-3. Run `build/Debug/HostCoreTests.exe`.
-4. Build installer and verify `installer/output/Spaces-Setup-<version>.exe` exists.
-5. Verify startup, tray menu, settings persistence, and drag/drop behavior.
-6. Commit and push with release notes.
+Check:
 
-## Project Direction
+- whether another instance is already running
+- whether `%LOCALAPPDATA%\SimpleSpaces\config.json` is malformed
+- whether `%LOCALAPPDATA%\SimpleSpaces\debug.log` contains startup or tray errors
 
-Spaces is consumer-first at the product layer and extension-friendly at the platform layer.
+### A file did not move or restore correctly
 
-That means:
+Check:
 
-- Everyday users should be able to install and use Spaces without reading engineering docs.
-- Developers should have clear extension points and predictable host behavior.
+- source and destination path permissions
+- whether another process is locking the file
+- `%LOCALAPPDATA%\SimpleSpaces\debug.log` for details
 
-## Support
+### A Space did not disappear when you deleted it
 
-If you hit an issue, open a GitHub issue with:
+This can happen intentionally if restore was only partially successful. The Space is kept so remaining items can still be recovered safely.
 
-- what happened
-- expected behavior
-- steps to reproduce
-- logs from `%LOCALAPPDATA%\\SimpleSpaces\\` when available
+## Documentation
+
+For deeper help and technical documentation, use the project Wiki.
+
+Suggested Wiki pages:
+
+- Getting Started
+- Installation
+- Using Spaces
+- File Safety and Restore Behavior
+- Plugins and Plugin Manager
+- Themes and Appearance
+- Troubleshooting
+- FAQ
+
+## Current Version
+
+Current version: `1.01.010`
+Current phase: `0.0.013`
+
+## Contributing
+
+If you want to contribute, please keep changes focused, test carefully, and update documentation when behavior changes.
