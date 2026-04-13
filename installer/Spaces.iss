@@ -2,7 +2,7 @@
 ; This script creates a professional Windows installer for the Spaces application
 
 #define MyAppName "Spaces"
-#define MyAppVersion "1.01.009"
+#define MyAppVersion "1.01.010"
 #define MyAppPublisher "SimpleSpaces"
 #define MyAppURL "https://github.com/MrIvoe/Spaces"
 #define MyAppExeName "Spaces.exe"

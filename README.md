@@ -1,559 +1,154 @@
 # Spaces
 
-[![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#build-and-run)
-[![Language](https://img.shields.io/badge/language-C%2B%2B17-00599C.svg)](#tech-stack)
-[![Build System](https://img.shields.io/badge/build-CMake-064F8C.svg)](#build-and-run)
-[![Version](https://img.shields.io/badge/version-1.01.004-2EA043.svg)](#release-history)
+[![Platform](https://img.shields.io/badge/platform-Windows-0078D6.svg)](#install)
+[![Language](https://img.shields.io/badge/language-C%2B%2B17-00599C.svg)](#for-developers)
+[![Build](https://img.shields.io/badge/build-CMake-064F8C.svg)](#for-developers)
 
-A lightweight Win32 desktop organizer for Windows that lets you create simple desktop Spaces and move files into them safely.
-**🎉 Release Version 1.01.004 - Current public fix release.**
+Spaces is a desktop organizer for Windows.
 
-Theme architecture note:
+Create resizable desktop Spaces, drop files into them, and keep your workspace clean without losing where files came from.
 
-- Themes repo is the source of truth for universal design tokens.
-- Spaces consumes exported tokens and semantic mappings from Themes.
-- Direct palette literals are only used for app-specific fallback/override behavior.
-- Cross-repo contract is documented in `docs/THEME_CONTRACT.md`.
-- Plugin marketplace migration architecture is documented in `docs/PLUGIN_MARKETPLACE_ARCHITECTURE.md`.
+Current stable version: 1.01.010
 
-Spaces is focused on a clear, predictable model:
+## Why People Use Spaces
 
-- each Space is a real desktop window
-- each Space has a real backing folder on disk
-- dropped files are physically moved into that Space folder
-- original paths are tracked so restore can be done safely later
+- Keep active files grouped by project on the desktop.
+- Drag and drop files quickly into visual containers.
+- Restore files back toward original locations safely.
+- Keep layout and Space contents across app restarts.
 
-This project is meant to stay smaller and easier to reason about than the larger IVOE-Spaces project while still prioritizing file safety, recoverability, and real desktop usefulness.
+## Install
 
-## Quick Start in 60 Seconds
+1. Open the Releases page: https://github.com/MrIvoe/Spaces/releases
+2. Download the newest installer named `Spaces-Setup-<version>.exe`.
+3. Run the installer.
+4. Launch Spaces from Start Menu.
 
-If you only have a minute:
+If Windows SmartScreen appears, click More info, then Run anyway.
 
-1. Open a terminal in the repository root.
-2. Configure the project with CMake.
-3. Build Debug.
-4. Run the app.
+## Installer (Release Quality)
 
-```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Debug
-.\build\bin\Debug\Spaces.exe
-```
+Spaces ships with an Inno Setup installer script at `installer/Spaces.iss`.
 
-First run notes:
+Installer behavior:
 
-- app data is stored under `%LOCALAPPDATA%\Spaces\`
-- Spaces are restored from saved config on startup
-- logs are written to `%LOCALAPPDATA%\Spaces\debug.log`
+- Per-user installation path under `%LOCALAPPDATA%\Programs\Spaces\<version>`
+- Start Menu shortcut creation
+- Optional desktop shortcut
+- Optional startup registration
+- Uninstall registration in Windows Apps settings
 
-## Current Version
+Installer output:
 
-Current version: `1.01.004`
-Current release version: `1.01.004`
+- `installer/output/Spaces-Setup-<version>.exe`
 
-## Current Status
+Installer build details:
 
-Current phase: `0.0.013` UI shell modernization milestone, focused on cleaner settings hierarchy, reduced tab-transition repaint cost, and cohesive Windows desktop presentation.
+- [installer/README.md](installer/README.md)
 
-Primary focus right now:
+## First 2 Minutes
 
-- keep core Space create/move/resize/drag-drop/persist/restore behavior stable
-- prevent duplicate app instances and improve shutdown reliability
-- keep Space create/move/resize interactions responsive and predictable
-- improve drag/drop handling for duplicate and self-drop edge cases
-- recover safely from malformed persisted config files
-- improve icon fidelity and practical rename/edit flow
-- modernize settings shell layout with explicit header/subheader/status regions
-- reduce tab-transition redraw scope to the right pane for smoother switching
+1. Right-click the Spaces tray icon.
+2. Select New Space.
+3. Drag a file from desktop into the new Space.
+4. Restart Spaces and confirm the Space comes back.
 
-## What the App Does
+## Daily Use
 
-End-user behavior:
+- Create Space: tray icon -> New Space
+- Open Settings: tray icon -> Settings
+- Move files into a Space: drag and drop
+- Restore an item: open item context menu and choose restore action
+- Remove a Space safely: delete Space and follow prompts
 
-- create draggable, resizable Space windows
-- drop files and folders into a Space
-- open items directly from a Space
-- reload saved Spaces on startup
-- restore items back toward their original location
-- avoid destructive overwrite when restoring
+## Safety Model
 
-Engineering goals:
+Spaces is designed around non-destructive behavior:
 
-- keep file behavior understandable
-- prefer recovery over destructive actions
-- keep state persistence simple and diagnosable
-- keep the app small enough to improve safely
+- Files are moved intentionally into each Space backing folder.
+- Original locations are tracked for restore workflows.
+- Restore avoids destructive overwrite by generating a safe name when needed.
+- Failed operations are logged for diagnostics.
 
-## How It Works
+## Where Data Is Stored
 
-Each Space has:
+Spaces user data is stored in:
 
-- a Win32 window
-- a backing folder
-- saved metadata in config
-- optional origin metadata for moved items
-
-Example storage layout:
-
-```text
-%LOCALAPPDATA%\Spaces\
-    config.json
-    debug.log
-    Spaces\
-        <SpaceId>\
-            _origins.json
-            <items...>
-```
-1. the app finds or creates the Space folder
-2. it tries to move the item into that folder
-3. it records the original path only after the move succeeds
-4. the Space refreshes to display the current contents
-
-
-## Installation for End Users
-
-### Option 1: Install from Release (Recommended)
-
-Download the latest **Spaces-Setup-1.01.004.exe** from [Releases](https://github.com/MrIvoe/Spaces/releases) and run it.
-
-The installer will:
-
-- Install Spaces to **Program Files**
-- Create a **Start Menu shortcut**
-- Optionally create a **Desktop shortcut**
-- Set up **user data folders** in `%LOCALAPPDATA%\SimpleSpaces\`
-- Register the app for **uninstall** support
-
-After installation, launch Spaces from Start Menu or Desktop and start creating Spaces!
-
-### Option 2: Build from Source (Developers)
-
-```powershell
-# Clone the repository
-git clone https://github.com/MrIvoe/Spaces.git
-cd Spaces
-
-# Configure project
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-
-# Build (choose Debug or Release)
-cmake --build build --config Release
-
-# Run the app
-.\build\bin\Release\Spaces.exe
-```
-
-## Installing Plugins
-
-### From Within Spaces
-
-1. Open Spaces
-2. Right-click tray icon → **Settings**
-3. Navigate to **Plugins Manager**
-4. Click **+ Install** next to any available plugin
-5. Download completes and plugin is ready to use
-6. Restart Spaces to activate the plugin
-
-**No Git required!** Plugins are downloaded as ZIP packages directly from secure servers.
-
-### Available Plugins
-
-Spaces supports extensible plugins for:
-
-- Theme customization
-- Visual modes and layouts
-- Context actions
-- Custom integrations
-
-Visit the [Spaces-Plugins](https://github.com/MrIvoe/Spaces-Plugins) repository for plugin source code and documentation.
-
-## Build Instructions (for Developers)
-
-### Prerequisites
-
-- Windows 10 or later
-- Visual Studio 2022 or Visual Studio 2022 Build Tools
-- CMake 3.20+
-- Git
-
-### Building the Installer
-
-To build a professional Windows installer:
-
-1. **Build the Release app:**
-    ```powershell
-    cmake -B build -DCMAKE_BUILD_TYPE=Release
-    cmake --build build --config Release
-    ```
-
-2. **Install Inno Setup** from https://jrsoftware.org/isdl.php
-
-3. **Build installer:**
-    ```powershell
-    $env:BUILD_OUTPUT_DIR = "build\bin\Release"
-    iscc.exe installer\Spaces.iss
-    ```
-
-4. Installer appears in `output/Spaces-Setup-1.01.004.exe`
-
-See [installer/README.md](installer/README.md) for detailed instructions.
-When you restore an item:
-
-- the app tries to send it back to its original location
-- if a file already exists there, a non-destructive name is generated instead
-
-Example:
-
-```text
-report.txt -> report (restored 1).txt
-```
-
-When you delete a Space:
-
-- the app first tries to restore everything inside it
-- if restore is only partially successful, the Space is kept so recovery is still possible
-
-## Safety and Recovery Behavior
-
-Current safety rules:
-
-- restore does not overwrite existing destination files
-- failed moves do not create stale origin metadata
-- partial restore failure aborts Space deletion
-- config and origin data are stored as structured JSON
-- metadata writes use atomic file replacement behavior on Windows
-- file operation failures are logged for troubleshooting
-
-## Current Features
-
-- tray-based Space creation
-- command-dispatched tray actions via contribution registry
-- draggable and resizable Space windows
-- startup reload from saved config
-- file and folder drag/drop
-- per-item open action
-- per-item delete or restore handling
-- mouse and keyboard context menu support
-- logging for move, restore, delete, and persistence failures
-- built-in plugin host scaffold with capability manifests
-- plugin settings and Space-extension registries with status/page API exposure
-- settings shell command path (`plugin.openSettings`) with scaffold UI
-- Space context organization commands via plugin (`builtin.space_organizer`)
-- plugin manifest API compatibility checks (`minHostApiVersion` / `maxHostApiVersion`)
-- safe command dispatch diagnostics (unknown/failed command logging)
-- registry validation for menu/settings contributions (invalid and duplicate guardrails)
-- host-core regression tests for command and extension registries (`HostCoreTests`)
-
-## Known Limitations
-
-- still early alpha
-- visual design is basic
-- icon fidelity and rendering polish still need work
-- no installer yet
-- no cloud sync
-- no tabs yet
-- no shell extension integration
-- plugin architecture is foundation-only (placeholders for advanced providers)
-- settings host uses scaffold window (full rich UI still pending)
-
-## Repository Layout
-
-```text
-src/
-    core/
-        AppKernel.h/.cpp
-        CommandDispatcher.h/.cpp
-        EventBus.h/.cpp
-        Diagnostics.h/.cpp
-        ServiceRegistry.h/.cpp
-    extensions/
-        PluginContracts.h
-        PluginHost.h/.cpp
-        PluginRegistry.h/.cpp
-        PluginSettingsRegistry.h/.cpp
-        MenuContributionRegistry.h/.cpp
-        SpaceExtensionRegistry.h/.cpp
-    plugins/
-        builtins/
-            BuiltinPlugins.h/.cpp
-    App.cpp / App.h
-    SpaceManager.cpp / SpaceManager.h
-    SpaceStorage.cpp / SpaceStorage.h
-    SpaceWindow.cpp / SpaceWindow.h
-    Models.h
-    Persistence.cpp / Persistence.h
-    TrayMenu.cpp / TrayMenu.h
-    Win32Helpers.cpp / Win32Helpers.h
-    main.cpp
-CMakeLists.txt
-README.md
-```
-
-## Architecture Overview
-
-The 0.0.011 milestone reinforces the plugin platform around a protected Space kernel.
-
-Core rule:
-
-- core Space behavior is not "just another plugin" yet
-- plugin host grows around the core
-- optional features move to plugins incrementally
-
-Kernel/platform services now include:
-
-- `AppKernel`: startup scaffolding for command routing, plugin host lifecycle, and failure diagnostics
-- `CommandDispatcher`: command registration and isolated dispatch (`Space.create`, `app.exit`)
-- `EventBus`: lightweight event pub/sub scaffold for controlled extension reactions
-- `PluginHost` + registries: built-in plugin loading, capability registration, settings/menu extension points
-
-Extension architecture details now live in [docs/EXTENSIBILITY.md](docs/EXTENSIBILITY.md).
-
-Core Space domain remains responsible for:
-
-- Space create/move/resize workflow
-- drag/drop and file move safety
-- persistence and startup reload
-- restore/delete safety behavior
-
-```mermaid
-flowchart TD
-    A[main.cpp] --> B[AppKernel]
-    B --> C[ServiceRegistry]
-    B --> D[CommandDispatcher]
-    B --> E[EventBus]
-    B --> F[PluginHost]
-
-    C --> G[SpaceManager]
-    C --> H[SpaceStorage]
-    C --> I[Persistence]
-    C --> J[Win32Helpers]
-
-    F --> K[CoreCommandsPlugin]
-    F --> L[TrayPlugin]
-    F --> M[SettingsPlugin]
-    F --> N[AppearancePlugin]
-    F --> O[ExplorerSpacePlugin]
-    F --> P[WidgetsPlugin]
-    F --> Q[DesktopContextPlugin]
-    F --> S[SpaceOrganizerPlugin]
-
-    G --> R[SpaceWindow]
-    L --> D
-```
-
-### Component Responsibilities
-
-- `App`: creates stable Space services and tray shell, delegates platform-extension concerns to `AppKernel`
-- `AppKernel`: owns dispatcher, event bus, plugin host, and extension registries
-- `TrayMenu`: builds tray UI from menu contributions and dispatches selected commands
-- `SpaceManager`: canonical Space state and lifecycle coordination
-- `SpaceWindow`: per-Space Win32 host window and Space interaction rendering
-- `SpaceStorage`: physical file move/restore/delete safety and backing-folder management
-- `Persistence`: structured JSON metadata with backward-compatible evolution
-- `Win32Helpers`: logging, paths, and atomic metadata replacement helper operations
-
-## Tech Stack
-
-- C++17
-- Win32 API
-- CMake
-- nlohmann/json
-- Visual Studio / MSVC
-
-## Build and Run
-
-Requirements:
-
-- Windows 10 or later
-- CMake 3.16+
-- Visual Studio with Desktop C++ tools
-
-Build Debug:
-
-```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Debug
-```
-
-Build Release:
-
-```powershell
-cmake --build build --config Release
-```
-
-Run Debug:
-
-```powershell
-.\build\bin\Debug\Spaces.exe
-```
-
-Run Release:
-
-```powershell
-.\build\bin\Release\Spaces.exe
-```
-
-## Manual Testing Checklist
-
-Recommended checks:
-
-- create multiple Spaces
-- drag files and folders into a Space
-- restart the app and verify Spaces reload correctly
-- restore an item where the original location already contains a file with the same name
-- delete a Space that contains several items
-- inspect `debug.log` after intentional failure scenarios
+- `%LOCALAPPDATA%\SimpleSpaces\Spaces\settings.json` for settings
+- `%LOCALAPPDATA%\SimpleSpaces\config.json` for app metadata
+- `%LOCALAPPDATA%\SimpleSpaces\debug.log` for logs
+- `%LOCALAPPDATA%\SimpleSpaces\Spaces\` for Space-scoped data (themes, settings, etc.)
 
 ## Troubleshooting
 
-### The app starts but I do not see expected behavior
+If something looks wrong:
 
-Check:
+1. Check if another Spaces instance is already running.
+2. Reopen the app from Start Menu.
+3. Check logs in `%LOCALAPPDATA%\SimpleSpaces\`.
+4. Run the manual checklists in [docs/MANUAL_RUNTIME_SMOKE_TEST.md](docs/MANUAL_RUNTIME_SMOKE_TEST.md) and [docs/MANUAL_SETTINGS_PERSISTENCE_CHECKLIST.md](docs/MANUAL_SETTINGS_PERSISTENCE_CHECKLIST.md).
 
-- whether another instance is already running
-- whether `%LOCALAPPDATA%\Spaces\config.json` is malformed
-- whether `debug.log` contains startup or tray errors
+## Plugins and Themes
 
-### A file did not move or restore correctly
+- Plugins repository: https://github.com/MrIvoe/Spaces-Plugins
+- Themes repository: https://github.com/MrIvoe/Themes
 
-Check:
+## For Developers
 
-- source and destination path permissions
-- whether another process is locking the file
-- `debug.log` for move/copy/remove details
+If you want to build, extend, or contribute:
 
-### A Space did not disappear when I deleted it
+- Start in [docs/wiki/Home.md](docs/wiki/Home.md)
+- Build and test guide: [docs/wiki/Build-and-Test.md](docs/wiki/Build-and-Test.md)
+- Architecture map: [docs/wiki/Architecture.md](docs/wiki/Architecture.md)
+- Settings and persistence: [docs/wiki/Settings-and-Persistence.md](docs/wiki/Settings-and-Persistence.md)
+- Plugin and theme integration: [docs/wiki/Plugins-and-Themes.md](docs/wiki/Plugins-and-Themes.md)
+- Release process: [docs/wiki/Release-Workflow.md](docs/wiki/Release-Workflow.md)
 
-This can happen intentionally if restore was only partially successful. The Space is kept so remaining items can still be recovered safely.
+Quick build:
 
-## Release History
+```powershell
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+cmake --build build --config Debug
+.\build\bin\Debug\Spaces.exe
+```
 
-### 0.0.013
+Release build:
 
-- modernized settings shell structure with dedicated title, subtitle, and status regions
-- improved visual hierarchy and spacing of navigation versus content regions
-- reduced tab-switch repaint work to right content pane to improve responsiveness
-- kept existing settings behavior and persistence semantics intact
-- Theme system consolidated to Win32ThemeSystem with backward-compatible migration and public theme package support.
+```powershell
+cmake --build build --config Release
+```
 
-### 0.0.012
+The host build also copies the latest executable to:
 
-- added single-instance startup guard with user-facing warning and clean mutex teardown
-- implemented practical Space rename workflow from the Space context menu
-- hardened drag/drop routing to deduplicate paths and skip self-drops from the same Space folder
-- improved corrupted metadata recovery by quarantining malformed config and continuing startup
-- aligned icon list loading to large icon rendering for better icon fidelity
-- expanded host core tests with persistence corruption recovery coverage
+- `installer/output/Spaces.exe`
 
-### 0.0.011
+This is useful for installer packaging verification.
 
-- added versioned plugin contract compatibility bounds in manifest (`minHostApiVersion` / `maxHostApiVersion`)
-- hardened plugin host loading with manifest validation, duplicate-id rejection, and exception isolation
-- added safer command dispatcher behavior with collision checks and exception-safe dispatch results
-- added command execution diagnostics for unknown commands and command handler failures
-- hardened menu and settings registries with contribution validation and deterministic duplicate handling
-- improved settings-store load compatibility for legacy flat JSON format
-- added focused host infrastructure regression tests (`HostCoreTests`) and wired CTest execution
-- documented plugin-first host responsibilities in `docs/EXTENSIBILITY.md`
+## Publish Checklist
 
-### 0.0.010
+Before pushing a release update:
 
-- added settings host scaffold path with General, Plugins, and Diagnostics pages
-- exposed plugin status and settings-page registration through kernel APIs
-- added plugin diagnostics logging for loaded/failed/capability reporting
-- introduced content-provider registry lookup/default resolution with core `file_collection` fallback
-- normalized persisted Space provider defaults to `core.file_collection`
-- kept existing core Space workflow as stable kernel behavior
+1. Update version references (`src/AppVersion.h`, `installer/Spaces.iss`, release notes docs).
+2. Build Debug and Release.
+3. Run `build/Debug/HostCoreTests.exe`.
+4. Build installer and verify `installer/output/Spaces-Setup-<version>.exe` exists.
+5. Verify startup, tray menu, settings persistence, and drag/drop behavior.
+6. Commit and push with release notes.
 
-### 0.0.009
+## Project Direction
 
-- introduced `AppKernel` platform layer around stable Space core behavior
-- added command dispatcher and routed tray actions via `Space.create` and `app.exit`
-- added plugin host, plugin contracts, and built-in plugin manifests
-- added menu contribution, settings registry, and Space-extension registry scaffolding
-- evolved persistence/model to include content-provider metadata with backward compatibility
-- documented phased migration from monolith to plugin-capable platform
+Spaces is consumer-first at the product layer and extension-friendly at the platform layer.
 
-### 0.0.008
+That means:
 
-- wrote origin metadata only after successful move completion
-- replaced delete-then-rename save flow with stronger atomic replacement behavior
-- prevented Space deletion when restore only partially succeeded
-- added proper keyboard-compatible context menu handling
-- reused cached image list during painting
-- improved logging detail for file operation failures
+- Everyday users should be able to install and use Spaces without reading engineering docs.
+- Developers should have clear extension points and predictable host behavior.
 
-### 0.0.007
+## Support
 
-- migrated persistence to structured JSON
-- removed hardcoded per-user log paths
-- centralized restore and delete behavior
-- added structured move results
-- added non-destructive restore naming
-- improved geometry persistence
-- improved long-path drag/drop handling
-- improved shutdown cleanup
+If you hit an issue, open a GitHub issue with:
 
-### 0.0.006 and earlier
-
-- established the base Space workflow, storage model, persistence, and desktop interaction foundation
-
-## Roadmap
-
-Phase A: Platform foundation
-
-- complete kernel service registration boundaries and diagnostics surfaces
-- keep core file-collection Space flow stable and first-class
-- mature plugin status reporting and plugin failure handling UX
-- evolve settings scaffold from shell to rich multi-page window
-
-Phase B: Built-in plugin migration
-
-- move tray behavior ownership fully into tray plugin while preserving command-driven routing
-- deliver appearance plugin basics and theme hooks for Space rendering
-- add plugin management settings page for enable/disable and health visibility
-
-Phase C: Advanced plugin capabilities
-
-- extract file collection behavior into default provider contract
-- prototype `folder_portal` provider through Explorer Space plugin
-- prototype `widget_panel` provider through widgets plugin
-- define desktop context integration path before any shell-extension rollout
-
-Near-term quality work across phases:
-
-- improve icon accuracy and rendering polish
-- finish rename UI
-- keep hardening filesystem edge cases
-- improve user-visible error feedback beyond logs
-
-Later:
-
-- better layout and item presentation
-- customization options
-- stronger keyboard and accessibility support
-- packaging and installer flow
-
-## Contributing
-
-Best contributions right now:
-
-- Win32 correctness fixes
-- file-safety improvements
-- UI polish
-- reproducible edge-case tests
-- build and runtime verification
-
-Recommended workflow:
-
-1. make a small focused change
-2. build the project
-3. run the app
-4. verify file move, restore, and startup behavior
-5. update README when behavior changes
-
-## Notes
-
-`IVOE-Spaces` is the broader and more advanced project.
-
-`Spaces` is the simpler, more direct project focused on a smaller Win32 Space implementation with strong emphasis on safe file handling and recoverable behavior.
+- what happened
+- expected behavior
+- steps to reproduce
+- logs from `%LOCALAPPDATA%\\SimpleSpaces\\` when available

@@ -2,6 +2,8 @@
 
 This directory contains the Inno Setup installer configuration for building a professional Windows installer for Spaces.
 
+Current installer version target: 1.01.010
+
 ## Building the Installer
 
 ### Prerequisites
@@ -21,7 +23,7 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 
 # 2. Build Installer
-$env:BUILD_OUTPUT_DIR = "..\build\bin\Release"
+$env:BUILD_OUTPUT_DIR = "$PWD\build\bin\Release"
 & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer\Spaces.iss
 ```
 
@@ -29,14 +31,14 @@ $env:BUILD_OUTPUT_DIR = "..\build\bin\Release"
 
 1. Open `installer/Spaces.iss` in the Inno Setup IDE
 2. Click **Build** → **Compile**
-3. Installer will be generated to `output/Spaces-Setup-1.01.004.exe`
+3. Installer will be generated to `installer/output/Spaces-Setup-1.01.010.exe`
 
 ### Output
 
 The generated installer will be placed in:
 
 ```
-Spaces/output/Spaces-Setup-1.01.004.exe
+Spaces/installer/output/Spaces-Setup-1.01.010.exe
 ```
 
 ## Installer Features
@@ -61,12 +63,17 @@ C:\Users\<user>\AppData\Local\Programs\Spaces\1.01.004\
     └── plugin-catalog.json
 ```
 
+Replace `1.01.004` with the current release version when validating a newer installer.
+
 **User Data (AppData):**
 ```
 %LOCALAPPDATA%\SimpleSpaces\
 ├── config.json
-├── settings.json
 ├── debug.log
+├── Spaces\
+│   ├── settings.json
+│   ├── themes\
+│   └── ...
 ├── plugins\
 ├── themes\
 └── cache\
@@ -139,6 +146,18 @@ SetupIconFile=installer\assets\Spaces.ico
 - Check Inno Setup version: `iscc.exe --version`
 - Ensure `BUILD_OUTPUT_DIR` environment variable is set correctly
 - Verify `build\bin\Release\Spaces.exe` exists
+
+## Installer Validation Checklist
+
+After producing `Spaces-Setup-<version>.exe`:
+
+1. Install on a clean user profile if possible.
+2. Launch app from Start Menu.
+3. Confirm tray icon appears.
+4. Create a new Space and validate drag/drop.
+5. Open Settings, change a setting, restart app, confirm persistence.
+6. Verify uninstall entry exists and uninstall removes app binaries.
+7. Confirm user data remains recoverable unless explicitly removed.
 
 ### Icon not appearing
 

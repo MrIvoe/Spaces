@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.01.010
+
+- Simplified default settings surface to a smaller, preset-first set of pages and controls for general users.
+- Rewrote README to a consumer-first structure with accurate install, safety, data-path, and release-publish guidance.
+- Expanded developer wiki onboarding with deep plugin creation, troubleshooting, and new-solution playbooks.
+- Updated installer documentation and added an explicit installer validation checklist.
+- Bumped app and installer version from 1.01.009 to 1.01.010.
+
 ## 1.01.009
 
 - Applied `appearance.ui.icon_size` preset to settings icon font rendering, including legacy alias support (`sm/md/lg`).
