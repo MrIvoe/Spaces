@@ -2786,8 +2786,14 @@ void SettingsWindow::DrawNavItem(const DRAWITEMSTRUCT* drawInfo)
     if ((drawInfo->itemState & ODS_FOCUS) != 0)
     {
         RECT focusRc = pillRc;
-        InflateRect(&focusRc, -2, -2);
-        DrawFocusRect(hdc, &focusRc);
+        InflateRect(&focusRc, -1, -1);
+        HPEN focusPen = CreatePen(PS_SOLID, 2, BlendColor(m_accentColor, RGB(255, 255, 255), 32));
+        HGDIOBJ oldFocusPen = SelectObject(hdc, focusPen);
+        HGDIOBJ oldFocusBrush = SelectObject(hdc, GetStockObject(HOLLOW_BRUSH));
+        RoundRect(hdc, focusRc.left, focusRc.top, focusRc.right, focusRc.bottom, 8, 8);
+        SelectObject(hdc, oldFocusBrush);
+        SelectObject(hdc, oldFocusPen);
+        DeleteObject(focusPen);
     }
 }
 
@@ -4918,12 +4924,88 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         const int chipToggleWidth = 76;
         const int chipChoiceWidth = 76;
         const int chipTextWidth = 58;
-        const int totalChipWidth = chipAllWidth + chipToggleWidth + chipChoiceWidth + chipTextWidth + (chipGap * 3);
-        const bool showMarketplaceSubTabs = IsBuiltinPluginsTabSelected();
+        bool showChipAll = true;
+        bool showChipToggle = true;
+        bool showChipChoice = true;
+        bool showChipText = true;
+
+        bool showMarketplaceSubTabs = IsBuiltinPluginsTabSelected();
         const int subTabGap = 6;
         const int subTabWidth = 90;
-        const int totalSubTabWidth = showMarketplaceSubTabs ? ((subTabWidth * 2) + subTabGap + 10) : 0;
-        const int searchWidth = (std::max)(180, width - navWidth - (margin * 3) - totalChipWidth - totalSubTabWidth - 10);
+        const int availableRowWidth = (std::max)(220, width - contentLeft - margin);
+
+        auto computeControlsWidth = [&]() -> int
+        {
+            int chipCount = 0;
+            int chipWidthTotal = 0;
+            if (showChipAll)
+            {
+                chipWidthTotal += chipAllWidth;
+                ++chipCount;
+            }
+            if (showChipToggle)
+            {
+                chipWidthTotal += chipToggleWidth;
+                ++chipCount;
+            }
+            if (showChipChoice)
+            {
+                chipWidthTotal += chipChoiceWidth;
+                ++chipCount;
+            }
+            if (showChipText)
+            {
+                chipWidthTotal += chipTextWidth;
+                ++chipCount;
+            }
+
+            if (chipCount > 1)
+            {
+                chipWidthTotal += (chipCount - 1) * chipGap;
+            }
+
+            int tabWidthTotal = 0;
+            if (showMarketplaceSubTabs)
+            {
+                tabWidthTotal = (subTabWidth * 2) + subTabGap;
+                if (chipWidthTotal > 0)
+                {
+                    tabWidthTotal += 10;
+                }
+            }
+
+            return chipWidthTotal + tabWidthTotal;
+        };
+
+        // Keep search/filter row stable at smaller widths by degrading optional controls.
+        const int kMinSearchWidth = 140;
+        while ((kMinSearchWidth + 10 + computeControlsWidth()) > availableRowWidth)
+        {
+            if (showMarketplaceSubTabs)
+            {
+                showMarketplaceSubTabs = false;
+                continue;
+            }
+            if (showChipText)
+            {
+                showChipText = false;
+                continue;
+            }
+            if (showChipChoice)
+            {
+                showChipChoice = false;
+                continue;
+            }
+            if (showChipToggle)
+            {
+                showChipToggle = false;
+                continue;
+            }
+            break;
+        }
+
+        const int controlsWidth = computeControlsWidth();
+        const int searchWidth = (std::max)(kMinSearchWidth, availableRowWidth - controlsWidth - 10);
 
         if (m_contentSearchEdit)
         {
@@ -4932,31 +5014,51 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                 reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         }
 
-        const int chipStartX = contentLeft + searchWidth + 10;
+        int nextControlX = contentLeft + searchWidth + 10;
         if (m_chipAllButton)
         {
-            MoveWindow(m_chipAllButton, chipStartX, searchY, chipAllWidth, kSearchRowHeight, TRUE);
+            ShowWindow(m_chipAllButton, showChipAll ? SW_SHOW : SW_HIDE);
+            if (showChipAll)
+            {
+                MoveWindow(m_chipAllButton, nextControlX, searchY, chipAllWidth, kSearchRowHeight, TRUE);
+                nextControlX += chipAllWidth + chipGap;
+            }
         }
         if (m_chipToggleButton)
         {
-            MoveWindow(m_chipToggleButton, chipStartX + chipAllWidth + chipGap, searchY, chipToggleWidth, kSearchRowHeight, TRUE);
+            ShowWindow(m_chipToggleButton, showChipToggle ? SW_SHOW : SW_HIDE);
+            if (showChipToggle)
+            {
+                MoveWindow(m_chipToggleButton, nextControlX, searchY, chipToggleWidth, kSearchRowHeight, TRUE);
+                nextControlX += chipToggleWidth + chipGap;
+            }
         }
         if (m_chipChoiceButton)
         {
-            MoveWindow(m_chipChoiceButton, chipStartX + chipAllWidth + chipGap + chipToggleWidth + chipGap, searchY, chipChoiceWidth, kSearchRowHeight, TRUE);
+            ShowWindow(m_chipChoiceButton, showChipChoice ? SW_SHOW : SW_HIDE);
+            if (showChipChoice)
+            {
+                MoveWindow(m_chipChoiceButton, nextControlX, searchY, chipChoiceWidth, kSearchRowHeight, TRUE);
+                nextControlX += chipChoiceWidth + chipGap;
+            }
         }
         if (m_chipTextButton)
         {
-            MoveWindow(m_chipTextButton, chipStartX + chipAllWidth + chipGap + chipToggleWidth + chipGap + chipChoiceWidth + chipGap, searchY, chipTextWidth, kSearchRowHeight, TRUE);
+            ShowWindow(m_chipTextButton, showChipText ? SW_SHOW : SW_HIDE);
+            if (showChipText)
+            {
+                MoveWindow(m_chipTextButton, nextControlX, searchY, chipTextWidth, kSearchRowHeight, TRUE);
+                nextControlX += chipTextWidth + chipGap;
+            }
         }
 
-        const int chipsEndX = chipStartX + totalChipWidth;
+        const int tabsStartX = nextControlX;
         if (m_marketplaceDiscoverTabButton)
         {
             if (showMarketplaceSubTabs)
             {
                 ShowWindow(m_marketplaceDiscoverTabButton, SW_SHOW);
-                MoveWindow(m_marketplaceDiscoverTabButton, chipsEndX + 10, searchY, subTabWidth, kSearchRowHeight, TRUE);
+                MoveWindow(m_marketplaceDiscoverTabButton, tabsStartX, searchY, subTabWidth, kSearchRowHeight, TRUE);
                 SendMessageW(m_marketplaceDiscoverTabButton, WM_SETFONT,
                     reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
             }
@@ -4971,7 +5073,7 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             if (showMarketplaceSubTabs)
             {
                 ShowWindow(m_marketplaceInstalledTabButton, SW_SHOW);
-                MoveWindow(m_marketplaceInstalledTabButton, chipsEndX + 10 + subTabWidth + subTabGap, searchY, subTabWidth, kSearchRowHeight, TRUE);
+                MoveWindow(m_marketplaceInstalledTabButton, tabsStartX + subTabWidth + subTabGap, searchY, subTabWidth, kSearchRowHeight, TRUE);
                 SendMessageW(m_marketplaceInstalledTabButton, WM_SETFONT,
                     reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
             }
