@@ -106,24 +106,37 @@ bool TrayMenu::Create(HINSTANCE hInstance)
 
     if (!Shell_NotifyIconW(NIM_ADD, &m_nid))
     {
-        Win32Helpers::LogError(L"Shell_NotifyIconW(NIM_ADD) failed.");
+        const DWORD error = GetLastError();
+        Win32Helpers::LogError(L"Shell_NotifyIconW(NIM_ADD) failed with error: " + std::to_wstring(error) +
+                               L". Tray icon will not appear. Check Windows version compatibility and taskbar state.");
         DestroyWindow(m_hwnd);
         m_hwnd = nullptr;
         ZeroMemory(&m_nid, sizeof(m_nid));
         return false;
     }
 
+    Win32Helpers::LogInfo(L"Tray icon registered successfully (NIM_ADD). uID=" + std::to_wstring(m_nid.uID));
+
     m_nid.uVersion = NOTIFYICON_VERSION_4;
     if (Shell_NotifyIconW(NIM_SETVERSION, &m_nid))
     {
         m_notifyMode = TrayNotifyMode::Version4;
+        Win32Helpers::LogInfo(L"Tray using NOTIFYICON_VERSION_4 (modern notify mode)");
     }
     else
     {
         m_notifyMode = TrayNotifyMode::Legacy;
+        Win32Helpers::LogInfo(L"Tray using Legacy notify mode (NOTIFYICON_VERSION_4 not supported; likely older Windows)");
     }
 
     RefreshTooltipText();
+
+    // Validate tray icon is actually registered before returning success
+    if (!IsTrayIconValid())
+    {
+        Win32Helpers::LogError(L"Tray icon registered but immediate validation check failed. Icon may not appear.");
+        // Don't fail here—icon might be registered but Shell_NotifyIconGetRect not available
+    }
 
     return true;
 }
@@ -139,6 +152,78 @@ void TrayMenu::Destroy()
     DestroyWindow(m_hwnd);
     m_hwnd = nullptr;
     ZeroMemory(&m_nid, sizeof(m_nid));
+}
+
+bool TrayMenu::IsTrayIconValid() const
+{
+    // Tray icon is valid if:
+    // 1. Message window exists
+    // 2. Icon was successfully registered (m_nid has valid data)
+    // 3. Icon is still registered with shell
+
+    if (!m_hwnd)
+    {
+        return false;
+    }
+
+    if (m_nid.uID == 0 || m_nid.hWnd != m_hwnd)
+    {
+        return false;
+    }
+
+    // Optional: Query shell to confirm icon is still registered
+    // This is a defensive check for scenarios where shell lost track of the icon
+    // (e.g., Explorer restart incomplete recovery)
+    NOTIFYICONIDENTIFIER nii{};
+    nii.cbSize = sizeof(nii);
+    nii.hWnd = m_hwnd;
+    nii.uID = m_nid.uID;
+
+    // If Shell_NotifyIconGetRect succeeds, the shell knows about our icon
+    RECT dummyRect{};
+    const HRESULT hr = Shell_NotifyIconGetRect(&nii, &dummyRect);
+    return hr == S_OK;
+}
+
+std::wstring TrayMenu::GetDiagnosticStatus() const
+{
+    std::wstring status;
+
+    status += L"[Tray Diagnostic Status]\n";
+    status += L"  Window handle: ";
+    status += (m_hwnd ? L"valid" : L"null");
+    status += L"\n";
+    
+    status += L"  Notify mode: ";
+    status += (m_notifyMode == TrayNotifyMode::Version4 ? L"Version4" : L"Legacy");
+    status += L"\n";
+    
+    status += L"  Icon ID: ";
+    status += std::to_wstring(m_nid.uID);
+    status += L"\n";
+    
+    status += L"  Icon valid: ";
+    status += std::wstring(IsTrayIconValid() ? L"yes" : L"no");
+    status += L"\n";
+    
+    status += L"  Taskbar message registered: ";
+    status += std::wstring(m_taskbarCreatedMessage != 0 ? L"yes" : L"no");
+    status += L"\n";
+
+    if (m_hwnd && IsWindow(m_hwnd))
+    {
+        status += L"  Window state: created and valid\n";
+    }
+    else if (m_hwnd)
+    {
+        status += L"  Window state: handle exists but IsWindow() failed\n";
+    }
+    else
+    {
+        status += L"  Window state: no window handle\n";
+    }
+
+    return status;
 }
 
 void TrayMenu::ShowContextMenu(POINT pt)
@@ -320,19 +405,37 @@ LRESULT TrayMenu::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     if (m_taskbarCreatedMessage != 0 && msg == m_taskbarCreatedMessage)
     {
+        // Taskbar was recreated (Explorer restarted). Re-register the tray icon.
+        // This is critical for tray resilience: if Explorer crashes, we must recover.
+        Win32Helpers::LogInfo(L"TaskbarCreated message received. Re-registering tray icon...");
+        
         if (m_hwnd)
         {
-            Shell_NotifyIconW(NIM_ADD, &m_nid);
+            if (!Shell_NotifyIconW(NIM_ADD, &m_nid))
+            {
+                Win32Helpers::LogError(L"Failed to re-register tray icon after Explorer restart (NIM_ADD failed)");
+            }
+            else
+            {
+                Win32Helpers::LogInfo(L"Tray icon re-registered successfully after Explorer restart");
+            }
+
             m_nid.uVersion = NOTIFYICON_VERSION_4;
             if (Shell_NotifyIconW(NIM_SETVERSION, &m_nid))
             {
                 m_notifyMode = TrayNotifyMode::Version4;
+                Win32Helpers::LogInfo(L"Tray mode restored to Version4 after Explorer restart");
             }
             else
             {
                 m_notifyMode = TrayNotifyMode::Legacy;
+                Win32Helpers::LogInfo(L"Tray mode restored to Legacy after Explorer restart");
             }
             RefreshTooltipText();
+        }
+        else
+        {
+            Win32Helpers::LogError(L"Received TaskbarCreated but tray window invalid. Cannot recover.");
         }
         return 0;
     }
@@ -350,8 +453,12 @@ LRESULT TrayMenu::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 (m_notifyMode == TrayNotifyMode::Legacy && trayEvent == WM_RBUTTONUP);
             if (!shouldOpen)
             {
+                // Diagnostic: Unexpected tray event for current mode (might be noise from dual-mode or deferred event)
                 return 0;
             }
+
+            // Diagnostic: Log context menu request
+            Win32Helpers::LogInfo(L"Tray context menu requested (event=" + std::to_wstring(trayEvent) + L")");
 
             POINT pt{};
             bool haveAnchor = false;
@@ -393,10 +500,17 @@ LRESULT TrayMenu::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         }
         case WM_LBUTTONDBLCLK:
         {
+            // Diagnostic: Log double-click toggle request
+            Win32Helpers::LogInfo(L"Tray double-click: toggling spaces visibility");
+            
             if (m_app && m_app->GetSpaceManager())
             {
                 m_app->GetSpaceManager()->ToggleAllSpacesHidden();
                 RefreshTooltipText();
+            }
+            else
+            {
+                Win32Helpers::LogError(L"Tray double-click: SpaceManager not available, toggle failed");
             }
             return 0;
         }

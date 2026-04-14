@@ -107,6 +107,17 @@ bool App::Initialize(HINSTANCE hInstance)
         return false;
     }
 
+    // Log tray diagnostic status at startup
+    Win32Helpers::LogInfo(m_tray->GetDiagnosticStatus());
+    if (!m_tray->IsTrayIconValid())
+    {
+        Win32Helpers::LogError(L"Tray icon diagnostics indicate potential issues. Icon may not be visible to user. Check Windows version and taskbar state.");
+    }
+    else
+    {
+        Win32Helpers::LogInfo(L"Tray icon validation passed at startup");
+    }
+
     const bool restoreOnStartup = (!m_kernel || !m_kernel->GetSettingsRegistry())
         ? true
         : (m_kernel->GetSettingsRegistry()->GetValue(L"spaces.window.restore_on_startup", L"true") == L"true");

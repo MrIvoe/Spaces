@@ -27,6 +27,12 @@ public:
     void ShowContextMenu(POINT pt);
     void RefreshTooltipText();
 
+    // Diagnostic: Verify tray icon is registered and functional
+    bool IsTrayIconValid() const;
+    
+    // Diagnostic: Get human-readable status for logging/debugging
+    std::wstring GetDiagnosticStatus() const;
+
 private:
     static LRESULT CALLBACK WndProcStatic(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     LRESULT WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
