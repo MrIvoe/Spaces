@@ -95,6 +95,25 @@ namespace
         return result;
     }
 
+    // Safely load a DLL using SEH so that a corrupt or ABI-incompatible plugin
+    // cannot raise a structured exception (e.g. STATUS_STACK_BUFFER_OVERRUN,
+    // STATUS_INVALID_IMAGE_FORMAT) that would silently kill the host process.
+    // Must be a standalone function — MSVC forbids C++ objects with destructors
+    // inside __try blocks, so keep this free of any RAII types.
+    HMODULE SafeLoadLibrary(const wchar_t* path) noexcept
+    {
+        HMODULE module = nullptr;
+        __try
+        {
+            module = LoadLibraryW(path);
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            module = nullptr;
+        }
+        return module;
+    }
+
     std::vector<std::filesystem::path> DiscoverExternalPluginDlls()
     {
         wchar_t modulePath[MAX_PATH]{};
@@ -202,12 +221,14 @@ bool PluginHost::LoadBuiltins(const PluginContext& context)
 
     for (const auto& dllPath : DiscoverExternalPluginDlls())
     {
-        HMODULE module = LoadLibraryW(dllPath.c_str());
+        HMODULE module = SafeLoadLibrary(dllPath.c_str());
         if (!module)
         {
             if (context.diagnostics)
             {
-                context.diagnostics->Warn(L"External plugin load failed: path='" + dllPath.wstring() + L"'");
+                context.diagnostics->Warn(
+                    L"External plugin load failed (load error or SEH): path='" + dllPath.wstring() +
+                    L"' win32err=" + std::to_wstring(GetLastError()));
             }
             continue;
         }
