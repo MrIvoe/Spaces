@@ -5485,6 +5485,48 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         const int topArea = TopAreaHeight();
         const COLORREF divider = BlendColor(m_windowColor, m_textColor, 28);
 
+        const RECT navPanel{
+            margin,
+            margin + topArea,
+            margin + navWidth,
+            rect.bottom - margin - kStatusHeight
+        };
+        const RECT contentPanel{
+            navWidth + (margin * 2),
+            margin + topArea,
+            rect.right - margin,
+            rect.bottom - margin - kStatusHeight
+        };
+
+        const COLORREF navPanelFill = BlendColor(m_navColor, m_windowColor, 46);
+        const COLORREF contentPanelFill = BlendColor(m_surfaceColor, m_windowColor, 24);
+        const COLORREF panelBorder = BlendColor(m_windowColor, m_textColor, 36);
+        const COLORREF accentEdge = BlendColor(m_accentColor, m_surfaceColor, 48);
+
+        HBRUSH navBrush = CreateSolidBrush(navPanelFill);
+        HBRUSH contentBrush = CreateSolidBrush(contentPanelFill);
+        HPEN panelPen = CreatePen(PS_SOLID, 1, panelBorder);
+
+        HGDIOBJ oldPenObj = SelectObject(hdc, panelPen);
+        HGDIOBJ oldBrushObj = SelectObject(hdc, navBrush);
+        RoundRect(hdc, navPanel.left, navPanel.top, navPanel.right, navPanel.bottom, 10, 10);
+
+        SelectObject(hdc, contentBrush);
+        RoundRect(hdc, contentPanel.left, contentPanel.top, contentPanel.right, contentPanel.bottom, 10, 10);
+
+        SelectObject(hdc, oldBrushObj);
+        SelectObject(hdc, oldPenObj);
+        DeleteObject(navBrush);
+        DeleteObject(contentBrush);
+        DeleteObject(panelPen);
+
+        HPEN accentPen = CreatePen(PS_SOLID, 2, accentEdge);
+        HPEN oldAccentPen = reinterpret_cast<HPEN>(SelectObject(hdc, accentPen));
+        MoveToEx(hdc, contentPanel.left + 8, contentPanel.top + 1, nullptr);
+        LineTo(hdc, contentPanel.right - 8, contentPanel.top + 1);
+        SelectObject(hdc, oldAccentPen);
+        DeleteObject(accentPen);
+
         HPEN pen = CreatePen(PS_SOLID, 1, divider);
         HPEN oldPen = reinterpret_cast<HPEN>(SelectObject(hdc, pen));
 

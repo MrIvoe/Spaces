@@ -40,7 +40,7 @@ Optional flags:
 4. Installer build:
    - uses `BUILD_OUTPUT_DIR=build/bin/Release`
    - compiles `installer/Spaces.iss`
-   - verifies output: `installer/output/Spaces-Setup-<version>.exe`
+   - verifies output: `installer/output/Spaces.<version>.exe`
 5. Non-runtime upload guard:
    - fails if git status includes paths under:
      - `build/`

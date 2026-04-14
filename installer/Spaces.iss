@@ -22,7 +22,7 @@
 #endif
 
 [Setup]
-AppId=SimpleSpaces.Spaces.{#MyAppVersion}
+AppId=SimpleSpaces.Spaces
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
@@ -30,13 +30,13 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={localappdata}\Programs\{#MyAppName}\{#MyAppVersion}
+DefaultDirName={localappdata}\Programs\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=output
-OutputBaseFilename=Spaces-Setup-{#MyAppVersion}
+OutputBaseFilename=Spaces.{#MyAppVersion}
 #ifdef SetupIconPath
 SetupIconFile={#SetupIconPath}
 #endif

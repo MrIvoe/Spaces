@@ -114,16 +114,6 @@ set_target_properties(Spaces PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
-# Always publish the latest built executable to installer/output for testing.
-set(SPACES_INSTALLER_OUTPUT_DIR "${CMAKE_SOURCE_DIR}/installer/output")
-add_custom_command(TARGET Spaces POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${SPACES_INSTALLER_OUTPUT_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:Spaces>"
-            "${SPACES_INSTALLER_OUTPUT_DIR}/Spaces.exe"
-    VERBATIM
-)
-
 # Enable Unicode
 if(MSVC)
     target_compile_options(Spaces PRIVATE /W4)

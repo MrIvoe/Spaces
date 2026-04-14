@@ -66,7 +66,7 @@ Download the latest installer from [Releases](https://github.com/MrIvoe/Spaces/r
 Example installer name:
 
 ```text
-Spaces-Setup-1.01.010.exe
+Spaces.1.01.010.exe
 ```
 
 After installation, launch Spaces from the Start Menu or Desktop shortcut and begin creating Spaces.

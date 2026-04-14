@@ -17,6 +17,18 @@ function Invoke-Step {
     Write-Host "OK: $Name" -ForegroundColor Green
 }
 
+function Invoke-Native {
+    param(
+        [Parameter(Mandatory = $true)][string]$Command,
+        [Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments
+    )
+
+    & $Command @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Command failed with exit code ${LASTEXITCODE}: $Command $($Arguments -join ' ')"
+    }
+}
+
 function Find-Iscc {
     $candidates = @(
         "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
@@ -87,7 +99,7 @@ $installerScript = Join-Path $repoRoot "installer\Spaces.iss"
 $releaseExe = Join-Path $repoRoot "build\bin\Release\Spaces.exe"
 $iscc = Find-Iscc
 $installerVersion = Get-InstallerVersion -InstallerScriptPath $installerScript
-$expectedInstaller = Join-Path $repoRoot "installer\output\Spaces-Setup-$installerVersion.exe"
+$expectedInstaller = Join-Path $repoRoot "installer\output\Spaces.$installerVersion.exe"
 
 Invoke-Step -Name "Validate required files" -Action {
     if (-not (Test-Path $solutionPath)) { throw "Missing solution file: $solutionPath" }
@@ -100,11 +112,11 @@ Invoke-Step -Name "Build app (Debug)" -Action {
         return
     }
 
-    & "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\MSBuild\Current\Bin\MSBuild.exe" $solutionPath /p:Configuration=Debug /v:minimal
+    Invoke-Native "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\MSBuild\Current\Bin\MSBuild.exe" $solutionPath "/p:Configuration=Debug" "/v:minimal"
 }
 
 Invoke-Step -Name "Build app (Release)" -Action {
-    & "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\MSBuild\Current\Bin\MSBuild.exe" $solutionPath /p:Configuration=Release /v:minimal
+    Invoke-Native "C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\MSBuild\Current\Bin\MSBuild.exe" $solutionPath "/p:Configuration=Release" "/v:minimal"
     if (-not (Test-Path $releaseExe)) {
         throw "Release executable not found: $releaseExe"
     }
@@ -116,12 +128,12 @@ Invoke-Step -Name "Run HostCoreTests" -Action {
         return
     }
 
-    & (Join-Path $repoRoot "build\Debug\HostCoreTests.exe")
+    Invoke-Native (Join-Path $repoRoot "build\Debug\HostCoreTests.exe")
 }
 
 Invoke-Step -Name "Build installer" -Action {
     $env:BUILD_OUTPUT_DIR = Join-Path $repoRoot "build\bin\Release"
-    & $iscc $installerScript | Out-Null
+    Invoke-Native $iscc $installerScript
     if (-not (Test-Path $expectedInstaller)) {
         throw "Expected installer artifact not found: $expectedInstaller"
     }

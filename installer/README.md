@@ -31,19 +31,20 @@ $env:BUILD_OUTPUT_DIR = "$PWD\build\bin\Release"
 
 1. Open `installer/Spaces.iss` in the Inno Setup IDE
 2. Click **Build** → **Compile**
-3. Installer will be generated to `installer/output/Spaces-Setup-1.01.010.exe`
+3. Installer will be generated to `installer/output/Spaces.1.01.010.exe`
 
 ### Output
 
 The generated installer will be placed in:
 
 ```
-Spaces/installer/output/Spaces-Setup-1.01.010.exe
+Spaces/installer/output/Spaces.1.01.010.exe
 ```
 
 ## Installer Features
 
-- ✅ Version-isolated installs (each setup installs only its release version)
+- ✅ Versioned installer artifacts (`Spaces.<version>.exe`) for easy rollback/testing
+- ✅ In-place upgrades (new installer updates existing installed app)
 - ✅ Start Menu shortcuts
 - ✅ Optional desktop shortcut
 - ✅ Optional launch on Windows startup
@@ -54,16 +55,14 @@ Spaces/installer/output/Spaces-Setup-1.01.010.exe
 
 ### After User Installation
 
-**Per-user versioned install path:**
+**Per-user install path:**
 ```
-C:\Users\<user>\AppData\Local\Programs\Spaces\1.01.004\
+C:\Users\<user>\AppData\Local\Programs\Spaces\
 ├── Spaces.exe
 ├── required-runtime-files.dll
 └── assets\
     └── plugin-catalog.json
 ```
-
-Replace `1.01.004` with the current release version when validating a newer installer.
 
 **User Data (AppData):**
 ```
@@ -149,7 +148,7 @@ SetupIconFile=installer\assets\Spaces.ico
 
 ## Installer Validation Checklist
 
-After producing `Spaces-Setup-<version>.exe`:
+After producing `Spaces.<version>.exe`:
 
 1. Install on a clean user profile if possible.
 2. Launch app from Start Menu.
