@@ -35,7 +35,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
-OutputDir=output
+OutputDir={#SourcePath}output
 OutputBaseFilename=Spaces.{#MyAppVersion}
 #ifdef SetupIconPath
 SetupIconFile={#SetupIconPath}
