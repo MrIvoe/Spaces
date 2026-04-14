@@ -115,6 +115,26 @@ namespace
         return plugin.loaded ? L"loaded" : L"failed";
     }
 
+    std::wstring PluginStateBadge(const PluginStatusView& plugin)
+    {
+        if (!plugin.enabled)
+        {
+            return L"[Disabled]";
+        }
+
+        if (plugin.compatibilityStatus == L"incompatible" || plugin.compatibilityStatus == L"rejected")
+        {
+            return L"[Incompatible]";
+        }
+
+        if (plugin.loaded)
+        {
+            return L"[Loaded]";
+        }
+
+        return L"[Failed]";
+    }
+
     std::wstring ToLowerCopy(std::wstring text)
     {
         std::transform(text.begin(), text.end(), text.begin(),
@@ -1292,9 +1312,41 @@ std::wstring SettingsWindow::BuildPluginsContent(const std::vector<PluginStatusV
     }
     text += L"\r\n\r\n";
 
+    int loadedCount = 0;
+    int failedCount = 0;
+    int disabledCount = 0;
+    int incompatibleCount = 0;
+    for (const auto& plugin : plugins)
+    {
+        if (!plugin.enabled)
+        {
+            ++disabledCount;
+        }
+        else if (plugin.loaded)
+        {
+            ++loadedCount;
+        }
+        else
+        {
+            ++failedCount;
+        }
+
+        if (plugin.compatibilityStatus == L"incompatible" || plugin.compatibilityStatus == L"rejected")
+        {
+            ++incompatibleCount;
+        }
+    }
+
+    text += L"Summary: ";
+    text += L"Loaded=" + std::to_wstring(loadedCount);
+    text += L", Failed=" + std::to_wstring(failedCount);
+    text += L", Disabled=" + std::to_wstring(disabledCount);
+    text += L", Incompatible=" + std::to_wstring(incompatibleCount) + L"\r\n\r\n";
+
     if (plugins.empty())
     {
-        text += L"No plugins registered.\r\n";
+        text += L"No plugins are currently registered.\r\n";
+        text += L"Try installing from Marketplace - Discover.\r\n";
         return text;
     }
 
@@ -1307,7 +1359,7 @@ std::wstring SettingsWindow::BuildPluginsContent(const std::vector<PluginStatusV
         }
 
         ++shown;
-        text += plugin.displayName + L" (" + plugin.id + L", v" + plugin.version + L")\r\n";
+        text += PluginStateBadge(plugin) + L" " + plugin.displayName + L" (" + plugin.id + L", v" + plugin.version + L")\r\n";
         text += L"State: " + PluginStateText(plugin) + L"\r\n";
         std::wstring startupOverride = L"inherit manifest default";
         if (m_settingsRegistry)
@@ -1341,6 +1393,7 @@ std::wstring SettingsWindow::BuildPluginsContent(const std::vector<PluginStatusV
     if (shown == 0)
     {
         text += L"No plugins matched the active filter.\r\n";
+        text += L"Try setting status filter to 'all' and clearing search text.\r\n";
     }
 
     return text;
@@ -1627,6 +1680,15 @@ std::wstring SettingsWindow::BuildDiagnosticsContent(const std::vector<PluginSta
     text += L"Compatibility healthy: " + std::to_wstring(compatible) + L"\r\n";
     text += L"Compatibility unknown: " + std::to_wstring(unknown) + L"\r\n\r\n";
 
+    if (failed > 0 || incompatible > 0)
+    {
+        text += L"Recommended next steps\r\n";
+        text += L"----------------------------------------\r\n";
+        text += L"1) Open Plugins tab and inspect entries marked [Failed] or [Incompatible].\r\n";
+        text += L"2) Review compatibility reason and last error details.\r\n";
+        text += L"3) Use refresh/apply action after fixing plugin state.\r\n\r\n";
+    }
+
     if (m_settingsRegistry)
     {
         const std::wstring lastReloadSummary = m_settingsRegistry->GetValue(L"settings.plugins.last_reload_summary", L"");
@@ -1841,6 +1903,7 @@ void SettingsWindow::PopulatePluginTree(size_t tabIndex)
     ClearPluginTree();
     
     // Populate tree with plugins
+    int inserted = 0;
     for (const auto& plugin : m_plugins)
     {
         // Add plugin as root item
@@ -1849,7 +1912,7 @@ void SettingsWindow::PopulatePluginTree(size_t tabIndex)
         tvi.hInsertAfter = TVI_LAST;
         tvi.item.mask = TVIF_TEXT | TVIF_STATE;
         
-        std::wstring displayText = plugin.displayName + L" (v" + plugin.version + L")";
+        std::wstring displayText = PluginStateBadge(plugin) + L" " + plugin.displayName + L" (v" + plugin.version + L")";
         tvi.item.pszText = const_cast<LPWSTR>(displayText.c_str());
         tvi.item.state = TVIS_EXPANDED;
         tvi.item.stateMask = TVIS_EXPANDED;
@@ -1859,6 +1922,8 @@ void SettingsWindow::PopulatePluginTree(size_t tabIndex)
         {
             continue;
         }
+
+        ++inserted;
         
         // Add status as child item
         TVINSERTSTRUCT tviStatus{};
@@ -1880,6 +1945,28 @@ void SettingsWindow::PopulatePluginTree(size_t tabIndex)
             tviCap.item.pszText = const_cast<LPWSTR>(capText.c_str());
             TreeView_InsertItem(m_pluginTreeView, &tviCap);
         }
+
+        if (!plugin.compatibilityReason.empty())
+        {
+            TVINSERTSTRUCT tviReason{};
+            tviReason.hParent = hPlugin;
+            tviReason.hInsertAfter = TVI_LAST;
+            tviReason.item.mask = TVIF_TEXT;
+            std::wstring reasonText = L"Reason: " + plugin.compatibilityReason;
+            tviReason.item.pszText = const_cast<LPWSTR>(reasonText.c_str());
+            TreeView_InsertItem(m_pluginTreeView, &tviReason);
+        }
+    }
+
+    if (inserted == 0)
+    {
+        TVINSERTSTRUCT tviEmpty{};
+        tviEmpty.hParent = TVI_ROOT;
+        tviEmpty.hInsertAfter = TVI_LAST;
+        tviEmpty.item.mask = TVIF_TEXT;
+        std::wstring emptyText = L"No plugins available.";
+        tviEmpty.item.pszText = const_cast<LPWSTR>(emptyText.c_str());
+        TreeView_InsertItem(m_pluginTreeView, &tviEmpty);
     }
 }
 
@@ -1943,12 +2030,32 @@ void SettingsWindow::UpdateShellHeaderAndStatus(size_t tabIndex)
     {
         subtitle = L"System status, plugin health, and global settings summary.";
     }
+    else if (tab.pluginId == L"builtin.settings")
+    {
+        subtitle = L"General app preferences and user-facing settings.";
+    }
+    else if (tab.pluginId == L"builtin.plugins")
+    {
+        subtitle = L"Install, enable, and troubleshoot plugins from one place.";
+    }
+    else if (tab.pluginId == L"community.visual_modes")
+    {
+        subtitle = L"Appearance controls and theme-related behavior.";
+    }
+    else if (tab.pluginId == L"builtin.explorer_portal")
+    {
+        subtitle = L"Folder portal behavior and content-provider options.";
+    }
     else
     {
         subtitle = L"Configure plugin behavior and appearance settings.";
         if (!tab.pageIndexes.empty())
         {
             subtitle += L" Pages: " + std::to_wstring(tab.pageIndexes.size()) + L".";
+        }
+        else
+        {
+            subtitle += L" This plugin currently has overview-only settings.";
         }
     }
 
