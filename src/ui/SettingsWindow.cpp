@@ -2031,34 +2031,34 @@ void SettingsWindow::UpdateShellHeaderAndStatus(size_t tabIndex)
     std::wstring subtitle;
     if (tab.pluginId == L"__overview__")
     {
-        subtitle = L"System status, plugin health, and global settings summary.";
+        subtitle = L"Quick summary of app health and your most important settings.";
     }
     else if (tab.pluginId == L"builtin.settings")
     {
-        subtitle = L"General app preferences and user-facing settings.";
+        subtitle = L"Everyday app preferences for behavior, startup, and layout.";
     }
     else if (tab.pluginId == L"builtin.plugins")
     {
-        subtitle = L"Install, enable, and troubleshoot plugins from one place.";
+        subtitle = L"Browse, install, and manage add-ons in one place.";
     }
     else if (tab.pluginId == L"community.visual_modes")
     {
-        subtitle = L"Appearance controls and theme-related behavior.";
+        subtitle = L"Adjust look and feel, themes, and visual style.";
     }
     else if (tab.pluginId == L"builtin.explorer_portal")
     {
-        subtitle = L"Folder portal behavior and content-provider options.";
+        subtitle = L"Control folder portal behavior and visibility.";
     }
     else
     {
-        subtitle = L"Configure plugin behavior and appearance settings.";
+        subtitle = L"Adjust options for this section.";
         if (!tab.pageIndexes.empty())
         {
-            subtitle += L" Pages: " + std::to_wstring(tab.pageIndexes.size()) + L".";
+            subtitle += L" " + std::to_wstring(tab.pageIndexes.size()) + L" page(s) available.";
         }
         else
         {
-            subtitle += L" This plugin currently has overview-only settings.";
+            subtitle += L" This section currently has overview information only.";
         }
     }
 
@@ -2096,13 +2096,17 @@ void SettingsWindow::UpdateShellHeaderAndStatus(size_t tabIndex)
         std::wstringstream status;
          static const wchar_t kSpinnerFrames[] = { L'|', L'/', L'-', L'\\' };
          const wchar_t spinner = kSpinnerFrames[m_marketplaceSpinnerFrame % 4];
-        status << L"Loaded plugins: " << loadedCount << L" / " << m_plugins.size()
-               << L"   |   Failed: " << failedCount
-               << L"   |   Active tab: " << tab.title
+         status << L"Active section: " << (tab.title.empty() ? L"Settings" : tab.title)
+             << L"   |   Add-ons running: " << loadedCount << L"/" << m_plugins.size();
+         if (failedCount > 0)
+         {
+             status << L"   |   Needs attention: " << failedCount;
+         }
+         status
              << (m_marketplaceStatusChip.empty()
                   ? L""
-                  : (std::wstring(L"   |   Marketplace ") + spinner + L" " + m_marketplaceStatusChip))
-               << L"   |   Ctrl+Tab switch  F1 help";
+                : (std::wstring(L"   |   Add-on catalog ") + spinner + L" " + m_marketplaceStatusChip))
+             << L"   |   Tips: Ctrl+Tab switch sections, F1 help";
         SetWindowTextW(m_statusBar, status.str().c_str());
     }
 }
@@ -4372,8 +4376,14 @@ void SettingsWindow::DrawShellButton(const DRAWITEMSTRUCT* drawInfo)
     if (focused)
     {
         RECT focusRc = buttonRc;
-        InflateRect(&focusRc, -3, -3);
-        DrawFocusRect(hdc, &focusRc);
+        InflateRect(&focusRc, -2, -2);
+        HPEN focusPen = CreatePen(PS_SOLID, 2, BlendColor(m_accentColor, RGB(255, 255, 255), 28));
+        HGDIOBJ oldFocusPen = SelectObject(hdc, focusPen);
+        HGDIOBJ oldFocusBrush = SelectObject(hdc, GetStockObject(HOLLOW_BRUSH));
+        RoundRect(hdc, focusRc.left, focusRc.top, focusRc.right, focusRc.bottom, radius, radius);
+        SelectObject(hdc, oldFocusBrush);
+        SelectObject(hdc, oldFocusPen);
+        DeleteObject(focusPen);
     }
 }
 
@@ -4524,7 +4534,7 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         m_menuEditButton = CreateWindowExW(
             0,
             L"BUTTON",
-            L"Edit",
+            L"Search",
             WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
             0,
             0,
@@ -4552,7 +4562,7 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         m_menuPluginsButton = CreateWindowExW(
             0,
             L"BUTTON",
-            L"Plugins",
+            L"Add-ons",
             WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
             0,
             0,
@@ -4576,6 +4586,10 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             reinterpret_cast<HMENU>(static_cast<INT_PTR>(kContentSearchId)),
             GetModuleHandleW(nullptr),
             nullptr);
+        if (m_contentSearchEdit)
+        {
+            SendMessageW(m_contentSearchEdit, EM_SETCUEBANNER, TRUE, reinterpret_cast<LPARAM>(L"Search settings"));
+        }
 
         m_chipAllButton = CreateWindowExW(
             0,
@@ -4594,7 +4608,7 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         m_chipToggleButton = CreateWindowExW(
             0,
             L"BUTTON",
-            L"Toggles",
+            L"Switches",
             WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
             0,
             0,
@@ -4608,7 +4622,7 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         m_chipChoiceButton = CreateWindowExW(
             0,
             L"BUTTON",
-            L"Choices",
+            L"Lists",
             WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
             0,
             0,
@@ -4622,7 +4636,7 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         m_chipTextButton = CreateWindowExW(
             0,
             L"BUTTON",
-            L"Text",
+            L"Text fields",
             WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
             0,
             0,
@@ -5162,8 +5176,8 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         auto* info = reinterpret_cast<MINMAXINFO*>(lParam);
         if (info)
         {
-            info->ptMinTrackSize.x = 640;
-            info->ptMinTrackSize.y = 480;
+            info->ptMinTrackSize.x = 760;
+            info->ptMinTrackSize.y = 540;
         }
         return 0;
     }
