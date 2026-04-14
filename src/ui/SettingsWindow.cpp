@@ -1064,6 +1064,9 @@ void SettingsWindow::ShowSelectedPluginTab()
         return;
     }
 
+    // Persist in-flight text edits before rebuilding the right pane.
+    CommitPendingTextFieldEdits();
+
     UpdateShellHeaderAndStatus(tabIndex);
     const bool showPluginTree = ShouldShowPluginTree();
 
