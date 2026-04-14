@@ -1,6 +1,8 @@
 param(
     [switch]$SkipDebugBuild,
-    [switch]$SkipTests
+    [switch]$SkipTests,
+    [string]$Version = "",     # Explicit version override, e.g. "1.01.012"
+    [switch]$NoVersionBump     # Skip auto-increment; rebuild and repackage at current version
 )
 
 $ErrorActionPreference = "Stop"
@@ -55,6 +57,35 @@ function Get-InstallerVersion {
     return $match.Matches[0].Groups[1].Value
 }
 
+function Step-PatchVersion {
+    param([Parameter(Mandatory = $true)][string]$CurrentVersion)
+
+    $parts = $CurrentVersion.Split('.')
+    if ($parts.Count -ne 3) {
+        throw "Unexpected version format '$CurrentVersion'. Expected X.YY.ZZZ (e.g. 1.01.010)."
+    }
+
+    $patchWidth = $parts[2].Length
+    $newPatch = ([int]$parts[2] + 1).ToString().PadLeft($patchWidth, '0')
+    return "$($parts[0]).$($parts[1]).$newPatch"
+}
+
+function Set-VersionInFiles {
+    param(
+        [Parameter(Mandatory = $true)][string]$AppVersionPath,
+        [Parameter(Mandatory = $true)][string]$InstallerScriptPath,
+        [Parameter(Mandatory = $true)][string]$NewVersion
+    )
+
+    $avContent = Get-Content -LiteralPath $AppVersionPath -Raw
+    $avUpdated = $avContent -replace '(kVersion\[\]\s*=\s*L")([0-9.]+)(")', "`${1}$NewVersion`${3}"
+    [System.IO.File]::WriteAllText($AppVersionPath, $avUpdated, [System.Text.UTF8Encoding]::new($false))
+
+    $issContent = Get-Content -LiteralPath $InstallerScriptPath -Raw
+    $issUpdated = $issContent -replace '(#define\s+MyAppVersion\s+")([0-9.]+)(")', "`${1}$NewVersion`${3}"
+    [System.IO.File]::WriteAllText($InstallerScriptPath, $issUpdated, [System.Text.UTF8Encoding]::new($false))
+}
+
 function Assert-NoForbiddenPathsInGitStatus {
     param([Parameter(Mandatory = $true)][string]$RepoRoot)
 
@@ -96,10 +127,41 @@ function Assert-NoForbiddenPathsInGitStatus {
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $solutionPath = Join-Path $repoRoot "build\Spaces.slnx"
 $installerScript = Join-Path $repoRoot "installer\Spaces.iss"
+$appVersionPath = Join-Path $repoRoot "src\AppVersion.h"
 $releaseExe = Join-Path $repoRoot "build\bin\Release\Spaces.exe"
 $iscc = Find-Iscc
-$installerVersion = Get-InstallerVersion -InstallerScriptPath $installerScript
+
+# Read current version from AppVersion.h (single source of truth)
+$currentVersionMatch = Select-String -LiteralPath $appVersionPath -Pattern 'kVersion\[\]\s*=\s*L"([0-9.]+)"'
+if (-not $currentVersionMatch) {
+    throw "Could not find kVersion in $appVersionPath"
+}
+$currentVersion = $currentVersionMatch.Matches[0].Groups[1].Value
+
+# Determine target version
+if ($Version -ne "") {
+    $targetVersion = $Version
+    Write-Host "Version override: $currentVersion → $targetVersion" -ForegroundColor Magenta
+} elseif ($NoVersionBump) {
+    $targetVersion = $currentVersion
+    Write-Host "Version: $currentVersion (no bump; repackaging current)" -ForegroundColor Yellow
+} else {
+    $targetVersion = Step-PatchVersion -CurrentVersion $currentVersion
+    Write-Host "Version: $currentVersion → $targetVersion (auto-increment)" -ForegroundColor Magenta
+}
+
+$installerVersion = $targetVersion
 $expectedInstaller = Join-Path $repoRoot "installer\output\Spaces.$installerVersion.exe"
+
+Invoke-Step -Name "Bump version to $targetVersion" -Action {
+    if ($targetVersion -eq $currentVersion) {
+        Write-Host "No version change ($currentVersion). Skipping file updates." -ForegroundColor Yellow
+        return
+    }
+    Set-VersionInFiles -AppVersionPath $appVersionPath -InstallerScriptPath $installerScript -NewVersion $targetVersion
+    Write-Host "  src/AppVersion.h     → $targetVersion"
+    Write-Host "  installer/Spaces.iss → $targetVersion"
+}
 
 Invoke-Step -Name "Validate required files" -Action {
     if (-not (Test-Path $solutionPath)) { throw "Missing solution file: $solutionPath" }
@@ -144,4 +206,24 @@ Invoke-Step -Name "Check git status for non-runtime uploads" -Action {
 }
 
 Write-Host "`nRelease checklist passed." -ForegroundColor Green
+Write-Host "Version:            $installerVersion" -ForegroundColor Green
 Write-Host "Installer artifact: $expectedInstaller" -ForegroundColor Green
+
+Write-Host "`n==> Next Steps" -ForegroundColor Cyan
+if ($targetVersion -ne $currentVersion) {
+    Write-Host "1. Commit the version bump:" -ForegroundColor White
+    Write-Host "     git add src/AppVersion.h installer/Spaces.iss" -ForegroundColor DarkGray
+    Write-Host "     git commit -m `"release: Bump version to $installerVersion`"" -ForegroundColor DarkGray
+} else {
+    Write-Host "1. Version was not bumped. Re-run without -NoVersionBump to increment." -ForegroundColor Yellow
+}
+Write-Host "2. Update CHANGELOG.md with changes for $installerVersion, then commit:" -ForegroundColor White
+Write-Host "     git add CHANGELOG.md" -ForegroundColor DarkGray
+Write-Host "     git commit -m `"docs: CHANGELOG for $installerVersion`"" -ForegroundColor DarkGray
+Write-Host "3. Push and tag the release:" -ForegroundColor White
+Write-Host "     git push origin main" -ForegroundColor DarkGray
+Write-Host "     git tag v$installerVersion" -ForegroundColor DarkGray
+Write-Host "     git push origin v$installerVersion" -ForegroundColor DarkGray
+Write-Host "4. Upload installer to GitHub Releases:" -ForegroundColor White
+Write-Host "     $expectedInstaller" -ForegroundColor Yellow
+Write-Host "5. Smoke test the installer on a clean profile before announcing." -ForegroundColor White
