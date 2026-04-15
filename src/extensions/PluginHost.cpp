@@ -114,6 +114,36 @@ namespace
         return module;
     }
 
+    IPlugin* SafeCreatePlugin(CreatePluginFn createPlugin) noexcept
+    {
+        IPlugin* instance = nullptr;
+        __try
+        {
+            instance = createPlugin ? createPlugin() : nullptr;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            instance = nullptr;
+        }
+        return instance;
+    }
+
+    void SafeDestroyPlugin(DestroyPluginFn destroyPlugin, IPlugin* plugin) noexcept
+    {
+        if (!destroyPlugin || !plugin)
+        {
+            return;
+        }
+
+        __try
+        {
+            destroyPlugin(plugin);
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+        }
+    }
+
     std::vector<std::filesystem::path> DiscoverExternalPluginDlls()
     {
         wchar_t modulePath[MAX_PATH]{};
@@ -157,6 +187,24 @@ namespace
 
         std::sort(dllPaths.begin(), dllPaths.end());
         return dllPaths;
+    }
+
+    bool ShouldLoadExternalPlugins(const PluginContext& context)
+    {
+        // Safety-first default: external plugins are disabled unless explicitly
+        // enabled via environment variable for controlled troubleshooting.
+        bool enabled = false;
+
+        (void)context;
+
+        wchar_t envValue[8]{};
+        const DWORD envLen = GetEnvironmentVariableW(L"SIMPLESPACES_ENABLE_EXTERNAL_PLUGINS", envValue, static_cast<DWORD>(std::size(envValue)));
+        if (envLen > 0)
+        {
+            enabled = (_wcsicmp(envValue, L"1") == 0 || _wcsicmp(envValue, L"true") == 0 || _wcsicmp(envValue, L"yes") == 0);
+        }
+
+        return enabled;
     }
 }
 
@@ -219,60 +267,62 @@ bool PluginHost::LoadBuiltins(const PluginContext& context)
         return false;
     }
 
-    for (const auto& dllPath : DiscoverExternalPluginDlls())
+    if (!ShouldLoadExternalPlugins(context))
     {
-        HMODULE module = SafeLoadLibrary(dllPath.c_str());
-        if (!module)
+        if (context.diagnostics)
         {
-            if (context.diagnostics)
+            context.diagnostics->Warn(L"External plugins are disabled by current policy. Set SIMPLESPACES_ENABLE_EXTERNAL_PLUGINS=1 to opt in.");
+        }
+    }
+    else
+    {
+        for (const auto& dllPath : DiscoverExternalPluginDlls())
+        {
+            HMODULE module = SafeLoadLibrary(dllPath.c_str());
+            if (!module)
             {
-                context.diagnostics->Warn(
-                    L"External plugin load failed (load error or SEH): path='" + dllPath.wstring() +
-                    L"' win32err=" + std::to_wstring(GetLastError()));
+                if (context.diagnostics)
+                {
+                    context.diagnostics->Warn(
+                        L"External plugin load failed (load error or SEH): path='" + dllPath.wstring() +
+                        L"' win32err=" + std::to_wstring(GetLastError()));
+                }
+                continue;
             }
-            continue;
-        }
 
-        auto createPlugin = reinterpret_cast<CreatePluginFn>(GetProcAddress(module, "CreatePlugin"));
-        auto destroyPlugin = reinterpret_cast<DestroyPluginFn>(GetProcAddress(module, "DestroyPlugin"));
-        if (!createPlugin || !destroyPlugin)
-        {
-            if (context.diagnostics)
+            auto createPlugin = reinterpret_cast<CreatePluginFn>(GetProcAddress(module, "CreatePlugin"));
+            auto destroyPlugin = reinterpret_cast<DestroyPluginFn>(GetProcAddress(module, "DestroyPlugin"));
+            if (!createPlugin || !destroyPlugin)
             {
-                context.diagnostics->Warn(L"External plugin missing factory exports: path='" + dllPath.wstring() + L"'");
+                if (context.diagnostics)
+                {
+                    context.diagnostics->Warn(L"External plugin missing factory exports: path='" + dllPath.wstring() + L"'");
+                }
+                FreeLibrary(module);
+                continue;
             }
-            FreeLibrary(module);
-            continue;
-        }
 
-        IPlugin* instance = nullptr;
-        try
-        {
-            instance = createPlugin();
-        }
-        catch (...)
-        {
-            instance = nullptr;
-        }
+            IPlugin* instance = SafeCreatePlugin(createPlugin);
 
-        if (!instance)
-        {
-            if (context.diagnostics)
+            if (!instance)
             {
-                context.diagnostics->Warn(L"External plugin factory returned null: path='" + dllPath.wstring() + L"'");
+                if (context.diagnostics)
+                {
+                    context.diagnostics->Warn(L"External plugin factory failed (exception/SEH/null): path='" + dllPath.wstring() + L"'");
+                }
+                FreeLibrary(module);
+                continue;
             }
-            FreeLibrary(module);
-            continue;
-        }
 
-        auto loadedPlugin = std::make_unique<LoadedPlugin>();
-        loadedPlugin->module = module;
-        loadedPlugin->external = true;
-        loadedPlugin->sourcePath = dllPath.wstring();
-        loadedPlugin->instance = std::unique_ptr<IPlugin, LoadedPlugin::PluginDeleter>(instance, [destroyPlugin](IPlugin* plugin) {
-            destroyPlugin(plugin);
-        });
-        discoveredPlugins.push_back(std::move(loadedPlugin));
+            auto loadedPlugin = std::make_unique<LoadedPlugin>();
+            loadedPlugin->module = module;
+            loadedPlugin->external = true;
+            loadedPlugin->sourcePath = dllPath.wstring();
+            loadedPlugin->instance = std::unique_ptr<IPlugin, LoadedPlugin::PluginDeleter>(instance, [destroyPlugin](IPlugin* plugin) {
+                SafeDestroyPlugin(destroyPlugin, plugin);
+            });
+            discoveredPlugins.push_back(std::move(loadedPlugin));
+        }
     }
 
     bool allLoaded = true;

@@ -2,7 +2,7 @@
 ; This script creates a professional Windows installer for the Spaces application
 
 #define MyAppName "Spaces"
-#define MyAppVersion "1.01.011"
+#define MyAppVersion "1.01.012"
 #define MyAppPublisher "SimpleSpaces"
 #define MyAppURL "https://github.com/MrIvoe/Spaces"
 #define MyAppExeName "Spaces.exe"
@@ -85,6 +85,13 @@ Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDi
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
+[InstallDelete]
+; Remove all DLLs from a previous installation so renamed/removed libraries
+; do not accumulate across upgrades.
+Type: files; Name: "{app}\*.dll"
+; Remove the main executable so the new build is always laid down fresh.
+Type: files; Name: "{app}\{#MyAppExeName}"
+
 [Registry]
 ; Register app in Add/Remove Programs
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue; Tasks: startup
@@ -93,6 +100,26 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: 
 ; Root: HKCR; Subkey: ".spaces"; ValueType: string; ValueName: ""; ValueData: "SpacesFile"; Flags: uninsdeletekey
 
 [Code]
+{ Kill any running Spaces.exe instances before files are written so the
+  installer does not fail with "file in use" errors. }
+procedure KillRunningApp;
+var
+  ResultCode: Integer;
+begin
+  Exec('taskkill.exe', '/F /IM {#MyAppExeName}', '', SW_HIDE,
+       ewWaitUntilTerminated, ResultCode);
+  { Brief pause to let Windows fully release the file handles }
+  Sleep(800);
+end;
+
+{ Called by Inno Setup before files are installed – the ideal hook for
+  stopping the running process. Returning a non-empty string aborts setup. }
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  KillRunningApp;
+  Result := '';
+end;
+
 procedure InitializeWizard;
 begin
   { Custom initialization can happen here }

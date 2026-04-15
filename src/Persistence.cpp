@@ -138,6 +138,10 @@ bool Persistence::LoadSpaces(std::vector<SpaceModel>& spaces)
             space.labelsOnHover = item.value("labelsOnHover", true);
             space.iconSpacingPreset = FromUtf8(item.value("iconSpacingPreset", std::string{"comfortable"}));
             space.inheritThemePolicy = item.value("inheritThemePolicy", true);
+            space.parentFenceId = FromUtf8(item.value("parentFenceId", std::string{}));
+            space.groupId = FromUtf8(item.value("groupId", std::string{}));
+            space.layoutMode = FromUtf8(item.value("layoutMode", std::string{"free"}));
+            space.zOrderPriority = item.value("zOrderPriority", 0);
 
             if (space.contentType.empty())
             {
@@ -197,7 +201,11 @@ bool Persistence::SaveSpaces(const std::vector<SpaceModel>& spaces)
                 {"transparentWhenNotHovered", space.transparentWhenNotHovered},
                 {"labelsOnHover", space.labelsOnHover},
                 {"iconSpacingPreset", ToUtf8(space.iconSpacingPreset)},
-                {"inheritThemePolicy", space.inheritThemePolicy}
+                {"inheritThemePolicy", space.inheritThemePolicy},
+                {"parentFenceId", ToUtf8(space.parentFenceId)},
+                {"groupId", ToUtf8(space.groupId)},
+                {"layoutMode", ToUtf8(space.layoutMode)},
+                {"zOrderPriority", space.zOrderPriority}
             });
         }
 

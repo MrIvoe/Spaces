@@ -266,7 +266,6 @@ namespace
         else if (key == L"harbor-blue") palette.accentColor = RGB(52, 126, 184);
         else if (key == L"ivory-bureau") palette.accentColor = RGB(147, 128, 94);
         else if (key == L"mono-minimal") palette.accentColor = RGB(120, 124, 129);
-        else if (key == L"neon-cyberpunk") palette.accentColor = RGB(235, 63, 255);
         else if (key == L"nocturne-dark") palette.accentColor = RGB(109, 96, 178);
         else if (key == L"nova-futuristic") palette.accentColor = RGB(86, 190, 255);
         else if (key == L"olive-terminal") palette.accentColor = RGB(146, 170, 83);
@@ -275,6 +274,26 @@ namespace
         else if (key == L"storm-steel") palette.accentColor = RGB(94, 124, 152);
         else if (key == L"sunset-retro") palette.accentColor = RGB(236, 129, 84);
         else if (key == L"tape-lo-fi") palette.accentColor = RGB(121, 112, 137);
+
+        // Neon Cyberpunk: full dedicated dark palette — deep space foundation,
+        // cyan interactive truth, yellow tactical secondary.
+        if (key == L"neon-cyberpunk")
+        {
+            palette.windowColor       = RGB(9,  11, 17);   // #09 0B 11 – canvas black-blue
+            palette.surfaceColor      = RGB(15, 19, 26);   // #0F 13 1A – elevated surface
+            palette.navColor          = RGB(11, 14, 20);   // #0B 0E 14 – deep nav rail
+            palette.textColor         = RGB(220, 230, 245);// #DC E6 F5 – crisp primary text
+            palette.subtleTextColor   = RGB(115, 135, 165);// #73 87 A5 – secondary
+            palette.accentColor       = RGB(0, 229, 255);  // #00 E5 FF – cyan interactive truth
+            palette.borderColor       = RGB(30, 40, 56);   // dim structural border
+
+            // Space fences: dark steel titlebar with thin cyan tint
+            palette.spaceTitleBarColor   = RGB(14, 20, 30);
+            palette.spaceTitleTextColor  = RGB(200, 220, 245);
+            palette.spaceItemTextColor   = RGB(170, 195, 225);
+            palette.spaceItemHoverColor  = BlendColor(RGB(14, 20, 30), RGB(0, 229, 255), 28);
+            return palette;
+        }
 
         palette.spaceTitleBarColor = BlendColor(palette.spaceTitleBarColor, palette.accentColor, dark ? 120 : 90);
         palette.borderColor = BlendColor(palette.borderColor, palette.accentColor, 72);

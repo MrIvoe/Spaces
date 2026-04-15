@@ -36,6 +36,12 @@ struct SpaceModel
     bool labelsOnHover = true;
     std::wstring iconSpacingPreset = L"comfortable"; // compact | comfortable | spacious
     bool inheritThemePolicy = true;
+
+    // Local stack/group/container metadata.
+    std::wstring parentFenceId;
+    std::wstring groupId;
+    std::wstring layoutMode = L"free"; // free | stacked | contained
+    int zOrderPriority = 0;
 };
 
 struct FileMoveResult

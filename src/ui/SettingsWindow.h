@@ -141,6 +141,8 @@ private:
     HWND m_chipToggleButton = nullptr;
     HWND m_chipChoiceButton = nullptr;
     HWND m_chipTextButton = nullptr;
+    HWND m_modeBasicButton = nullptr;
+    HWND m_modeAdvancedButton = nullptr;
     HWND m_marketplaceDiscoverTabButton = nullptr;
     HWND m_marketplaceInstalledTabButton = nullptr;
     HWND m_pluginTreeView = nullptr;
@@ -166,6 +168,7 @@ private:
     std::unordered_map<HWND, SettingsFieldType> m_fieldSurfaceTypes;
     std::vector<RECT>                         m_sectionCardRects;
     std::unordered_set<HWND>                  m_rightPaneTextStatics;
+    std::unordered_set<HWND>                  m_sectionHeaderStatics;
     int                                       m_nextControlId = 2000;
     int                                       m_rightPaneScrollY = 0;
     int                                       m_rightPaneContentHeight = 0;
@@ -208,6 +211,7 @@ private:
     std::wstring m_contentSearchQuery;
     int m_activeContentChip = 0;
     int m_marketplaceSubTab = 0; // 0=Discover, 1=Installed
+    bool m_showAdvancedSettings = false;
 
     static constexpr int kNavToggleId = 100;
     static constexpr int kNavId  = 101;
@@ -225,9 +229,11 @@ private:
     static constexpr int kChipToggleId = 113;
     static constexpr int kChipChoiceId = 114;
     static constexpr int kChipTextId = 115;
-    static constexpr int kMarketplaceDiscoverTabId = 116;
-    static constexpr int kMarketplaceInstalledTabId = 117;
-    static constexpr int kPluginTreeViewId = 118;
+    static constexpr int kModeBasicId = 116;
+    static constexpr int kModeAdvancedId = 117;
+    static constexpr int kMarketplaceDiscoverTabId = 118;
+    static constexpr int kMarketplaceInstalledTabId = 119;
+    static constexpr int kPluginTreeViewId = 120;
     static constexpr UINT kMenuCmdSaveSettings = 5201;
     static constexpr UINT kMenuCmdCloseSettings = 5202;
     static constexpr UINT kMenuCmdUndo = 5211;

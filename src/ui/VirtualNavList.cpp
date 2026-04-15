@@ -9,6 +9,19 @@ namespace {
 const wchar_t* kVirtualNavListClass = L"SimpleSpaces_VirtualNavList";
 constexpr int kItemHeight = 36;
 constexpr int kIconSize = 20;
+
+COLORREF BlendColor(COLORREF from, COLORREF to, int alpha) {
+    alpha = (alpha < 0) ? 0 : ((alpha > 255) ? 255 : alpha);
+    const int inv = 255 - alpha;
+    const BYTE red = static_cast<BYTE>(((GetRValue(from) * inv) + (GetRValue(to) * alpha)) / 255);
+    const BYTE green = static_cast<BYTE>(((GetGValue(from) * inv) + (GetGValue(to) * alpha)) / 255);
+    const BYTE blue = static_cast<BYTE>(((GetBValue(from) * inv) + (GetBValue(to) * alpha)) / 255);
+    return RGB(red, green, blue);
+}
+
+bool IsCyberTheme(COLORREF windowColor) {
+    return GetRValue(windowColor) == 9 && GetGValue(windowColor) == 11 && GetBValue(windowColor) == 17;
+}
 }
 
 VirtualNavList::VirtualNavList(HWND parent, const ThemePlatform* themePlatform)
@@ -64,6 +77,12 @@ void VirtualNavList::SetOnItemClick(ItemClickCallback cb) {
     m_onItemClick = std::move(cb);
 }
 
+void VirtualNavList::SetFonts(HFONT textFont, HFONT iconFont) {
+    m_textFont = textFont;
+    m_iconFont = iconFont;
+    Invalidate();
+}
+
 void VirtualNavList::Invalidate() {
     if (m_hwnd) InvalidateRect(m_hwnd, nullptr, FALSE);
 }
@@ -114,6 +133,34 @@ LRESULT VirtualNavList::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         EndPaint(hwnd, &ps);
         return 0;
     }
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_MOUSEMOVE: {
+        TRACKMOUSEEVENT tme{};
+        tme.cbSize = sizeof(tme);
+        tme.dwFlags = TME_LEAVE;
+        tme.hwndTrack = hwnd;
+        if (!m_trackingMouse) {
+            TrackMouseEvent(&tme);
+            m_trackingMouse = true;
+        }
+
+        const int y = GET_Y_LPARAM(lParam);
+        const int idx = ItemFromPoint(y + m_scrollOffset);
+        const int hover = (idx >= 0 && idx < static_cast<int>(m_items.size())) ? idx : -1;
+        if (hover != m_hoverIndex) {
+            m_hoverIndex = hover;
+            Invalidate();
+        }
+        return 0;
+    }
+    case WM_MOUSELEAVE:
+        m_trackingMouse = false;
+        if (m_hoverIndex != -1) {
+            m_hoverIndex = -1;
+            Invalidate();
+        }
+        return 0;
     case WM_MOUSEWHEEL: {
         int delta = GET_WHEEL_DELTA_WPARAM(wParam);
         int lines = -delta / WHEEL_DELTA * kItemHeight;
@@ -186,7 +233,16 @@ LRESULT VirtualNavList::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 void VirtualNavList::Paint(HDC hdc) {
     RECT client{};
     GetClientRect(m_hwnd, &client);
-    HBRUSH bg = CreateSolidBrush(RGB(245,245,245));
+
+    ThemePalette palette;
+    if (m_themePlatform) {
+        palette = m_themePlatform->BuildPalette();
+    }
+
+    const bool cyber = IsCyberTheme(palette.windowColor);
+    const bool collapsed = (client.right - client.left) <= 96;
+
+    HBRUSH bg = CreateSolidBrush(palette.navColor);
     FillRect(hdc, &client, bg);
     DeleteObject(bg);
 
@@ -198,16 +254,93 @@ void VirtualNavList::Paint(HDC hdc) {
         int y = yOffset + i * kItemHeight;
         RECT itemRc = {0, y, client.right, y + kItemHeight};
         const auto& item = m_items[first + i];
-        COLORREF bgColor = item.selected ? RGB(220,235,255) : RGB(245,245,245);
-        HBRUSH itemBg = CreateSolidBrush(bgColor);
-        FillRect(hdc, &itemRc, itemBg);
-        DeleteObject(itemBg);
+        const bool hovered = (m_hoverIndex == (first + i));
+
+        RECT rowRc = itemRc;
+        InflateRect(&rowRc, -4, -3);
+
+        if (item.selected || hovered) {
+            const COLORREF rowFill = item.selected
+                ? BlendColor(palette.navColor, palette.accentColor, cyber ? 42 : 76)
+                : BlendColor(palette.navColor, palette.accentColor, cyber ? 16 : 28);
+            HBRUSH itemBg = CreateSolidBrush(rowFill);
+            FillRect(hdc, &rowRc, itemBg);
+            DeleteObject(itemBg);
+        }
+
+        if (item.selected) {
+            RECT beamRc = rowRc;
+            beamRc.right = beamRc.left + (cyber ? 3 : 4);
+            HBRUSH beamBrush = CreateSolidBrush(palette.accentColor);
+            FillRect(hdc, &beamRc, beamBrush);
+            DeleteObject(beamBrush);
+        }
+
         SetBkMode(hdc, TRANSPARENT);
-        SetTextColor(hdc, item.enabled ? RGB(30,30,30) : RGB(180,180,180));
-        RECT textRc = itemRc;
-        textRc.left += 12 + kIconSize;
-        DrawTextW(hdc, item.text.c_str(), -1, &textRc, DT_SINGLELINE | DT_VCENTER | DT_LEFT);
-        // TODO: Draw iconGlyph if present
+
+        RECT iconRc = rowRc;
+        iconRc.left += collapsed ? ((rowRc.right - rowRc.left - kIconSize) / 2) : 14;
+        iconRc.top += ((rowRc.bottom - rowRc.top - kIconSize) / 2);
+        iconRc.right = iconRc.left + kIconSize;
+        iconRc.bottom = iconRc.top + kIconSize;
+
+        if (!collapsed) {
+            const COLORREF chipFill = item.selected
+                ? (cyber ? BlendColor(palette.accentColor, RGB(0, 0, 0), 60)
+                         : BlendColor(palette.accentColor, RGB(255, 255, 255), 28))
+                : BlendColor(palette.surfaceColor, palette.textColor, hovered ? 30 : 18);
+            const COLORREF chipBorder = BlendColor(chipFill, cyber ? palette.accentColor : palette.textColor, cyber ? 90 : 24);
+            HPEN chipPen = CreatePen(PS_SOLID, 1, chipBorder);
+            HBRUSH chipBrush = CreateSolidBrush(chipFill);
+            HGDIOBJ oldPen = SelectObject(hdc, chipPen);
+            HGDIOBJ oldBrush = SelectObject(hdc, chipBrush);
+            if (cyber) {
+                Rectangle(hdc, iconRc.left - 4, iconRc.top - 4, iconRc.right + 4, iconRc.bottom + 4);
+            } else {
+                RoundRect(hdc, iconRc.left - 4, iconRc.top - 4, iconRc.right + 4, iconRc.bottom + 4, 8, 8);
+            }
+            SelectObject(hdc, oldBrush);
+            SelectObject(hdc, oldPen);
+            DeleteObject(chipBrush);
+            DeleteObject(chipPen);
+        }
+
+        const COLORREF glyphColor = item.selected
+            ? (cyber ? palette.accentColor : RGB(255, 255, 255))
+            : BlendColor(palette.textColor, palette.accentColor, hovered ? 42 : 24);
+        const COLORREF textColor = item.enabled
+            ? (item.selected ? (cyber ? palette.accentColor : RGB(255, 255, 255)) : palette.textColor)
+            : BlendColor(palette.textColor, palette.surfaceColor, 120);
+
+        HFONT oldFont = reinterpret_cast<HFONT>(SelectObject(hdc, m_iconFont ? m_iconFont : (m_textFont ? m_textFont : GetStockObject(DEFAULT_GUI_FONT))));
+        SetTextColor(hdc, glyphColor);
+        DrawTextW(hdc, item.iconGlyph.c_str(), -1, &iconRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(hdc, oldFont);
+
+        if (!collapsed) {
+            RECT textRc = rowRc;
+            textRc.left = iconRc.right + 18;
+            oldFont = reinterpret_cast<HFONT>(SelectObject(hdc, m_textFont ? m_textFont : GetStockObject(DEFAULT_GUI_FONT)));
+            SetTextColor(hdc, textColor);
+            DrawTextW(hdc, item.text.c_str(), -1, &textRc, DT_SINGLELINE | DT_VCENTER | DT_LEFT | DT_END_ELLIPSIS);
+            SelectObject(hdc, oldFont);
+        }
+
+        if (GetFocus() == m_hwnd && item.selected) {
+            RECT focusRc = rowRc;
+            InflateRect(&focusRc, -1, -1);
+            HPEN focusPen = CreatePen(PS_SOLID, 1, BlendColor(palette.accentColor, RGB(255, 255, 255), cyber ? 20 : 40));
+            HGDIOBJ oldFocusPen = SelectObject(hdc, focusPen);
+            HGDIOBJ oldFocusBrush = SelectObject(hdc, GetStockObject(HOLLOW_BRUSH));
+            if (cyber) {
+                Rectangle(hdc, focusRc.left, focusRc.top, focusRc.right, focusRc.bottom);
+            } else {
+                RoundRect(hdc, focusRc.left, focusRc.top, focusRc.right, focusRc.bottom, 8, 8);
+            }
+            SelectObject(hdc, oldFocusBrush);
+            SelectObject(hdc, oldFocusPen);
+            DeleteObject(focusPen);
+        }
     }
 }
 

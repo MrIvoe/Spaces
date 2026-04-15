@@ -15,6 +15,11 @@ namespace
         const BYTE blue = static_cast<BYTE>(((GetBValue(from) * inv) + (GetBValue(to) * alpha)) / 255);
         return RGB(red, green, blue);
     }
+
+    bool IsCyberTheme(COLORREF windowColor)
+    {
+        return GetRValue(windowColor) == 9 && GetGValue(windowColor) == 11 && GetBValue(windowColor) == 17;
+    }
 }
 
 bool SwitchControl::Register(HINSTANCE hInstance)
@@ -241,6 +246,7 @@ void SwitchControl::Toggle(HWND hwnd, State* state)
 void SwitchControl::Paint(HWND hwnd, HDC hdc, const RECT& clientRect, const State& state)
 {
     const bool enabled = IsWindowEnabled(hwnd) != FALSE;
+    const bool cyber = IsCyberTheme(state.colors.window);
 
     HBRUSH bgBrush = CreateSolidBrush(state.colors.surface);
     FillRect(hdc, &clientRect, bgBrush);
@@ -269,15 +275,35 @@ void SwitchControl::Paint(HWND hwnd, HDC hdc, const RECT& clientRect, const Stat
         trackColor = BlendColor(trackColor, state.colors.accent, 24);
     }
 
-    HPEN trackPen = CreatePen(PS_SOLID, 1, BlendColor(trackColor, state.colors.text, 30));
+    const COLORREF trackBorder = cyber
+        ? BlendColor(state.colors.accent, state.colors.window, state.checked ? 28 : 90)
+        : BlendColor(trackColor, state.colors.text, 30);
+    HPEN trackPen = CreatePen(PS_SOLID, 1, trackBorder);
     HBRUSH trackBrush = CreateSolidBrush(trackColor);
     HGDIOBJ oldPen = SelectObject(hdc, trackPen);
     HGDIOBJ oldBrush = SelectObject(hdc, trackBrush);
-    RoundRect(hdc, track.left, track.top, track.right, track.bottom, trackHeight, trackHeight);
+    if (cyber)
+    {
+        Rectangle(hdc, track.left, track.top, track.right, track.bottom);
+    }
+    else
+    {
+        RoundRect(hdc, track.left, track.top, track.right, track.bottom, trackHeight, trackHeight);
+    }
     SelectObject(hdc, oldBrush);
     SelectObject(hdc, oldPen);
     DeleteObject(trackBrush);
     DeleteObject(trackPen);
+
+    if (cyber)
+    {
+        HPEN glowPen = CreatePen(PS_SOLID, 1, state.checked ? state.colors.accent : BlendColor(state.colors.accent, state.colors.window, 80));
+        HGDIOBJ oldGlowPen = SelectObject(hdc, glowPen);
+        MoveToEx(hdc, track.left + 1, track.top + 1, nullptr);
+        LineTo(hdc, track.right - 1, track.top + 1);
+        SelectObject(hdc, oldGlowPen);
+        DeleteObject(glowPen);
+    }
 
     const int thumbSize = trackHeight - 6;
     int thumbLeft = state.checked ? (track.right - thumbSize - 3) : (track.left + 3);
@@ -293,13 +319,22 @@ void SwitchControl::Paint(HWND hwnd, HDC hdc, const RECT& clientRect, const Stat
     thumb.bottom = thumb.top + thumbSize;
 
     COLORREF thumbColor = enabled
-        ? RGB(255, 255, 255)
+        ? (cyber && state.checked ? state.colors.accent : RGB(255, 255, 255))
         : BlendColor(state.colors.window, state.colors.surface, 96);
-    HPEN thumbPen = CreatePen(PS_SOLID, 1, BlendColor(thumbColor, RGB(0, 0, 0), 30));
+    HPEN thumbPen = CreatePen(PS_SOLID, 1, cyber
+        ? BlendColor(thumbColor, state.colors.window, 110)
+        : BlendColor(thumbColor, RGB(0, 0, 0), 30));
     HBRUSH thumbBrush = CreateSolidBrush(thumbColor);
     oldPen = SelectObject(hdc, thumbPen);
     oldBrush = SelectObject(hdc, thumbBrush);
-    Ellipse(hdc, thumb.left, thumb.top, thumb.right, thumb.bottom);
+    if (cyber)
+    {
+        Rectangle(hdc, thumb.left, thumb.top, thumb.right, thumb.bottom);
+    }
+    else
+    {
+        Ellipse(hdc, thumb.left, thumb.top, thumb.right, thumb.bottom);
+    }
     SelectObject(hdc, oldBrush);
     SelectObject(hdc, oldPen);
     DeleteObject(thumbBrush);
@@ -309,6 +344,19 @@ void SwitchControl::Paint(HWND hwnd, HDC hdc, const RECT& clientRect, const Stat
     {
         RECT focusRect = track;
         InflateRect(&focusRect, 2, 2);
-        DrawFocusRect(hdc, &focusRect);
+        if (cyber)
+        {
+            HPEN focusPen = CreatePen(PS_SOLID, 1, state.colors.accent);
+            HGDIOBJ oldFocusPen = SelectObject(hdc, focusPen);
+            HGDIOBJ oldFocusBrush = SelectObject(hdc, GetStockObject(HOLLOW_BRUSH));
+            Rectangle(hdc, focusRect.left, focusRect.top, focusRect.right, focusRect.bottom);
+            SelectObject(hdc, oldFocusBrush);
+            SelectObject(hdc, oldFocusPen);
+            DeleteObject(focusPen);
+        }
+        else
+        {
+            DrawFocusRect(hdc, &focusRect);
+        }
     }
 }

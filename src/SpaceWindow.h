@@ -33,6 +33,7 @@ public:
     HWND GetHwnd() const;
     const std::wstring& GetSpaceId() const;
     const SpaceModel& GetModel() const;
+    bool IsRolledUp() const;
 
 private:
     static LRESULT CALLBACK WndProcStatic(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -93,6 +94,9 @@ private:
     std::wstring m_activeCorrelationId;
     std::wstring m_geometryCorrelationId;
     bool m_internalIdleResize = false;
+    bool m_snapPreviewActive = false;
+    bool m_snapPreviewVertical = false;
+    RECT m_snapTargetRect{};
     int m_titleBarHoverButton = 0;
     HWND m_settingsPanel = nullptr;
     std::unordered_map<UINT, Win32Helpers::PopupMenuItemVisual> m_menuVisuals;

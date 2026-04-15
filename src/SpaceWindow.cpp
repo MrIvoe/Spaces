@@ -29,6 +29,11 @@ static constexpr DWORD kEntranceAnimDurationMs = 220;
 static constexpr int kExplorerHeaderHeight = 24;
 
 static constexpr int kCmdSpaceSettings = 1007;
+static constexpr int kCmdSetStackGroup = 1008;
+static constexpr int kCmdSetParentContainer = 1009;
+static constexpr int kCmdSetLayoutModeFree = 1010;
+static constexpr int kCmdSetLayoutModeStacked = 1011;
+static constexpr int kCmdSetLayoutModeContained = 1012;
 static constexpr int kToolbarButtonNone = 0;
 static constexpr int kToolbarButtonSettings = 1;
 static constexpr int kToolbarButtonViewToggle = 2;
@@ -690,6 +695,11 @@ void SpaceWindow::Destroy()
     {
         const std::wstring destroyCid = NewCorrelationId(L"destroy");
         TraceDebug(L"Destroy window", destroyCid);
+        if (m_manager)
+        {
+            m_manager->EndLocalHoverPreview(m_model.id);
+            m_manager->NotifySpaceDragState(m_model.id, false);
+        }
         UnregisterHotKey(m_hwnd, kHotkeyCommandPalette);
         KillTimer(m_hwnd, kIdleStateTimerId);
         KillTimer(m_hwnd, kEntranceAnimTimerId);
@@ -741,6 +751,11 @@ const SpaceModel& SpaceWindow::GetModel() const
     return m_model;
 }
 
+bool SpaceWindow::IsRolledUp() const
+{
+    return m_isRolledUp;
+}
+
 LRESULT CALLBACK SpaceWindow::WndProcStatic(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     SpaceWindow* pThis = nullptr;
@@ -774,6 +789,23 @@ LRESULT SpaceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     switch (msg)
     {
     case WM_SETTINGCHANGE:
+        if (m_manager && wParam == SPI_SETWORKAREA)
+        {
+            m_manager->HandleDesktopTopologyChanged(L"work_area_changed");
+        }
+        ApplyIdleVisualState();
+        InvalidateRect(m_hwnd, nullptr, FALSE);
+        return 0;
+
+    case WM_DISPLAYCHANGE:
+        if (m_manager)
+        {
+            m_manager->HandleDesktopTopologyChanged(L"display_change");
+        }
+        ApplyIdleVisualState();
+        InvalidateRect(m_hwnd, nullptr, FALSE);
+        return 0;
+
     case WM_THEMECHANGED:
         ApplyIdleVisualState();
         InvalidateRect(m_hwnd, nullptr, FALSE);
@@ -980,6 +1012,12 @@ LRESULT SpaceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
     case WM_EXITSIZEMOVE:
     {
+        m_snapPreviewActive = false;
+        if (m_manager)
+        {
+            m_manager->NotifySpaceDragState(m_model.id, false);
+        }
+
         if (m_manager)
         {
             RECT rc{};
@@ -998,6 +1036,61 @@ LRESULT SpaceWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             TraceDebug(L"Geometry committed on exit-size-move", m_geometryCorrelationId);
             m_geometryCorrelationId.clear();
         }
+        return 0;
+    }
+
+    case WM_ENTERSIZEMOVE:
+        m_snapPreviewActive = false;
+        if (m_manager)
+        {
+            m_manager->NotifySpaceDragState(m_model.id, true);
+        }
+        return 0;
+
+    case WM_MOVING:
+    {
+        auto* movingRect = reinterpret_cast<RECT*>(lParam);
+        if (!movingRect)
+        {
+            return 0;
+        }
+
+        if (m_manager)
+        {
+            const int movingWidth = movingRect->right - movingRect->left;
+            const int movingHeight = movingRect->bottom - movingRect->top;
+            const auto preview = m_manager->QuerySnapPreview(m_model.id,
+                                                             movingRect->left,
+                                                             movingRect->top,
+                                                             movingWidth,
+                                                             movingHeight);
+            m_snapPreviewActive = preview.active;
+            m_snapPreviewVertical = preview.verticalSnap;
+            m_snapTargetRect = preview.targetRect;
+
+            if (preview.active)
+            {
+                movingRect->left = preview.snappedX;
+                movingRect->top = preview.snappedY;
+                movingRect->right = movingRect->left + movingWidth;
+                movingRect->bottom = movingRect->top + movingHeight;
+            }
+
+            int clampedX = movingRect->left;
+            int clampedY = movingRect->top;
+            m_manager->ClampDragPositionToValidRegion(m_model.id,
+                                                      movingWidth,
+                                                      movingHeight,
+                                                      clampedX,
+                                                      clampedY);
+            movingRect->left = clampedX;
+            movingRect->top = clampedY;
+            movingRect->right = movingRect->left + movingWidth;
+            movingRect->bottom = movingRect->top + movingHeight;
+
+            InvalidateRect(m_hwnd, nullptr, FALSE);
+        }
+
         return 0;
     }
 
@@ -1021,6 +1114,8 @@ void SpaceWindow::OnPaint()
 
     const ThemePalette palette = m_themePlatform ? m_themePlatform->BuildPalette() : ThemePalette{};
     const int titleBarHeight = m_themePlatform ? m_themePlatform->GetFenceTitleBarHeightPx() : kTitleBarHeight;
+    const EffectiveSpacePolicy policy = ResolveEffectivePolicy();
+    const bool idleTransparent = policy.transparentWhenNotHovered && !m_mouseInside && !m_isRolledUp;
 
     // Draw background
     HBRUSH bgBrush = CreateSolidBrush(palette.surfaceColor);
@@ -1037,18 +1132,15 @@ void SpaceWindow::OnPaint()
         titleOpacityPercent = m_themePlatform->GetSpaceTitleBarOpacityPercent();
         idleOpacityPercent = m_themePlatform->GetSpaceIdleOpacityPercent();
     }
-    if (!m_mouseInside)
+    if (idleTransparent)
     {
-        const EffectiveSpacePolicy effectivePolicy = ResolveEffectivePolicy();
-        if (effectivePolicy.transparentWhenNotHovered)
-        {
-            titleOpacityPercent = (std::min)(titleOpacityPercent, idleOpacityPercent);
-        }
+        titleOpacityPercent = (std::min)(titleOpacityPercent, idleOpacityPercent);
     }
-    const COLORREF translucentTitleColor = BlendColor(
-        palette.surfaceColor,
-        palette.spaceTitleBarColor,
-        (titleOpacityPercent * 255) / 100);
+    const COLORREF translucentTitleColor = idleTransparent
+        ? palette.surfaceColor
+        : BlendColor(palette.surfaceColor,
+                     palette.spaceTitleBarColor,
+                     (titleOpacityPercent * 255) / 100);
     HBRUSH titleBrush = CreateSolidBrush(translucentTitleColor);
     FillRect(hdc, &titleRc, titleBrush);
     DeleteObject(titleBrush);
@@ -1106,7 +1198,6 @@ void SpaceWindow::OnPaint()
         : 255;
 
     // Draw explorer header row (breadcrumbs + density slider)
-    const EffectiveSpacePolicy policy = ResolveEffectivePolicy();
     (void)introColorAlpha;
 
     // Draw items
@@ -1220,6 +1311,32 @@ void SpaceWindow::OnPaint()
                 DeleteObject(targetPen);
             }
         }
+    }
+
+    if (m_snapPreviewActive)
+    {
+        RECT guideRc{};
+        GetClientRect(m_hwnd, &guideRc);
+        HPEN guidePen = CreatePen(PS_DASH, 2, palette.accentColor);
+        HPEN oldGuidePen = reinterpret_cast<HPEN>(SelectObject(hdc, guidePen));
+
+        if (m_snapPreviewVertical)
+        {
+            MoveToEx(hdc, guideRc.left + 1, guideRc.top + 1, nullptr);
+            LineTo(hdc, guideRc.left + 1, guideRc.bottom - 1);
+            MoveToEx(hdc, guideRc.right - 2, guideRc.top + 1, nullptr);
+            LineTo(hdc, guideRc.right - 2, guideRc.bottom - 1);
+        }
+        else
+        {
+            MoveToEx(hdc, guideRc.left + 1, guideRc.top + 1, nullptr);
+            LineTo(hdc, guideRc.right - 1, guideRc.top + 1);
+            MoveToEx(hdc, guideRc.left + 1, guideRc.bottom - 2, nullptr);
+            LineTo(hdc, guideRc.right - 1, guideRc.bottom - 2);
+        }
+
+        SelectObject(hdc, oldGuidePen);
+        DeleteObject(guidePen);
     }
 
     EndPaint(m_hwnd, &ps);
@@ -1445,6 +1562,11 @@ void SpaceWindow::OnContextMenu(int x, int y)
         appendItem(L"New Space", 1001);
         appendItem(L"Rename Space", 1002);
         appendItem(L"Space Settings...", kCmdSpaceSettings);
+        appendItem(L"Set Stack Group...", kCmdSetStackGroup);
+        appendItem(L"Set Parent Container...", kCmdSetParentContainer);
+        appendItem(L"Layout: Free", kCmdSetLayoutModeFree);
+        appendItem(L"Layout: Stacked", kCmdSetLayoutModeStacked);
+        appendItem(L"Layout: Contained", kCmdSetLayoutModeContained);
         appendItem(L"Text Only Mode", 1004);
         appendItem(L"Roll Up When Not Hovered", 1005);
         appendItem(L"Transparent When Not Hovered", 1006);
@@ -1455,6 +1577,9 @@ void SpaceWindow::OnContextMenu(int x, int y)
         CheckMenuItem(menu, 1004, MF_BYCOMMAND | textState);
         CheckMenuItem(menu, 1005, MF_BYCOMMAND | rollupState);
         CheckMenuItem(menu, 1006, MF_BYCOMMAND | transparentState);
+        CheckMenuItem(menu, kCmdSetLayoutModeFree, MF_BYCOMMAND | (m_model.layoutMode == L"free" ? MF_CHECKED : MF_UNCHECKED));
+        CheckMenuItem(menu, kCmdSetLayoutModeStacked, MF_BYCOMMAND | (m_model.layoutMode == L"stacked" ? MF_CHECKED : MF_UNCHECKED));
+        CheckMenuItem(menu, kCmdSetLayoutModeContained, MF_BYCOMMAND | (m_model.layoutMode == L"contained" ? MF_CHECKED : MF_UNCHECKED));
 
         appendSeparator();
         appendPluginItems(MenuSurface::SpaceContext);
@@ -1512,6 +1637,57 @@ void SpaceWindow::OnContextMenu(int x, int y)
 
     case kCmdSpaceSettings:
         ShowSettingsPanel();
+        break;
+
+    case kCmdSetStackGroup:
+        if (m_manager)
+        {
+            std::wstring groupValue;
+            if (Win32Helpers::PromptTextInput(m_hwnd,
+                                              L"Stack Group",
+                                              L"Group ID (empty clears):",
+                                              m_model.groupId,
+                                              groupValue))
+            {
+                m_manager->SetSpaceGroupId(m_model.id, TrimWhitespace(groupValue));
+            }
+        }
+        break;
+
+    case kCmdSetParentContainer:
+        if (m_manager)
+        {
+            std::wstring parentValue;
+            if (Win32Helpers::PromptTextInput(m_hwnd,
+                                              L"Parent Container",
+                                              L"Parent fence ID (empty clears):",
+                                              m_model.parentFenceId,
+                                              parentValue))
+            {
+                m_manager->SetSpaceParentFence(m_model.id, TrimWhitespace(parentValue));
+            }
+        }
+        break;
+
+    case kCmdSetLayoutModeFree:
+        if (m_manager)
+        {
+            m_manager->SetSpaceLayoutMode(m_model.id, L"free");
+        }
+        break;
+
+    case kCmdSetLayoutModeStacked:
+        if (m_manager)
+        {
+            m_manager->SetSpaceLayoutMode(m_model.id, L"stacked");
+        }
+        break;
+
+    case kCmdSetLayoutModeContained:
+        if (m_manager)
+        {
+            m_manager->SetSpaceLayoutMode(m_model.id, L"contained");
+        }
         break;
 
     case 1004: // Text only mode
@@ -1734,6 +1910,11 @@ bool SpaceWindow::ApplyIdleVisualState()
 
     if (shouldRollup && !m_isRolledUp)
     {
+        if (m_manager)
+        {
+            m_manager->EndLocalHoverPreview(m_model.id);
+        }
+
         if (m_activeCorrelationId.empty())
         {
             m_activeCorrelationId = NewCorrelationId(L"rollup");
@@ -1765,6 +1946,13 @@ bool SpaceWindow::ApplyIdleVisualState()
         GetWindowRect(m_hwnd, &rc);
         const int currentWidth = max(1, rc.right - rc.left);
         const int restoredHeight = max(m_expandedHeight, rolledHeight + 40);
+
+        if (m_manager)
+        {
+            RECT previewRc = rc;
+            previewRc.bottom = previewRc.top + restoredHeight;
+            m_manager->BeginLocalHoverPreview(m_model.id, previewRc);
+        }
 
         m_internalIdleResize = true;
         SetWindowPos(m_hwnd, nullptr, 0, 0, currentWidth, restoredHeight,

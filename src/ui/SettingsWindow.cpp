@@ -44,18 +44,25 @@ namespace
         RoundSmall = 3
     };
 
-    constexpr int kHeaderTitleHeight = 30;
-    constexpr int kHeaderSubtitleHeight = 22;
+    constexpr int kHeaderTitleHeight = 24;
+    constexpr int kHeaderSubtitleHeight = 18;
     constexpr int kHeaderGap = 4;
-    constexpr int kMenuBarHeight = 28;
-    constexpr int kMenuBarGap = 8;
-    constexpr int kSearchRowHeight = 30;
-    constexpr int kSearchRowGap = 8;
-    constexpr int kStatusHeight = 28;
+    constexpr int kMenuBarHeight = 24;
+    constexpr int kMenuBarGap = 6;
+    constexpr int kSearchRowHeight = 28;
+    constexpr int kSearchRowGap = 6;
+    constexpr int kStatusHeight = 24;
 
     constexpr int TopAreaHeight()
     {
         return kMenuBarHeight + kMenuBarGap + kHeaderTitleHeight + kHeaderSubtitleHeight + kHeaderGap + kSearchRowHeight + kSearchRowGap + 16;
+    }
+
+    // Returns true when the active theme is the Neon Cyberpunk deep-space theme.
+    // Detected by its signature canvas color: #09 0B 11.
+    bool IsCyberTheme(COLORREF windowColor)
+    {
+        return GetRValue(windowColor) == 9 && GetGValue(windowColor) == 11 && GetBValue(windowColor) == 17;
     }
 
     void ApplyModernWindowChrome(HWND hwnd, bool darkMode)
@@ -376,6 +383,7 @@ bool SettingsWindow::ShowScaffold(const std::vector<SettingsPageView>& pages,
     m_settingsRegistry = registry;
     m_themePlatform = themePlatform;
     m_navCollapsed = (m_settingsRegistry && m_settingsRegistry->GetValue(L"settings.ui.nav_collapsed", L"false") == L"true");
+    m_showAdvancedSettings = (m_settingsRegistry && m_settingsRegistry->GetValue(L"settings.ui.advanced_mode", L"false") == L"true");
     m_plugins = plugins;
     m_pages = BuildPages(pages, plugins);
     if (m_pages.empty())
@@ -615,9 +623,11 @@ void SettingsWindow::RefreshTheme()
     ApplyWindowTranslucency();
     ApplyModernWindowChrome(m_hwnd, m_themeMode == ThemeMode::Dark);
 
-    const int basePx = (20 * textScale) / 100;
-    const int sectionPx = (24 * textScale) / 100;
-    const int navPx = (22 * textScale) / 100;
+    // Keep settings content readable and consistent: 12px baseline regardless of
+    // global theme text scaling.
+    const int basePx = 12;
+    const int sectionPx = 13;
+    const int navPx = 12;
 
     int iconScalePercent = textScale;
     if (m_settingsRegistry)
@@ -674,6 +684,8 @@ void SettingsWindow::RefreshTheme()
         SendMessageW(m_navList->GetHwnd(), WM_SETFONT,
                      reinterpret_cast<WPARAM>(m_navFont ? m_navFont : GetStockObject(DEFAULT_GUI_FONT)),
                      TRUE);
+        m_navList->SetFonts(m_navFont ? m_navFont : reinterpret_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT)),
+                            m_iconFont ? m_iconFont : reinterpret_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT)));
     }
     if (m_headerTitle)
     {
@@ -723,11 +735,45 @@ void SettingsWindow::RefreshTheme()
                      reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
                      TRUE);
     }
+    if (m_modeBasicButton)
+    {
+        SendMessageW(m_modeBasicButton, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
+                     TRUE);
+    }
+    if (m_modeAdvancedButton)
+    {
+        SendMessageW(m_modeAdvancedButton, WM_SETFONT,
+                     reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
+                     TRUE);
+    }
     if (m_chipToggleButton)
     {
         SendMessageW(m_chipToggleButton, WM_SETFONT,
                      reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)),
                      TRUE);
+    }
+
+    for (HWND hwnd : m_fieldControls)
+    {
+        if (!hwnd)
+        {
+            continue;
+        }
+
+        const int ctrlId = GetDlgCtrlID(hwnd);
+        const auto infoIt = m_controlFieldMap.find(ctrlId);
+        if (infoIt == m_controlFieldMap.end() || infoIt->second.type != SettingsFieldType::Bool)
+        {
+            continue;
+        }
+
+        SwitchControl::Colors switchColors;
+        switchColors.surface = m_surfaceColor;
+        switchColors.accent = m_accentColor;
+        switchColors.text = m_textColor;
+        switchColors.window = m_windowColor;
+        SwitchControl::SetColors(hwnd, switchColors);
     }
     if (m_chipChoiceButton)
     {
@@ -966,8 +1012,7 @@ void SettingsWindow::PopulatePluginTabs()
 
     std::vector<VirtualNavList::Item> items;
     for (const auto& tab : m_pluginTabs) {
-        std::wstring label = m_navCollapsed ? tab.iconGlyph : (tab.iconGlyph + L"  " + tab.title);
-        items.push_back({label, tab.iconGlyph, false, true});
+        items.push_back({tab.title, tab.iconGlyph, false, true});
     }
     m_navList->SetItems(items);
 
@@ -1859,6 +1904,7 @@ void SettingsWindow::ClearFieldControls()
     m_controlFieldMap.clear();
     m_sectionCardRects.clear();
     m_rightPaneTextStatics.clear();
+    m_sectionHeaderStatics.clear();
     m_rightPaneScrollY = 0;
     m_rightPaneContentHeight = 0;
     // Reset ID counter so IDs don't climb unboundedly across tab switches.
@@ -2070,6 +2116,9 @@ void SettingsWindow::UpdateShellHeaderAndStatus(size_t tabIndex)
     }
     if (m_headerSubtitle)
     {
+        subtitle += m_showAdvancedSettings
+            ? L"  Advanced mode exposes detailed tuning controls."
+            : L"  Basic mode keeps only the most important settings visible.";
         if (!m_marketplaceStatusChip.empty())
         {
             subtitle += L"  [" + m_marketplaceStatusChip + L"]";
@@ -2097,6 +2146,7 @@ void SettingsWindow::UpdateShellHeaderAndStatus(size_t tabIndex)
          static const wchar_t kSpinnerFrames[] = { L'|', L'/', L'-', L'\\' };
          const wchar_t spinner = kSpinnerFrames[m_marketplaceSpinnerFrame % 4];
          status << L"Active section: " << (tab.title.empty() ? L"Settings" : tab.title)
+             << L"   |   Mode: " << (m_showAdvancedSettings ? L"Advanced" : L"Basic")
              << L"   |   Add-ons running: " << loadedCount << L"/" << m_plugins.size();
          if (failedCount > 0)
          {
@@ -2659,13 +2709,13 @@ void SettingsWindow::DrawNavItem(const DRAWITEMSTRUCT* drawInfo)
     const PluginTab& tab = m_pluginTabs[index];
     const bool selected = (drawInfo->itemState & ODS_SELECTED) != 0;
     const bool hovered = (m_navHoverIndex == static_cast<int>(index));
+    const bool cyber = IsCyberTheme(m_windowColor);
 
     HBRUSH background = CreateSolidBrush(m_navColor);
     FillRect(hdc, &rc, background);
     DeleteObject(background);
 
     RECT pillRc = rc;
-    InflateRect(&pillRc, -6, -4);
 
     // Apply component family-aware styling
     std::wstring componentFamily = L"desktop-fluent";
@@ -2678,60 +2728,94 @@ void SettingsWindow::DrawNavItem(const DRAWITEMSTRUCT* drawInfo)
         }
     }
 
-    // Vary pill styling based on component family
-    int pillPadding = -6;  // default: desktop-fluent
-    if (componentFamily == L"flat-minimal")
+    if (cyber)
     {
-        pillPadding = -4;  // less aggressive rounding
-    }
-    else if (componentFamily == L"soft-mobile")
-    {
-        pillPadding = -8;  // more aggressive rounding
-    }
+        // Cyberpunk: sharp rectangular selection — no rounded pills, full-width tech aesthetic
+        InflateRect(&pillRc, -4, -3);
 
-    pillRc = rc;
-    InflateRect(&pillRc, pillPadding, -4);
-
-    if (selected || hovered)
-    {
-        const COLORREF fillColor = selected
-            ? BlendColor(m_navColor, m_accentColor, 76)
-            : BlendColor(m_navColor, m_accentColor, 28);
-        HBRUSH fillBrush = CreateSolidBrush(fillColor);
-        FillRect(hdc, &pillRc, fillBrush);
-        DeleteObject(fillBrush);
-    }
-
-    if (selected)
-    {
-        RECT accentRc = pillRc;
-        accentRc.right = accentRc.left + 4;
-
-        // Vary accent bar styling based on component family
-        int accentWidth = 4;  // default: desktop-fluent
-        if (componentFamily == L"dashboard-modern")
+        if (selected)
         {
-            accentWidth = 6;  // thicker bar for dashboard
+            // Deep selected fill: accent blended into a near-black surface
+            const COLORREF selectedFill = BlendColor(m_navColor, m_accentColor, 42);
+            HBRUSH fillBrush = CreateSolidBrush(selectedFill);
+            FillRect(hdc, &pillRc, fillBrush);
+            DeleteObject(fillBrush);
+
+            // Left neon edge beam — full height, 3px wide, solid cyan
+            RECT beamRc = pillRc;
+            beamRc.right = beamRc.left + 3;
+            HBRUSH beamBrush = CreateSolidBrush(m_accentColor);
+            FillRect(hdc, &beamRc, beamBrush);
+            DeleteObject(beamBrush);
+
+            // Subtle glow line at top and bottom of selected row
+            HPEN glowPen = CreatePen(PS_SOLID, 1, BlendColor(m_accentColor, m_navColor, 110));
+            HGDIOBJ oldGlowPen = SelectObject(hdc, glowPen);
+            MoveToEx(hdc, pillRc.left, pillRc.top, nullptr);
+            LineTo(hdc, pillRc.right, pillRc.top);
+            MoveToEx(hdc, pillRc.left, pillRc.bottom - 1, nullptr);
+            LineTo(hdc, pillRc.right, pillRc.bottom - 1);
+            SelectObject(hdc, oldGlowPen);
+            DeleteObject(glowPen);
         }
-        else if (componentFamily == L"cyber-futuristic")
+        else if (hovered)
         {
-            accentWidth = 3;  // thinner bar for futuristic
+            const COLORREF hoverFill = BlendColor(m_navColor, m_accentColor, 16);
+            HBRUSH hoverBrush = CreateSolidBrush(hoverFill);
+            FillRect(hdc, &pillRc, hoverBrush);
+            DeleteObject(hoverBrush);
+
+            // Dim left edge on hover
+            RECT hoverBeam = pillRc;
+            hoverBeam.right = hoverBeam.left + 2;
+            HBRUSH dimBeam = CreateSolidBrush(BlendColor(m_navColor, m_accentColor, 80));
+            FillRect(hdc, &hoverBeam, dimBeam);
+            DeleteObject(dimBeam);
+        }
+    }
+    else
+    {
+        // Standard fluent rendering
+        int pillPadding = -6;
+        if (componentFamily == L"flat-minimal")       pillPadding = -4;
+        else if (componentFamily == L"soft-mobile")   pillPadding = -8;
+
+        pillRc = rc;
+        InflateRect(&pillRc, pillPadding, -4);
+
+        if (selected || hovered)
+        {
+            const COLORREF fillColor = selected
+                ? BlendColor(m_navColor, m_accentColor, 76)
+                : BlendColor(m_navColor, m_accentColor, 28);
+            HBRUSH fillBrush = CreateSolidBrush(fillColor);
+            FillRect(hdc, &pillRc, fillBrush);
+            DeleteObject(fillBrush);
         }
 
-        accentRc.right = accentRc.left + accentWidth;
-        HBRUSH accentBrush = CreateSolidBrush(m_accentColor);
-        FillRect(hdc, &accentRc, accentBrush);
-        DeleteObject(accentBrush);
+        if (selected)
+        {
+            RECT accentRc = pillRc;
+            int accentWidth = 4;
+            if (componentFamily == L"dashboard-modern")  accentWidth = 6;
+            else if (componentFamily == L"cyber-futuristic") accentWidth = 3;
+
+            accentRc.right = accentRc.left + accentWidth;
+            HBRUSH accentBrush = CreateSolidBrush(m_accentColor);
+            FillRect(hdc, &accentRc, accentBrush);
+            DeleteObject(accentBrush);
+        }
     }
 
     SetBkMode(hdc, TRANSPARENT);
     SetTextColor(hdc, m_textColor);
 
     const COLORREF iconChipFill = selected
-        ? BlendColor(m_accentColor, RGB(255, 255, 255), 28)
+        ? (cyber ? BlendColor(m_accentColor, RGB(0, 0, 0), 60)
+                 : BlendColor(m_accentColor, RGB(255, 255, 255), 28))
         : BlendColor(m_surfaceColor, m_textColor, hovered ? 30 : 18);
     const COLORREF iconColor = selected
-        ? RGB(255, 255, 255)
+        ? (cyber ? m_accentColor : RGB(255, 255, 255))
         : BlendColor(m_textColor, m_accentColor, hovered ? 42 : 24);
 
     RECT iconChipRc = pillRc;
@@ -2742,21 +2826,24 @@ void SettingsWindow::DrawNavItem(const DRAWITEMSTRUCT* drawInfo)
     }
     else
     {
-        iconChipRc.left = pillRc.left + 10;
+        iconChipRc.left = pillRc.left + (cyber ? 14 : 10);
     }
     iconChipRc.top = pillRc.top + (((pillRc.bottom - pillRc.top) - iconBoxSize) / 2);
     iconChipRc.right = iconChipRc.left + iconBoxSize;
     iconChipRc.bottom = iconChipRc.top + iconBoxSize;
 
-    HBRUSH iconChipBrush = CreateSolidBrush(iconChipFill);
-    HPEN iconChipPen = CreatePen(PS_SOLID, 1, BlendColor(iconChipFill, m_textColor, 20));
-    HGDIOBJ oldPen = SelectObject(hdc, iconChipPen);
-    HGDIOBJ oldBrush = SelectObject(hdc, iconChipBrush);
-    RoundRect(hdc, iconChipRc.left, iconChipRc.top, iconChipRc.right, iconChipRc.bottom, 8, 8);
-    SelectObject(hdc, oldBrush);
-    SelectObject(hdc, oldPen);
-    DeleteObject(iconChipBrush);
-    DeleteObject(iconChipPen);
+    if (!cyber)
+    {
+        HBRUSH iconChipBrush = CreateSolidBrush(iconChipFill);
+        HPEN iconChipPen = CreatePen(PS_SOLID, 1, BlendColor(iconChipFill, m_textColor, 20));
+        HGDIOBJ oldPen = SelectObject(hdc, iconChipPen);
+        HGDIOBJ oldBrush = SelectObject(hdc, iconChipBrush);
+        RoundRect(hdc, iconChipRc.left, iconChipRc.top, iconChipRc.right, iconChipRc.bottom, 8, 8);
+        SelectObject(hdc, oldBrush);
+        SelectObject(hdc, oldPen);
+        DeleteObject(iconChipBrush);
+        DeleteObject(iconChipPen);
+    }
 
     if (m_navCollapsed)
     {
@@ -2767,16 +2854,10 @@ void SettingsWindow::DrawNavItem(const DRAWITEMSTRUCT* drawInfo)
     }
     else
     {
-        // Vary icon rendering spacing based on family
         int glyphSpacing = 12;
-        if (componentFamily == L"flat-minimal")
-        {
-            glyphSpacing = 10;  // more compact
-        }
-        else if (componentFamily == L"soft-mobile")
-        {
-            glyphSpacing = 14;  // more spacious
-        }
+        if (componentFamily == L"flat-minimal")   glyphSpacing = 10;
+        else if (componentFamily == L"soft-mobile") glyphSpacing = 14;
+        if (cyber) glyphSpacing = 10;
 
         HFONT oldFont = reinterpret_cast<HFONT>(SelectObject(hdc, m_iconFont ? m_iconFont : (m_navFont ? m_navFont : GetStockObject(DEFAULT_GUI_FONT))));
         SetTextColor(hdc, iconColor);
@@ -2786,7 +2867,9 @@ void SettingsWindow::DrawNavItem(const DRAWITEMSTRUCT* drawInfo)
         RECT textRc = pillRc;
         textRc.left = iconChipRc.right + glyphSpacing;
         SelectObject(hdc, m_navFont ? m_navFont : GetStockObject(DEFAULT_GUI_FONT));
-        SetTextColor(hdc, selected ? RGB(255, 255, 255) : m_textColor);
+        SetTextColor(hdc, selected
+            ? (cyber ? m_accentColor : RGB(255, 255, 255))
+            : m_textColor);
         DrawTextW(hdc, tab.title.c_str(), -1, &textRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     }
 
@@ -2794,10 +2877,13 @@ void SettingsWindow::DrawNavItem(const DRAWITEMSTRUCT* drawInfo)
     {
         RECT focusRc = pillRc;
         InflateRect(&focusRc, -1, -1);
-        HPEN focusPen = CreatePen(PS_SOLID, 2, BlendColor(m_accentColor, RGB(255, 255, 255), 32));
+        HPEN focusPen = CreatePen(PS_SOLID, 2, m_accentColor);
         HGDIOBJ oldFocusPen = SelectObject(hdc, focusPen);
         HGDIOBJ oldFocusBrush = SelectObject(hdc, GetStockObject(HOLLOW_BRUSH));
-        RoundRect(hdc, focusRc.left, focusRc.top, focusRc.right, focusRc.bottom, 8, 8);
+        if (cyber)
+            Rectangle(hdc, focusRc.left, focusRc.top, focusRc.right, focusRc.bottom);
+        else
+            RoundRect(hdc, focusRc.left, focusRc.top, focusRc.right, focusRc.bottom, 8, 8);
         SelectObject(hdc, oldFocusBrush);
         SelectObject(hdc, oldFocusPen);
         DeleteObject(focusPen);
@@ -2990,7 +3076,17 @@ LRESULT CALLBACK SettingsWindow::ScrollPanelProc(HWND hwnd, UINT msg, WPARAM wPa
         if (self->m_rightPaneTextStatics.find(ctrl) != self->m_rightPaneTextStatics.end())
         {
             // Opaque surface fill prevents ghost text trails during repaints.
-            SetTextColor(hdc, self->m_textColor);
+            const bool cyber = IsCyberTheme(self->m_windowColor);
+            if (self->m_sectionHeaderStatics.find(ctrl) != self->m_sectionHeaderStatics.end())
+            {
+                SetTextColor(hdc, cyber
+                    ? self->m_accentColor
+                    : BlendColor(self->m_textColor, self->m_accentColor, 72));
+            }
+            else
+            {
+                SetTextColor(hdc, self->m_textColor);
+            }
             SetBkColor(hdc, self->m_surfaceColor);
             return reinterpret_cast<LRESULT>(self->m_surfaceBrush ? self->m_surfaceBrush : GetStockObject(WHITE_BRUSH));
         }
@@ -3221,6 +3317,7 @@ void SettingsWindow::PopulateFieldControls(size_t tabIndex, int rightX, int righ
             m_fieldControls.push_back(hHeader);
             m_fieldControlLayouts.push_back(FieldControlLayout{hHeader, leftPad, y, rightPaneW, rowH, true, rightPad});
             m_rightPaneTextStatics.insert(hHeader);
+            m_sectionHeaderStatics.insert(hHeader);
         }
         y += rowH + 4;
 
@@ -3475,18 +3572,66 @@ bool SettingsWindow::IsFieldVisibleInBasicMode(const SettingsFieldDescriptor& fi
 {
     const std::wstring& key = field.key;
 
-    // Keep advanced/dev options out of everyday settings UI.
-    return key != L"settings.plugins.hub_repo_url" &&
-           key != L"settings.plugins.hub_branch" &&
-           key != L"settings.plugins.hub_action" &&
-           key != L"settings.plugins.manager_target_plugin" &&
-           key != L"settings.plugins.manager_action" &&
-           key != L"settings.plugins.cache_path" &&
-           key != L"settings.plugins.clear_cache_on_exit" &&
-           key != L"settings.plugins.background_update_checks" &&
-           key != L"settings.plugins.keep_backup_versions" &&
-           key != L"settings.plugins.load_timeout_ms" &&
-           key != L"desktop.context.advanced_actions_visible";
+    // Hide internal/telemetry/test keys in all modes so only actionable settings are shown.
+    static const std::unordered_set<std::wstring> kAlwaysHiddenKeys = {
+        L"settings.plugins.hub_action",
+        L"settings.plugins.manager_action",
+        L"settings.plugins.manager_filter_status",
+        L"settings.plugins.marketplace.installed_action",
+        L"settings.plugins.marketplace.last_check_error",
+        L"settings.plugins.marketplace.last_check_fallback",
+        L"settings.plugins.marketplace.last_check_source",
+        L"settings.plugins.marketplace.last_check_status",
+        L"settings.plugins.marketplace.last_check_utc",
+        L"test.persistence_marker"
+    };
+
+    static const std::vector<std::wstring> kAlwaysHiddenPrefixes = {
+        L"test.",
+        L"settings.plugins.marketplace.last_check_"
+    };
+
+    if (kAlwaysHiddenKeys.find(key) != kAlwaysHiddenKeys.end())
+    {
+        return false;
+    }
+    for (const auto& prefix : kAlwaysHiddenPrefixes)
+    {
+        if (StartsWith(key, prefix))
+        {
+            return false;
+        }
+    }
+
+    if (m_showAdvancedSettings)
+    {
+        return true;
+    }
+
+    static const std::unordered_set<std::wstring> kBasicKeys = {
+        L"appearance.theme.mode",
+        L"theme.win32.theme_id",
+        L"appearance.ui.opacity_profile",
+        L"appearance.ui.settings_density",
+        L"appearance.ui.transparency_enabled",
+        L"appearance.ui.icon_size",
+        L"spaces.create.size_preset",
+        L"spaces.create.auto_focus",
+        L"spaces.create.title_template",
+        L"spaces.window.close_to_tray",
+        L"spaces.window.restore_on_startup",
+        L"spaces.window.launch_on_startup",
+        L"settings.plugins.marketplace_enabled",
+        L"settings.plugins.auto_check_updates",
+        L"settings.plugins.update_channel",
+        L"explorer.portal.recurse_subfolders",
+        L"explorer.portal.show_hidden",
+        L"explorer.portal.open_folder_behavior",
+        L"organizer.actions.include_hidden",
+        L"organizer.actions.skip_shortcuts"
+    };
+
+    return kBasicKeys.find(key) != kBasicKeys.end();
 }
 
 void SettingsWindow::HandleFieldControlChange(int ctrlId, int notificationCode, HWND hwndCtrl)
@@ -4292,6 +4437,18 @@ void SettingsWindow::DrawShellButton(const DRAWITEMSTRUCT* drawInfo)
     const bool marketplaceTabSelected =
         (drawInfo->CtlID == kMarketplaceDiscoverTabId && m_marketplaceSubTab == 0) ||
         (drawInfo->CtlID == kMarketplaceInstalledTabId && m_marketplaceSubTab == 1);
+    const bool modeSelected =
+        (drawInfo->CtlID == kModeBasicId && !m_showAdvancedSettings) ||
+        (drawInfo->CtlID == kModeAdvancedId && m_showAdvancedSettings);
+    const bool isMenuButton =
+        drawInfo->CtlID == kMenuFileId ||
+        drawInfo->CtlID == kMenuEditId ||
+        drawInfo->CtlID == kMenuViewId ||
+        drawInfo->CtlID == kMenuPluginsId ||
+        drawInfo->CtlID == kHeaderHelpId;
+    const bool isNavToggle = (drawInfo->CtlID == kNavToggleId);
+    const bool isModeButton = (drawInfo->CtlID == kModeBasicId || drawInfo->CtlID == kModeAdvancedId);
+    const bool cyber = IsCyberTheme(m_windowColor);
 
     std::wstring buttonFamily = L"compact";
     if (m_themePlatform)
@@ -4304,12 +4461,32 @@ void SettingsWindow::DrawShellButton(const DRAWITEMSTRUCT* drawInfo)
     }
 
     RECT rc = drawInfo->rcItem;
-    const int radius = (buttonFamily == L"soft") ? 9 : 6;
+    const int radius = isMenuButton ? 4 : ((buttonFamily == L"soft") ? 9 : 6);
     const int inset = 1;
 
     COLORREF bg = BlendColor(m_surfaceColor, m_navColor, 90);
     COLORREF border = BlendColor(m_surfaceColor, m_textColor, 44);
     COLORREF text = m_textColor;
+
+    if (isMenuButton)
+    {
+        bg = hovered || pressed
+            ? BlendColor(m_windowColor, m_accentColor, cyber ? 18 : 26)
+            : m_windowColor;
+        border = hovered || pressed
+            ? BlendColor(m_accentColor, m_windowColor, cyber ? 50 : 90)
+            : BlendColor(m_windowColor, m_textColor, 18);
+        text = hovered || pressed
+            ? (cyber ? m_accentColor : RGB(255, 255, 255))
+            : m_textColor;
+    }
+
+    if (isNavToggle)
+    {
+        bg = BlendColor(m_navColor, m_accentColor, hovered ? (cyber ? 24 : 18) : (cyber ? 16 : 10));
+        border = BlendColor(m_accentColor, m_navColor, cyber ? 48 : 90);
+        text = cyber ? m_accentColor : RGB(255, 255, 255);
+    }
 
     if (buttonFamily == L"outlined")
     {
@@ -4317,11 +4494,11 @@ void SettingsWindow::DrawShellButton(const DRAWITEMSTRUCT* drawInfo)
         border = hovered ? m_accentColor : BlendColor(m_surfaceColor, m_textColor, 56);
     }
 
-    if (chipSelected || marketplaceTabSelected)
+    if (chipSelected || marketplaceTabSelected || modeSelected)
     {
-        bg = BlendColor(m_accentColor, m_surfaceColor, 48);
+        bg = BlendColor(m_accentColor, m_surfaceColor, isModeButton ? 56 : 48);
         border = m_accentColor;
-        text = RGB(255, 255, 255);
+        text = cyber ? m_accentColor : RGB(255, 255, 255);
     }
     else if (buttonFamily == L"high-contrast")
     {
@@ -4356,11 +4533,28 @@ void SettingsWindow::DrawShellButton(const DRAWITEMSTRUCT* drawInfo)
     HBRUSH brush = CreateSolidBrush(bg);
     HGDIOBJ oldPen = SelectObject(hdc, pen);
     HGDIOBJ oldBrush = SelectObject(hdc, brush);
-    RoundRect(hdc, buttonRc.left, buttonRc.top, buttonRc.right, buttonRc.bottom, radius, radius);
+    if (cyber && (isMenuButton || isNavToggle || isModeButton))
+    {
+        Rectangle(hdc, buttonRc.left, buttonRc.top, buttonRc.right, buttonRc.bottom);
+    }
+    else
+    {
+        RoundRect(hdc, buttonRc.left, buttonRc.top, buttonRc.right, buttonRc.bottom, radius, radius);
+    }
     SelectObject(hdc, oldBrush);
     SelectObject(hdc, oldPen);
     DeleteObject(brush);
     DeleteObject(pen);
+
+    if (cyber && (isMenuButton || isModeButton) && (hovered || pressed || modeSelected))
+    {
+        HPEN accentPen = CreatePen(PS_SOLID, 1, m_accentColor);
+        HGDIOBJ oldAccentPen = SelectObject(hdc, accentPen);
+        MoveToEx(hdc, buttonRc.left + 4, buttonRc.bottom - 2, nullptr);
+        LineTo(hdc, buttonRc.right - 4, buttonRc.bottom - 2);
+        SelectObject(hdc, oldAccentPen);
+        DeleteObject(accentPen);
+    }
 
     wchar_t textBuffer[128]{};
     GetWindowTextW(drawInfo->hwndItem, textBuffer, static_cast<int>(std::size(textBuffer)));
@@ -4370,7 +4564,9 @@ void SettingsWindow::DrawShellButton(const DRAWITEMSTRUCT* drawInfo)
         OffsetRect(&textRc, 1, 1);
     }
     SetTextColor(hdc, text);
-    SelectObject(hdc, m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT));
+    SelectObject(hdc, isNavToggle
+        ? (m_navFont ? m_navFont : GetStockObject(DEFAULT_GUI_FONT))
+        : (m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)));
     DrawTextW(hdc, textBuffer, -1, &textRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
     if (focused)
@@ -4380,7 +4576,10 @@ void SettingsWindow::DrawShellButton(const DRAWITEMSTRUCT* drawInfo)
         HPEN focusPen = CreatePen(PS_SOLID, 2, BlendColor(m_accentColor, RGB(255, 255, 255), 28));
         HGDIOBJ oldFocusPen = SelectObject(hdc, focusPen);
         HGDIOBJ oldFocusBrush = SelectObject(hdc, GetStockObject(HOLLOW_BRUSH));
-        RoundRect(hdc, focusRc.left, focusRc.top, focusRc.right, focusRc.bottom, radius, radius);
+        if (cyber && (isMenuButton || isNavToggle || isModeButton))
+            Rectangle(hdc, focusRc.left, focusRc.top, focusRc.right, focusRc.bottom);
+        else
+            RoundRect(hdc, focusRc.left, focusRc.top, focusRc.right, focusRc.bottom, radius, radius);
         SelectObject(hdc, oldFocusBrush);
         SelectObject(hdc, oldFocusPen);
         DeleteObject(focusPen);
@@ -4415,6 +4614,7 @@ void SettingsWindow::DrawFieldSurfaceFrame(HWND control)
     }
 
     const bool focused = (GetFocus() == control);
+    const bool cyber = IsCyberTheme(m_windowColor);
     int borderWidth = 1;
     if (controlFamily == L"dashboard-modern")
     {
@@ -4424,16 +4624,30 @@ void SettingsWindow::DrawFieldSurfaceFrame(HWND control)
     COLORREF borderColor = focused
         ? m_accentColor
         : BlendColor(m_surfaceColor, m_textColor, 52);
+    COLORREF glowColor = BlendColor(m_accentColor, m_windowColor, 76);
 
     HPEN pen = CreatePen(PS_SOLID, borderWidth, borderColor);
     HGDIOBJ oldPen = SelectObject(hdc, pen);
     HGDIOBJ oldBrush = SelectObject(hdc, GetStockObject(NULL_BRUSH));
 
     const int radius = (controlFamily == L"soft-mobile") ? 8 : 5;
-    Rectangle(hdc, wr.left, wr.top, wr.right, wr.bottom);
-    if (radius > 5)
+    if (cyber)
     {
-        RoundRect(hdc, wr.left + 1, wr.top + 1, wr.right - 1, wr.bottom - 1, radius, radius);
+        Rectangle(hdc, wr.left, wr.top, wr.right, wr.bottom);
+        HPEN accentPen = CreatePen(PS_SOLID, 1, focused ? m_accentColor : glowColor);
+        HGDIOBJ oldAccentPen = SelectObject(hdc, accentPen);
+        MoveToEx(hdc, wr.left + 1, wr.top + 1, nullptr);
+        LineTo(hdc, wr.right - 1, wr.top + 1);
+        SelectObject(hdc, oldAccentPen);
+        DeleteObject(accentPen);
+    }
+    else
+    {
+        Rectangle(hdc, wr.left, wr.top, wr.right, wr.bottom);
+        if (radius > 5)
+        {
+            RoundRect(hdc, wr.left + 1, wr.top + 1, wr.right - 1, wr.bottom - 1, radius, radius);
+        }
     }
 
     SelectObject(hdc, oldBrush);
@@ -4534,7 +4748,7 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         m_menuEditButton = CreateWindowExW(
             0,
             L"BUTTON",
-            L"Search",
+            L"Edit",
             WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
             0,
             0,
@@ -4562,7 +4776,7 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         m_menuPluginsButton = CreateWindowExW(
             0,
             L"BUTTON",
-            L"Add-ons",
+            L"Plugins",
             WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
             0,
             0,
@@ -4644,6 +4858,34 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             kSearchRowHeight,
             hwnd,
             reinterpret_cast<HMENU>(static_cast<INT_PTR>(kChipTextId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
+        m_modeBasicButton = CreateWindowExW(
+            0,
+            L"BUTTON",
+            L"Basic",
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+            0,
+            0,
+            64,
+            kSearchRowHeight,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kModeBasicId)),
+            GetModuleHandleW(nullptr),
+            nullptr);
+
+        m_modeAdvancedButton = CreateWindowExW(
+            0,
+            L"BUTTON",
+            L"Advanced",
+            WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+            0,
+            0,
+            82,
+            kSearchRowHeight,
+            hwnd,
+            reinterpret_cast<HMENU>(static_cast<INT_PTR>(kModeAdvancedId)),
             GetModuleHandleW(nullptr),
             nullptr);
 
@@ -4734,7 +4976,7 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         m_navToggleButton = CreateWindowExW(
             0,
             L"BUTTON",
-            L"<",
+            L"Hide",
             WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
             0,
             0,
@@ -4830,6 +5072,8 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         SendMessageW(m_chipToggleButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         SendMessageW(m_chipChoiceButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         SendMessageW(m_chipTextButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_modeBasicButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+        SendMessageW(m_modeAdvancedButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         SendMessageW(m_marketplaceDiscoverTabButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         SendMessageW(m_marketplaceInstalledTabButton, WM_SETFONT, reinterpret_cast<WPARAM>(GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         if (m_pluginTreeView)
@@ -4862,8 +5106,8 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         const int margin = 10;
         const int topArea = TopAreaHeight();
 
-        int menuButtonWidth = 62;
-        int menuButtonGap = 6;
+        int menuButtonWidth = 50;
+        int menuButtonGap = 4;
         if (m_themePlatform)
         {
             ThemeResourceResolver* resolver = m_themePlatform->GetResourceResolver();
@@ -4872,13 +5116,13 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                 const std::wstring menuStyle = resolver->GetSelectedMenuStyle();
                 if (menuStyle == L"compact")
                 {
-                    menuButtonWidth = 54;
+                    menuButtonWidth = 46;
                     menuButtonGap = 4;
                 }
                 else if (menuStyle == L"hierarchical")
                 {
-                    menuButtonWidth = 78;
-                    menuButtonGap = 8;
+                    menuButtonWidth = 56;
+                    menuButtonGap = 6;
                 }
             }
         }
@@ -4906,7 +5150,7 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         }
         if (m_menuPluginsButton)
         {
-            MoveWindow(m_menuPluginsButton, contentLeft + ((menuButtonWidth + menuButtonGap) * 3), menuY, menuButtonWidth + 12, kMenuBarHeight, TRUE);
+            MoveWindow(m_menuPluginsButton, contentLeft + ((menuButtonWidth + menuButtonGap) * 3), menuY, menuButtonWidth + 10, kMenuBarHeight, TRUE);
             SendMessageW(m_menuPluginsButton, WM_SETFONT,
                 reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         }
@@ -4941,6 +5185,8 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         const int chipToggleWidth = 76;
         const int chipChoiceWidth = 76;
         const int chipTextWidth = 58;
+        const int modeBasicWidth = 64;
+        const int modeAdvancedWidth = 82;
         bool showChipAll = true;
         bool showChipToggle = true;
         bool showChipChoice = true;
@@ -4980,6 +5226,12 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             {
                 chipWidthTotal += (chipCount - 1) * chipGap;
             }
+
+            if (chipWidthTotal > 0)
+            {
+                chipWidthTotal += 10;
+            }
+            chipWidthTotal += modeBasicWidth + chipGap + modeAdvancedWidth;
 
             int tabWidthTotal = 0;
             if (showMarketplaceSubTabs)
@@ -5069,6 +5321,21 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             }
         }
 
+        if (m_modeBasicButton)
+        {
+            MoveWindow(m_modeBasicButton, nextControlX, searchY, modeBasicWidth, kSearchRowHeight, TRUE);
+            SendMessageW(m_modeBasicButton, WM_SETFONT,
+                reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+            nextControlX += modeBasicWidth + chipGap;
+        }
+        if (m_modeAdvancedButton)
+        {
+            MoveWindow(m_modeAdvancedButton, nextControlX, searchY, modeAdvancedWidth, kSearchRowHeight, TRUE);
+            SendMessageW(m_modeAdvancedButton, WM_SETFONT,
+                reinterpret_cast<WPARAM>(m_baseFont ? m_baseFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
+            nextControlX += modeAdvancedWidth + chipGap;
+        }
+
         const int tabsStartX = nextControlX;
         if (m_marketplaceDiscoverTabButton)
         {
@@ -5103,9 +5370,9 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         if (m_headerHelpButton)
         {
             MoveWindow(m_headerHelpButton,
-                       width - margin - 90,
+                       width - margin - 74,
                        menuY,
-                       90,
+                       74,
                        kMenuBarHeight,
                        TRUE);
             SendMessageW(m_headerHelpButton, WM_SETFONT,
@@ -5114,9 +5381,9 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         if (m_navToggleButton)
         {
-            MoveWindow(m_navToggleButton, margin, margin, 36, 30, TRUE);
+            MoveWindow(m_navToggleButton, margin, margin, 54, kMenuBarHeight, TRUE);
             const bool displayCollapsed = m_navAnimating ? m_pendingNavCollapsed : m_navCollapsed;
-            SetWindowTextW(m_navToggleButton, displayCollapsed ? L">" : L"<");
+            SetWindowTextW(m_navToggleButton, displayCollapsed ? L"Show" : L"Hide");
             SendMessageW(m_navToggleButton, WM_SETFONT,
                 reinterpret_cast<WPARAM>(m_navFont ? m_navFont : GetStockObject(DEFAULT_GUI_FONT)), TRUE);
         }
@@ -5274,6 +5541,24 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             return 0;
         }
 
+        if ((id == kModeBasicId || id == kModeAdvancedId) && code == BN_CLICKED)
+        {
+            const bool newAdvanced = (id == kModeAdvancedId);
+            if (m_showAdvancedSettings != newAdvanced)
+            {
+                m_showAdvancedSettings = newAdvanced;
+                if (m_settingsRegistry)
+                {
+                    m_settingsRegistry->SetValue(L"settings.ui.advanced_mode", m_showAdvancedSettings ? L"true" : L"false");
+                }
+            }
+
+            if (m_modeBasicButton) InvalidateRect(m_modeBasicButton, nullptr, FALSE);
+            if (m_modeAdvancedButton) InvalidateRect(m_modeAdvancedButton, nullptr, FALSE);
+            ShowSelectedPluginTab();
+            return 0;
+        }
+
         if ((id == kMarketplaceDiscoverTabId || id == kMarketplaceInstalledTabId) && code == BN_CLICKED)
         {
             m_marketplaceSubTab = (id == kMarketplaceInstalledTabId) ? 1 : 0;
@@ -5388,6 +5673,8 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                 drawInfo->CtlID == kMenuEditId ||
                 drawInfo->CtlID == kMenuViewId ||
                 drawInfo->CtlID == kMenuPluginsId ||
+                drawInfo->CtlID == kModeBasicId ||
+                drawInfo->CtlID == kModeAdvancedId ||
                 drawInfo->CtlID == kMarketplaceDiscoverTabId ||
                 drawInfo->CtlID == kMarketplaceInstalledTabId ||
                 IsContentChipId(static_cast<int>(drawInfo->CtlID)))
@@ -5416,14 +5703,20 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
         if (ctrl == m_headerSubtitle)
         {
-            SetTextColor(hdc, m_subtleTextColor);
+            // In cyber mode dim-cyan subtitle — creates tech breadcrumb feel
+            const COLORREF subtitleColor = IsCyberTheme(m_windowColor)
+                ? BlendColor(m_accentColor, m_windowColor, 140)
+                : m_subtleTextColor;
+            SetTextColor(hdc, subtitleColor);
             SetBkColor(hdc, m_windowColor);
             return reinterpret_cast<LRESULT>(m_windowBrush ? m_windowBrush : GetStockObject(WHITE_BRUSH));
         }
 
         if (ctrl == m_headerTitle || ctrl == m_statusBar)
         {
-            SetTextColor(hdc, m_textColor);
+            // In cyber mode the title glows with the accent color
+            const COLORREF titleColor = IsCyberTheme(m_windowColor) ? m_accentColor : m_textColor;
+            SetTextColor(hdc, titleColor);
             SetBkColor(hdc, m_windowColor);
             return reinterpret_cast<LRESULT>(m_windowBrush ? m_windowBrush : GetStockObject(WHITE_BRUSH));
         }
@@ -5498,34 +5791,82 @@ LRESULT SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             rect.bottom - margin - kStatusHeight
         };
 
-        const COLORREF navPanelFill = BlendColor(m_navColor, m_windowColor, 46);
-        const COLORREF contentPanelFill = BlendColor(m_surfaceColor, m_windowColor, 24);
-        const COLORREF panelBorder = BlendColor(m_windowColor, m_textColor, 36);
-        const COLORREF accentEdge = BlendColor(m_accentColor, m_surfaceColor, 48);
+        const bool cyber = IsCyberTheme(m_windowColor);
 
-        HBRUSH navBrush = CreateSolidBrush(navPanelFill);
-        HBRUSH contentBrush = CreateSolidBrush(contentPanelFill);
-        HPEN panelPen = CreatePen(PS_SOLID, 1, panelBorder);
+        if (cyber)
+        {
+            // Cyberpunk: deep near-black panels with sharp geometry — no rounded corners
+            const COLORREF navPanelFill   = m_navColor;
+            const COLORREF contentFill    = m_surfaceColor;
+            const COLORREF dimCyanBorder  = BlendColor(m_navColor, m_accentColor, 50);
+            const COLORREF contentBorderC = BlendColor(m_surfaceColor, m_accentColor, 36);
 
-        HGDIOBJ oldPenObj = SelectObject(hdc, panelPen);
-        HGDIOBJ oldBrushObj = SelectObject(hdc, navBrush);
-        RoundRect(hdc, navPanel.left, navPanel.top, navPanel.right, navPanel.bottom, 10, 10);
+            HBRUSH navBrush   = CreateSolidBrush(navPanelFill);
+            HBRUSH contBrush  = CreateSolidBrush(contentFill);
+            HPEN   navPen     = CreatePen(PS_SOLID, 1, dimCyanBorder);
+            HPEN   contPen    = CreatePen(PS_SOLID, 1, contentBorderC);
 
-        SelectObject(hdc, contentBrush);
-        RoundRect(hdc, contentPanel.left, contentPanel.top, contentPanel.right, contentPanel.bottom, 10, 10);
+            HGDIOBJ oldObj = SelectObject(hdc, navBrush);
+            SelectObject(hdc, navPen);
+            Rectangle(hdc, navPanel.left, navPanel.top, navPanel.right, navPanel.bottom);
 
-        SelectObject(hdc, oldBrushObj);
-        SelectObject(hdc, oldPenObj);
-        DeleteObject(navBrush);
-        DeleteObject(contentBrush);
-        DeleteObject(panelPen);
+            SelectObject(hdc, contBrush);
+            SelectObject(hdc, contPen);
+            Rectangle(hdc, contentPanel.left, contentPanel.top, contentPanel.right, contentPanel.bottom);
 
-        HPEN accentPen = CreatePen(PS_SOLID, 2, accentEdge);
-        HPEN oldAccentPen = reinterpret_cast<HPEN>(SelectObject(hdc, accentPen));
-        MoveToEx(hdc, contentPanel.left + 8, contentPanel.top + 1, nullptr);
-        LineTo(hdc, contentPanel.right - 8, contentPanel.top + 1);
-        SelectObject(hdc, oldAccentPen);
-        DeleteObject(accentPen);
+            SelectObject(hdc, oldObj);
+            DeleteObject(navBrush);
+            DeleteObject(contBrush);
+            DeleteObject(navPen);
+            DeleteObject(contPen);
+
+            // Full-width cyan scan-line at top of content panel — the signature cyber detail
+            HPEN scanPen = CreatePen(PS_SOLID, 1, m_accentColor);
+            HPEN oldScan = reinterpret_cast<HPEN>(SelectObject(hdc, scanPen));
+            MoveToEx(hdc, contentPanel.left, contentPanel.top, nullptr);
+            LineTo(hdc, contentPanel.right, contentPanel.top);
+            SelectObject(hdc, oldScan);
+            DeleteObject(scanPen);
+
+            // Bloom line — diffused glow 1px below the scan-line
+            HPEN bloomPen = CreatePen(PS_SOLID, 1, BlendColor(m_accentColor, m_windowColor, 60));
+            HPEN oldBloom = reinterpret_cast<HPEN>(SelectObject(hdc, bloomPen));
+            MoveToEx(hdc, contentPanel.left, contentPanel.top + 1, nullptr);
+            LineTo(hdc, contentPanel.right, contentPanel.top + 1);
+            SelectObject(hdc, oldBloom);
+            DeleteObject(bloomPen);
+        }
+        else
+        {
+            const COLORREF navPanelFill   = BlendColor(m_navColor, m_windowColor, 46);
+            const COLORREF contentPanelFill = BlendColor(m_surfaceColor, m_windowColor, 24);
+            const COLORREF panelBorder    = BlendColor(m_windowColor, m_textColor, 36);
+            const COLORREF accentEdge     = BlendColor(m_accentColor, m_surfaceColor, 48);
+
+            HBRUSH navBrush     = CreateSolidBrush(navPanelFill);
+            HBRUSH contentBrush = CreateSolidBrush(contentPanelFill);
+            HPEN   panelPen     = CreatePen(PS_SOLID, 1, panelBorder);
+
+            HGDIOBJ oldPenObj   = SelectObject(hdc, panelPen);
+            HGDIOBJ oldBrushObj = SelectObject(hdc, navBrush);
+            RoundRect(hdc, navPanel.left, navPanel.top, navPanel.right, navPanel.bottom, 10, 10);
+
+            SelectObject(hdc, contentBrush);
+            RoundRect(hdc, contentPanel.left, contentPanel.top, contentPanel.right, contentPanel.bottom, 10, 10);
+
+            SelectObject(hdc, oldBrushObj);
+            SelectObject(hdc, oldPenObj);
+            DeleteObject(navBrush);
+            DeleteObject(contentBrush);
+            DeleteObject(panelPen);
+
+            HPEN accentPen = CreatePen(PS_SOLID, 2, accentEdge);
+            HPEN oldAccentPen = reinterpret_cast<HPEN>(SelectObject(hdc, accentPen));
+            MoveToEx(hdc, contentPanel.left + 8, contentPanel.top + 1, nullptr);
+            LineTo(hdc, contentPanel.right - 8, contentPanel.top + 1);
+            SelectObject(hdc, oldAccentPen);
+            DeleteObject(accentPen);
+        }
 
         HPEN pen = CreatePen(PS_SOLID, 1, divider);
         HPEN oldPen = reinterpret_cast<HPEN>(SelectObject(hdc, pen));

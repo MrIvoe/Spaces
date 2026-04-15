@@ -25,6 +25,7 @@ public:
     void SetItems(const std::vector<Item>& items);
     void SetSelectedIndex(size_t index);
     void SetOnItemClick(ItemClickCallback cb);
+    void SetFonts(HFONT textFont, HFONT iconFont);
     void Invalidate();
     HWND GetHwnd() const;
     size_t GetSelectedIndex() const;
@@ -35,6 +36,10 @@ private:
     size_t m_selectedIndex = 0;
     ItemClickCallback m_onItemClick;
     const ThemePlatform* m_themePlatform;
+    HFONT m_textFont = nullptr;
+    HFONT m_iconFont = nullptr;
+    int m_hoverIndex = -1;
+    bool m_trackingMouse = false;
 
     // Virtualization state
     int m_scrollOffset = 0; // in pixels

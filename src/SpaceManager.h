@@ -2,6 +2,8 @@
 #include <functional>
 #include <chrono>
 #include <memory>
+#include <optional>
+#include <unordered_set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -19,6 +21,15 @@ class ThemePlatform;
 class SpaceManager
 {
 public:
+    struct SnapPreviewInfo
+    {
+        bool active = false;
+        int snappedX = 0;
+        int snappedY = 0;
+        RECT targetRect{};
+        bool verticalSnap = false;
+    };
+
     SpaceManager(std::unique_ptr<SpaceStorage> storage, std::unique_ptr<Persistence> persistence);
     ~SpaceManager();
 
@@ -70,12 +81,82 @@ public:
     void ApplySpacePresentation(const std::wstring& spaceId, const SpacePresentationSettings& settings);
     std::vector<MenuContribution> GetMenuContributions(MenuSurface surface) const;
     bool ExecuteCommand(const std::wstring& commandId, const CommandContext& context) const;
+    void BeginLocalHoverPreview(const std::wstring& spaceId, const RECT& previewBounds);
+    void EndLocalHoverPreview(const std::wstring& spaceId);
+    void NotifySpaceDragState(const std::wstring& spaceId, bool dragging);
+    void SetSpaceGroupId(const std::wstring& spaceId, const std::wstring& groupId);
+    void SetSpaceParentFence(const std::wstring& spaceId, const std::wstring& parentFenceId);
+    void SetSpaceLayoutMode(const std::wstring& spaceId, const std::wstring& layoutMode);
+    void HandleDesktopTopologyChanged(const std::wstring& reason = L"");
+    void ClampDragPositionToValidRegion(const std::wstring& movingSpaceId,
+                                        int width,
+                                        int height,
+                                        int& x,
+                                        int& y) const;
+    SnapPreviewInfo QuerySnapPreview(const std::wstring& movingSpaceId,
+                                     int x,
+                                     int y,
+                                     int width,
+                                     int height) const;
 
 private:
+    enum class FenceVisualState
+    {
+        Expanded,
+        Collapsed,
+        HoverPreview,
+        Dragging,
+        Contained,
+        Grouped,
+        Opening,
+        Closing
+    };
+
+    struct FenceRuntimeState
+    {
+        FenceVisualState visualState = FenceVisualState::Expanded;
+        RECT restBounds{};
+        RECT previewBounds{};
+        int zOrderPriority = 0;
+    };
+
+    struct SpaceClusterSnapshot
+    {
+        std::wstring clusterId;
+        std::vector<std::wstring> members;
+        bool verticalAxis = true;
+        std::optional<RECT> parentBounds;
+    };
+
     std::wstring GenerateSpaceId() const;
     bool NormalizeSpaceContentProvider(SpaceModel& space) const;
     SpaceMetadata BuildSpaceMetadata(const SpaceModel& space) const;
     bool PersistWithTrace(const std::wstring& reason, const std::wstring& correlationId);
+    std::optional<RECT> GetSpaceRect(const std::wstring& spaceId) const;
+    std::optional<RECT> GetParentContentBounds(const SpaceModel& space) const;
+    std::optional<RECT> GetMonitorWorkAreaForRect(const RECT& rc) const;
+    SpaceClusterSnapshot BuildClusterForSpace(const std::wstring& spaceId) const;
+    bool AreSpatiallyStacked(const SpaceModel& a, const SpaceModel& b) const;
+    void ApplySnapAndAutoGroup(const std::wstring& movingSpaceId,
+                               int& x,
+                               int& y,
+                               int width,
+                               int height);
+    SnapPreviewInfo ComputeSnapPreview(const std::wstring& movingSpaceId,
+                                       int x,
+                                       int y,
+                                       int width,
+                                       int height) const;
+    void MoveConnectedStackByDelta(const SpaceModel& anchor,
+                                   int deltaX,
+                                   int deltaY,
+                                   const std::wstring& correlationId);
+    void DetachTransientSnapGroupIfSeparated(const std::wstring& movedSpaceId);
+    bool RecoverInvalidSpacesToVisibleRegions(const std::wstring& reason, bool persistChanges);
+    std::optional<RECT> ResolveValidRegionForSpace(const SpaceModel& space, const RECT& currentRect) const;
+    bool ArrangeRolledUpFencesOnScreen();
+    void RestoreClusterLayout(const std::wstring& clusterId);
+    static std::wstring NormalizeLayoutMode(const std::wstring& mode);
 
     std::unique_ptr<SpaceStorage> m_storage;
     std::unique_ptr<Persistence> m_persistence;
@@ -87,4 +168,10 @@ private:
     std::function<bool(const std::wstring&, const CommandContext&)> m_commandExecutor;
     std::function<std::wstring(const std::wstring&, const std::wstring&)> m_settingReader;
     bool m_allSpacesHidden = false;
+    std::unordered_map<std::wstring, FenceRuntimeState> m_runtimeStates;
+    std::unordered_map<std::wstring, std::wstring> m_activePreviewByCluster;
+    std::unordered_map<std::wstring, std::vector<std::wstring>> m_reflowedMembersByCluster;
+    std::unordered_map<std::wstring, RECT> m_reflowRestBounds;
+    std::unordered_set<std::wstring> m_draggingSpaces;
+    DWORD m_lastDesktopRecoveryTick = 0;
 };
